@@ -1,0 +1,476 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CICTrix Design Reference</title>
+<!-- Visual companion to /DESIGN.md. Values here must match that file; DESIGN.md is the source of truth. -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --abyan: #363EE8;
+    --abyan-dark: #040E6B;
+    --abyan-light: #C8D1FF;
+    --abyan-tint: #EEF2FF;
+    --abyan-hover: #2F35D0;
+
+    --page: #FFFFFF;
+    --section: #F8FAFC;
+    --surface: #FFFFFF;
+    --border: #E2E8F0;
+    --border-strong: #CBD5E1;
+    --text: #0F172A;
+    --text-body: #334155;
+    --text-muted: #64748B;
+    --text-faint: #94A3B8;
+
+    --success: #059669; --success-bg: #DCFCE7;
+    --warning: #D97706; --warning-bg: #FEF3C7;
+    --error: #DC2626;   --error-bg: #FEE2E2;
+    --pending: #7C3AED; --pending-bg: #EDE9FE;
+    --info: #0891B2;    --info-bg: #CFFAFE;
+
+    --shadow-sm: 0 1px 2px 0 rgba(15, 23, 42, 0.06);
+    --focus-ring: 0 0 0 3px rgba(54, 62, 232, 0.15);
+    --radius-lg: 8px;
+    --radius-xl: 12px;
+    --radius-2xl: 16px;
+  }
+
+  /* Canonical dark palette: html[data-theme='dark'] in src/styles/globals.css */
+  html[data-theme='dark'] {
+    --page: #0B1220;
+    --section: #0F172A;
+    --surface: #1E293B;
+    --border: #334155;
+    --border-strong: #475569;
+    --text: #F1F5F9;
+    --text-body: #CBD5E1;
+    --text-muted: #94A3B8;
+    --text-faint: #64748B;
+    --abyan-tint: rgba(54, 62, 232, 0.15);
+
+    --success: #10B981; --success-bg: rgba(16, 185, 129, 0.15);
+    --warning: #F59E0B; --warning-bg: rgba(245, 158, 11, 0.15);
+    --error: #EF4444;   --error-bg: rgba(239, 68, 68, 0.15);
+    --pending: #6366F1; --pending-bg: rgba(99, 102, 241, 0.15);
+    --info: #0EA5E9;    --info-bg: rgba(14, 165, 233, 0.15);
+
+    --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.4);
+  }
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body {
+    background: var(--page);
+    color: var(--text-body);
+    font-family: 'Poppins', ui-sans-serif, system-ui, sans-serif;
+    font-size: 14px;
+    line-height: 1.55;
+    transition: background-color 0.2s, color 0.2s;
+  }
+
+  header.top {
+    position: sticky; top: 0; z-index: 10;
+    display: flex; align-items: center; justify-content: space-between; gap: 16px;
+    padding: 14px 32px;
+    background: var(--page);
+    border-bottom: 1px solid var(--border);
+  }
+  .brandmark { display: flex; align-items: center; gap: 10px; font-weight: 600; color: var(--text); }
+  .brandmark span.dot { width: 22px; height: 22px; border-radius: 6px; background: var(--abyan); }
+  .brandmark small { font-weight: 400; color: var(--text-muted); }
+  nav.toc { display: flex; gap: 4px; flex-wrap: wrap; }
+  nav.toc a {
+    color: var(--text-muted); text-decoration: none; font-size: 13px; font-weight: 500;
+    padding: 6px 10px; border-radius: var(--radius-lg);
+  }
+  nav.toc a:hover { background: var(--abyan-tint); color: var(--abyan); }
+
+  .toggle {
+    display: inline-flex; padding: 3px; border-radius: 999px;
+    background: var(--section); border: 1px solid var(--border);
+  }
+  .toggle button {
+    font: inherit; font-size: 12px; font-weight: 500; cursor: pointer;
+    border: 0; background: transparent; color: var(--text-muted);
+    padding: 5px 14px; border-radius: 999px;
+  }
+  .toggle button[aria-pressed='true'] { background: var(--abyan); color: #fff; }
+
+  main { max-width: 1120px; margin: 0 auto; padding: 32px 32px 80px; }
+  section { padding: 36px 0; border-bottom: 1px solid var(--border); }
+  section:last-child { border-bottom: 0; }
+  h1 { font-size: 28px; font-weight: 700; color: var(--text); margin: 0 0 6px; letter-spacing: -0.01em; }
+  h2 { font-size: 20px; font-weight: 600; color: var(--text); margin: 0 0 4px; }
+  h3 { font-size: 14px; font-weight: 600; color: var(--text); margin: 24px 0 10px; }
+  p.lede { color: var(--text-muted); margin: 0 0 20px; max-width: 70ch; }
+  code {
+    font-family: ui-monospace, 'Cascadia Code', Consolas, monospace; font-size: 12px;
+    background: var(--section); border: 1px solid var(--border);
+    padding: 1px 5px; border-radius: 4px; color: var(--text);
+  }
+
+  .rule {
+    display: flex; gap: 10px; align-items: flex-start;
+    margin-top: 14px; padding: 10px 14px;
+    background: var(--abyan-tint); border-radius: var(--radius-lg);
+    color: var(--text-body); font-size: 13px;
+  }
+  .rule b { color: var(--abyan); font-weight: 600; flex: none; }
+  html[data-theme='dark'] .rule b { color: #8B91F5; }
+
+  /* Swatches */
+  .swatches { display: grid; gap: 14px; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); }
+  .swatch {
+    border: 1px solid var(--border); border-radius: var(--radius-xl); overflow: hidden;
+    background: var(--surface); box-shadow: var(--shadow-sm);
+    cursor: pointer; text-align: left; font: inherit; padding: 0; color: inherit;
+  }
+  .swatch:focus-visible { outline: none; box-shadow: var(--focus-ring); border-color: var(--abyan); }
+  .swatch .chip { height: 84px; border-bottom: 1px solid var(--border); position: relative; }
+  .swatch .meta { padding: 10px 12px 12px; }
+  .swatch .name { font-weight: 600; color: var(--text); font-size: 13px; }
+  .swatch .hex { font-family: ui-monospace, Consolas, monospace; font-size: 12px; color: var(--text-muted); }
+  .swatch .use { font-size: 12px; color: var(--text-muted); margin-top: 4px; }
+  .swatch .copied {
+    position: absolute; right: 8px; bottom: 8px; font-size: 11px; font-weight: 600;
+    background: rgba(15, 23, 42, 0.8); color: #fff; padding: 2px 8px; border-radius: 999px;
+    opacity: 0; transition: opacity 0.15s;
+  }
+  .swatch.is-copied .copied { opacity: 1; }
+
+  /* Drift strips */
+  .drift { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+  .drift div {
+    display: flex; align-items: center; gap: 8px; font-size: 12px;
+    padding: 4px 10px 4px 4px; border: 1px solid var(--border); border-radius: 999px;
+    color: var(--text-muted); background: var(--surface);
+  }
+  .drift i { width: 20px; height: 20px; border-radius: 50%; display: block; }
+  .drift .keep { border-color: var(--abyan); color: var(--text); font-weight: 500; }
+  .drift s { text-decoration-thickness: 1px; }
+
+  /* Neutral table */
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th {
+    text-align: left; font-weight: 500; color: var(--text-muted); font-size: 12px;
+    padding: 8px 10px; border-bottom: 1px solid var(--border);
+  }
+  td { padding: 8px 10px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+  tr:last-child td { border-bottom: 0; }
+  .pair { display: flex; align-items: center; gap: 8px; font-family: ui-monospace, Consolas, monospace; font-size: 12px; }
+  .pair i { width: 26px; height: 26px; border-radius: 6px; border: 1px solid rgba(100, 116, 139, 0.3); display: block; flex: none; }
+  .na { color: var(--text-faint); font-style: italic; font-size: 12px; }
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-xl); box-shadow: var(--shadow-sm); }
+  .card.pad { padding: 20px; }
+
+  /* Badges */
+  .badges { display: flex; gap: 10px; flex-wrap: wrap; }
+  .badge {
+    display: inline-flex; align-items: center; gap: 6px;
+    font-size: 12px; font-weight: 500; padding: 3px 10px; border-radius: 999px;
+  }
+  .badge::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+  .b-success { color: var(--success); background: var(--success-bg); }
+  .b-warning { color: var(--warning); background: var(--warning-bg); }
+  .b-error   { color: var(--error);   background: var(--error-bg); }
+  .b-pending { color: var(--pending); background: var(--pending-bg); }
+  .b-info    { color: var(--info);    background: var(--info-bg); }
+  .dont { margin-top: 14px; display: flex; align-items: center; gap: 10px; font-size: 12px; color: var(--text-muted); }
+  .dont .badge { background: #059669; color: #fff; }
+  .dont .badge::before { background: #fff; }
+
+  /* Scores */
+  .scores { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 12px; }
+  .score { border-radius: var(--radius-xl); padding: 14px 16px; }
+  .score .num { font-size: 24px; font-weight: 700; line-height: 1.1; }
+  .score .lbl { font-size: 12px; font-weight: 600; margin-top: 2px; }
+  .score .hex { font-family: ui-monospace, Consolas, monospace; font-size: 11px; opacity: 0.8; margin-top: 8px; }
+
+  /* Type */
+  .type-row { display: grid; grid-template-columns: 170px 1fr; gap: 16px; align-items: baseline; padding: 12px 0; border-bottom: 1px solid var(--border); }
+  .type-row:last-child { border-bottom: 0; }
+  .type-row .spec { font-size: 12px; color: var(--text-muted); }
+
+  /* Components */
+  .demo-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 16px; }
+  .btn {
+    font: inherit; font-size: 13px; font-weight: 500; cursor: pointer;
+    padding: 9px 16px; border-radius: var(--radius-lg); border: 1px solid transparent;
+    transition: background-color 0.15s, box-shadow 0.15s;
+  }
+  .btn:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+  .btn-primary { background: var(--abyan); color: #fff; }
+  .btn-primary:hover { background: var(--abyan-hover); }
+  .btn-secondary { background: var(--surface); color: var(--text); border-color: var(--border-strong); }
+  .btn-secondary:hover { background: var(--section); }
+  .btn-ghost { background: transparent; color: var(--abyan); }
+  .btn-ghost:hover { background: var(--abyan-tint); }
+  .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+  label.field { display: block; font-size: 12px; font-weight: 500; color: var(--text-muted); margin-bottom: 6px; }
+  input.text {
+    width: 100%; font: inherit; font-size: 13px; color: var(--text);
+    background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg);
+    padding: 9px 12px; transition: border-color 0.15s, box-shadow 0.15s;
+  }
+  input.text::placeholder { color: var(--text-faint); }
+  input.text:focus { outline: none; border-color: var(--abyan); box-shadow: var(--focus-ring); }
+  input.text.legacy:focus { box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.1); border-color: var(--abyan); }
+  .navlist { display: flex; flex-direction: column; gap: 2px; padding: 10px; background: var(--section); border-radius: var(--radius-xl); border: 1px solid var(--border); }
+  .navlist a { text-decoration: none; font-size: 13px; font-weight: 500; color: var(--text-body); padding: 8px 12px; border-radius: var(--radius-lg); }
+  .navlist a:hover { background: var(--abyan-tint); color: var(--abyan); }
+  .navlist a.active { background: var(--abyan); color: #fff; }
+  .stat .k { font-size: 12px; font-weight: 500; color: var(--text-muted); }
+  .stat .v { font-size: 28px; font-weight: 700; color: var(--text); line-height: 1.2; }
+  .stat .v.brand { color: var(--abyan); }
+  html[data-theme='dark'] .stat .v.brand { color: #8B91F5; }
+
+  /* Radius + shadow */
+  .shapes { display: flex; gap: 16px; flex-wrap: wrap; }
+  .shape {
+    width: 130px; height: 90px; background: var(--surface); border: 1px solid var(--border);
+    display: flex; flex-direction: column; justify-content: flex-end; padding: 10px;
+    font-size: 12px; color: var(--text-muted); box-shadow: var(--shadow-sm);
+  }
+  .shape b { color: var(--text); font-weight: 600; font-size: 13px; }
+
+  .theme-note { font-size: 12px; color: var(--text-muted); margin-top: 8px; }
+
+  @media (max-width: 720px) {
+    header.top { padding: 12px 16px; flex-wrap: wrap; }
+    nav.toc { display: none; }
+    main { padding: 20px 16px 60px; }
+    .type-row { grid-template-columns: 1fr; gap: 4px; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    * { transition: none !important; }
+  }
+</style>
+</head>
+<body>
+<header class="top">
+  <div class="brandmark"><span class="dot"></span>CICTrix <small>Design reference</small></div>
+  <nav class="toc" aria-label="Sections">
+    <a href="#brand">Brand</a><a href="#neutrals">Neutrals</a><a href="#status">Status</a>
+    <a href="#scores">Scores</a><a href="#type">Type</a><a href="#components">Components</a><a href="#shape">Shape</a>
+  </nav>
+  <div class="toggle" role="group" aria-label="Theme">
+    <button type="button" data-set-theme="light" aria-pressed="true">Light</button>
+    <button type="button" data-set-theme="dark" aria-pressed="false">Dark</button>
+  </div>
+</header>
+
+<main>
+  <h1>CICTrix design system</h1>
+  <p class="lede">A visual companion to <code>DESIGN.md</code>, which remains the source of truth. Click any swatch to copy its hex. The toggle switches to the canonical dark palette (<code>html[data-theme='dark']</code>), which the app applies only inside the RSP module and settings.</p>
+
+  <section id="brand">
+    <h2>Brand</h2>
+    <p class="lede">Abyan blue is the one fixed anchor of the palette, with roughly 380 hex uses plus the <code>abyan</code> Tailwind color.</p>
+    <div class="swatches" data-swatches="brand"></div>
+
+    <h3>Abyan dark: converge on one value</h3>
+    <div class="drift">
+      <div class="keep"><i style="background:#040E6B"></i>#040E6B keep</div>
+      <div><i style="background:#050D65"></i><s>#050D65</s> ~70 uses</div>
+    </div>
+
+    <h3>Abyan hover: converge on one value</h3>
+    <div class="drift">
+      <div class="keep"><i style="background:#2F35D0"></i>#2F35D0 keep</div>
+      <div><i style="background:#2E35D4"></i><s>#2E35D4</s></div>
+      <div><i style="background:#2931C5"></i><s>#2931C5</s></div>
+      <div><i style="background:#2D34C4"></i><s>#2D34C4</s></div>
+      <div><i style="background:#2830C5"></i><s>#2830C5</s></div>
+    </div>
+    <div class="rule"><b>Rule</b><span>New code uses <code>bg-abyan</code>, <code>text-abyan</code>, and <code>bg-abyan-dark</code>, not arbitrary values like <code>bg-[#363EE8]</code>.</span></div>
+  </section>
+
+  <section id="neutrals">
+    <h2>Neutrals</h2>
+    <p class="lede">Tailwind slate. The light column shows the classes components use; the dark column shows the <code>html[data-theme='dark']</code> variables.</p>
+    <div class="card">
+      <table>
+        <thead><tr><th>Role</th><th>Light</th><th>Class</th><th>Dark</th></tr></thead>
+        <tbody data-neutrals></tbody>
+      </table>
+    </div>
+    <div class="rule"><b>Rule</b><span>Use slate, not <code>gray-*</code>. Switch gray to slate only when a file is touched for another reason. Don't add Bootstrap greys (<code>#212529</code>, <code>#495057</code>, <code>#DEE2E6</code>).</span></div>
+  </section>
+
+  <section id="status">
+    <h2>Status</h2>
+    <p class="lede">A tinted fill with darker text of the same hue. These badges follow the current theme.</p>
+    <div class="badges">
+      <span class="badge b-success">Approved</span>
+      <span class="badge b-warning">For review</span>
+      <span class="badge b-error">Rejected</span>
+      <span class="badge b-pending">In process</span>
+      <span class="badge b-info">Info</span>
+    </div>
+    <div class="dont"><span class="badge">Approved</span> Don't use a saturated fill with white text for status.</div>
+    <div class="swatches" data-swatches="status" style="margin-top:20px"></div>
+    <div class="rule"><b>Rule</b><span>Blue is reserved for brand and action. Info uses cyan so an info badge never reads as a button.</span></div>
+  </section>
+
+  <section id="scores">
+    <h2>Score ratings</h2>
+    <p class="lede">A fixed five-step scale for IPCR and applicant ratings, from the <code>--score-*-text</code> / <code>--score-*-bg</code> variables. Shown in light values.</p>
+    <div class="scores" data-scores></div>
+  </section>
+
+  <section id="type">
+    <h2>Typography</h2>
+    <p class="lede">Poppins throughout, weights 300 to 800, set as Tailwind's <code>sans</code>.</p>
+    <div class="card pad">
+      <div class="type-row"><div class="spec">Page title · 700 · slate-900</div><div style="font-size:26px;font-weight:700;color:var(--text)">Recruitment pipeline</div></div>
+      <div class="type-row"><div class="spec">Page title, brand · 700 · abyan-dark</div><div style="font-size:26px;font-weight:700;color:var(--abyan-dark)" data-brand-title>Succession planning</div></div>
+      <div class="type-row"><div class="spec">Section heading · 600 · slate-900</div><div style="font-size:18px;font-weight:600;color:var(--text)">Qualified applicants</div></div>
+      <div class="type-row"><div class="spec">Body · 400 · slate-700</div><div style="color:var(--text-body)">The ranked table compares each candidate's weighted score against the position's minimum qualifications.</div></div>
+      <div class="type-row"><div class="spec">Label / meta · 500 · slate-500</div><div style="font-size:12px;font-weight:500;color:var(--text-muted)">Last updated 26 Sep 2026 · HR Office</div></div>
+    </div>
+  </section>
+
+  <section id="components">
+    <h2>Components</h2>
+    <p class="lede">The tokens applied. Hover and tab through the controls to see their states.</p>
+    <div class="demo-grid">
+      <div class="card pad">
+        <h3 style="margin-top:0">Buttons</h3>
+        <div class="row">
+          <button class="btn btn-primary" type="button">Save changes</button>
+          <button class="btn btn-secondary" type="button">Cancel</button>
+          <button class="btn btn-ghost" type="button">View details</button>
+        </div>
+      </div>
+      <div class="card pad">
+        <h3 style="margin-top:0">Focus ring</h3>
+        <label class="field" for="f-new">Abyan at 15% (rule)</label>
+        <input id="f-new" class="text" placeholder="Click to focus">
+        <label class="field" for="f-old" style="margin-top:14px">Current Bootstrap blue (retire)</label>
+        <input id="f-old" class="text legacy" placeholder="Click to focus">
+      </div>
+      <div class="card pad">
+        <h3 style="margin-top:0">Navigation</h3>
+        <div class="navlist">
+          <a href="#components" class="active">Dashboard</a>
+          <a href="#components">Applicants</a>
+          <a href="#components">Evaluations</a>
+          <a href="#components">Reports</a>
+        </div>
+      </div>
+      <div class="card pad">
+        <h3 style="margin-top:0">Stat card</h3>
+        <div class="row" style="gap:28px">
+          <div class="stat"><div class="k">Open positions</div><div class="v brand">24</div></div>
+          <div class="stat"><div class="k">Applicants</div><div class="v">312</div></div>
+        </div>
+        <div class="badges" style="margin-top:14px">
+          <span class="badge b-success">18 qualified</span>
+          <span class="badge b-warning">6 pending</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="shape">
+    <h2>Shape and elevation</h2>
+    <p class="lede">Radius follows the component's role. Cards default to <code>shadow-sm</code> plus a slate-200 border.</p>
+    <div class="shapes">
+      <div class="shape" style="border-radius:8px"><b>rounded-lg</b>8px · inputs, buttons</div>
+      <div class="shape" style="border-radius:12px"><b>rounded-xl</b>12px · cards, panels</div>
+      <div class="shape" style="border-radius:16px"><b>rounded-2xl</b>16px · modals, hero</div>
+      <div class="shape" style="border-radius:999px;align-items:center;text-align:center"><b>rounded-full</b>pills, avatars</div>
+    </div>
+  </section>
+</main>
+
+<script>
+  const BRAND = [
+    ['Abyan', '#363EE8', 'abyan · --accent-primary', 'Primary buttons, active nav, links, focus'],
+    ['Abyan dark', '#040E6B', 'abyan-dark · --color-primary-dark', 'Headings, deep brand panels'],
+    ['Abyan light', '#C8D1FF', 'abyan-light', 'Soft fills, chips, brand borders'],
+    ['Abyan tint', '#EEF2FF', 'indigo-50', 'Hover and selected rows'],
+    ['Abyan hover', '#2F35D0', '--color-primary-hover', 'Hover on Abyan fills'],
+  ];
+  const STATUS = [
+    ['Success', '#059669', 'fill #DCFCE7 · dark #10B981'],
+    ['Warning', '#D97706', 'fill #FEF3C7 · dark #F59E0B'],
+    ['Error', '#DC2626', 'fill #FEE2E2 · dark #EF4444'],
+    ['Pending', '#7C3AED', 'fill #EDE9FE · dark #6366F1'],
+    ['Info', '#0891B2', 'fill #CFFAFE · dark #0EA5E9'],
+  ];
+  const NEUTRALS = [
+    ['Page background', '#FFFFFF', 'bg-white', '#0B1220'],
+    ['Sidebar / section', '#F8FAFC', 'bg-slate-50', '#0F172A'],
+    ['Control / card surface', '#FFFFFF', 'bg-white', '#1E293B'],
+    ['Border, default', '#E2E8F0', 'border-slate-200', '#334155'],
+    ['Border, strong', '#CBD5E1', 'border-slate-300', null],
+    ['Text, primary', '#0F172A', 'text-slate-900', '#F1F5F9'],
+    ['Text, body', '#334155', 'text-slate-700', '#CBD5E1'],
+    ['Text, secondary', '#64748B', 'text-slate-500', '#94A3B8'],
+    ['Text, placeholder', '#94A3B8', 'text-slate-400', null],
+  ];
+  const SCORES = [
+    ['Excellent', '#15803D', '#DCFCE7', '5.0'],
+    ['Very good', '#1D4ED8', '#DBEAFE', '4.2'],
+    ['Good', '#7C3AED', '#EDE9FE', '3.4'],
+    ['Average', '#B45309', '#FEF9C3', '2.6'],
+    ['Below average', '#DC2626', '#FEE2E2', '1.8'],
+  ];
+
+  function swatch(name, hex, token, use) {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'swatch';
+    b.setAttribute('aria-label', `Copy ${name} ${hex}`);
+    b.innerHTML = `<div class="chip" style="background:${hex}"><span class="copied">Copied</span></div>
+      <div class="meta"><div class="name">${name}</div><div class="hex">${hex}</div>
+      <div class="use">${token}</div>${use ? `<div class="use">${use}</div>` : ''}</div>`;
+    b.addEventListener('click', async () => {
+      try { await navigator.clipboard.writeText(hex); } catch { return; }
+      b.classList.add('is-copied');
+      setTimeout(() => b.classList.remove('is-copied'), 1100);
+    });
+    return b;
+  }
+
+  const brandEl = document.querySelector('[data-swatches="brand"]');
+  BRAND.forEach(([n, h, t, u]) => brandEl.append(swatch(n, h, t, u)));
+  const statusEl = document.querySelector('[data-swatches="status"]');
+  STATUS.forEach(([n, h, t]) => statusEl.append(swatch(n, h, t)));
+
+  const pair = (hex) => hex
+    ? `<div class="pair"><i style="background:${hex}"></i>${hex}</div>`
+    : `<span class="na">not defined</span>`;
+  document.querySelector('[data-neutrals]').innerHTML = NEUTRALS
+    .map(([role, light, cls, dark]) =>
+      `<tr><td style="color:var(--text);font-weight:500">${role}</td><td>${pair(light)}</td><td><code>${cls}</code></td><td>${pair(dark)}</td></tr>`)
+    .join('');
+
+  document.querySelector('[data-scores]').innerHTML = SCORES
+    .map(([lbl, text, bg, num]) =>
+      `<div class="score" style="background:${bg};color:${text}"><div class="num">${num}</div><div class="lbl">${lbl}</div><div class="hex">${text} on ${bg}</div></div>`)
+    .join('');
+
+  const brandTitle = document.querySelector('[data-brand-title]');
+  function setTheme(theme) {
+    document.documentElement.setAttribute('data-theme', theme);
+    document.querySelectorAll('[data-set-theme]').forEach((btn) =>
+      btn.setAttribute('aria-pressed', String(btn.dataset.setTheme === theme)));
+    // abyan-dark on a dark surface is illegible; the app uses light text there.
+    brandTitle.style.color = theme === 'dark' ? 'var(--text)' : 'var(--abyan-dark)';
+    try { localStorage.setItem('cictrix-design-ref-theme', theme); } catch {}
+  }
+  document.querySelectorAll('[data-set-theme]').forEach((btn) =>
+    btn.addEventListener('click', () => setTheme(btn.dataset.setTheme)));
+  try {
+    const saved = localStorage.getItem('cictrix-design-ref-theme');
+    if (saved === 'dark' || saved === 'light') setTheme(saved);
+  } catch {}
+</script>
+</body>
+</html>
