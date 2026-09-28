@@ -1,0 +1,147 @@
+/* ============================================================================
+   ABYAN HRIS — Design Identity tokens (DESIGN_IDENTITY.md §14.1)
+   ----------------------------------------------------------------------------
+   Scoped to `.abyan-ds` instead of :root so adopting them page-by-page cannot
+   restyle portals that still rely on the legacy globals.css variables. Once
+   every portal is migrated, move this block to :root.
+   Values marked (§x) come straight from the guide; do not edit them here
+   without updating the guide in the same PR.
+   ============================================================================ */
+
+.abyan-ds {
+  /* Brand (§3.1) */
+  --color-primary: #363EE8;
+  --color-primary-700: #191FA8;
+  --color-primary-900: #040E6B;
+  --color-primary-accent: #000CFF;
+  --color-primary-200: #C8D1FF;
+  --color-primary-50: #EEF0FF;
+  --color-white: #FFFFFF;
+
+  /* Backgrounds (§3.2) */
+  --bg-page: #F1F5F9;
+  --bg-surface: #FFFFFF;
+  --bg-tint: #EEF0FF;
+  --bg-row-hover: #F8FAFF;          /* §9.5 row hover */
+  --bg-disabled: #F8FAFC;           /* §9.6 disabled pagination */
+
+  /* Neutrals (§3.3 + neutral status steps from §3.6) */
+  --neutral-900: #101E29;
+  --neutral-800: #28343D;
+  --neutral-600: #515F69;
+  --neutral-500: #64748B;
+  --neutral-400: #94A3B8;
+  --neutral-300: #CBD5E1;
+  --neutral-200: #E2E8F0;
+  --neutral-100: #F1F5F9;
+
+  /* Status (§3.6) */
+  --success-100: #DCFCE7; --success-300: #7ECBA1; --success-500: #16A85A; --success-700: #0F7A40;
+  --warning-100: #FCE8C8; --warning-300: #F0B478; --warning-500: #E8821A; --warning-700: #A8590A;
+  --error-100:   #FDE2E2; --error-300:   #EF9A9A; --error-500:   #E05252; --error-700:   #B42323;
+  --info-100:    #E0E5FF; --info-300:    #C8D1FF; --info-500:    #363EE8; --info-700:    #191FA8;
+
+  /* Gradients (§3.5) */
+  --gradient-hero: linear-gradient(180deg, #363EE8 0%, #040E6B 100%);
+  --gradient-soft: linear-gradient(135deg, #C8D1FF 0%, #363EE8 100%);
+  --gradient-button: linear-gradient(180deg, #363EE8 0%, #191FA8 100%);
+
+  /* Radius (§5.2) */
+  --radius-sm: 6px; --radius-md: 8px; --radius-lg: 12px; --radius-xl: 16px; --radius-pill: 999px;
+  --radius-chip: 10px;              /* §9.7 KPI icon chip */
+
+  /* Elevation (§5.3) */
+  --shadow-1: 0 1px 2px rgba(16,30,41,.06), 0 1px 3px rgba(16,30,41,.08);
+  --shadow-2: 0 4px 12px rgba(16,30,41,.10);
+  --shadow-3: 0 12px 32px rgba(16,30,41,.16);
+  --shadow-focus: 0 4px 14px rgba(54,62,232,.40);
+  --ring-input: 0 0 0 3px rgba(54,62,232,.15);   /* §9.3 input focus ring */
+  --overlay: rgba(4,14,107,.45);                  /* §9.10 modal overlay */
+
+  /* On-blue surfaces (§8.1, §9.1) */
+  --on-blue-muted: rgba(255,255,255,.85);
+  --on-blue-hover: rgba(255,255,255,.10);
+  --on-blue-active: rgba(255,255,255,.18);
+  --on-blue-border: rgba(255,255,255,.5);
+
+  /* Motion (§13) */
+  --duration-fast: 150ms;
+  --duration: 200ms;
+  --ease-out: cubic-bezier(.2,.8,.2,1);
+
+  /* Type (§4) */
+  --font-sans: 'Poppins', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+
+  font-family: var(--font-sans);
+  color: var(--neutral-800);
+}
+
+/* Type scale (§4.3) */
+.abyan-ds .text-title-l    { font: 700 36px/40px var(--font-sans); }
+.abyan-ds .text-title-m    { font: 600 24px/32px var(--font-sans); }
+.abyan-ds .text-title-s    { font: 600 18px/24px var(--font-sans); }
+.abyan-ds .text-headline-m { font: 600 16px/20px var(--font-sans); }
+.abyan-ds .text-caption    { font: 500 14px/16px var(--font-sans); }
+.abyan-ds .text-body-l     { font: 400 16px/24px var(--font-sans); }
+.abyan-ds .text-body-m     { font: 500 14px/18px var(--font-sans); }
+.abyan-ds .text-body-s     { font: 500 12px/16px var(--font-sans); letter-spacing: .1px; }
+.abyan-ds .text-caps       { font: 600 12px/16px var(--font-sans); letter-spacing: .4px; text-transform: uppercase; }
+
+/* Buttons (§9.1, §14.2) */
+.abyan-ds .btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  font-family: var(--font-sans); font-weight: 600; white-space: nowrap;
+  border-radius: var(--radius-pill); border: 1.5px solid transparent;
+  cursor: pointer; text-decoration: none;
+  transition: background var(--duration-fast), box-shadow var(--duration-fast),
+              color var(--duration-fast), border-color var(--duration-fast);
+}
+.abyan-ds .btn:focus-visible { outline: none; }
+.abyan-ds .btn-lg { height: 50px; padding: 0 28px; font-size: 16px; }
+.abyan-ds .btn-md { height: 45px; padding: 0 24px; font-size: 15px; }
+.abyan-ds .btn-sm { height: 36px; padding: 0 16px; font-size: 13px; }
+
+.abyan-ds .btn-primary { background: var(--gradient-button); color: var(--color-white); }
+.abyan-ds .btn-primary:hover { background: var(--color-primary-700); }
+.abyan-ds .btn-primary:focus-visible,
+.abyan-ds .btn-primary:active { box-shadow: var(--shadow-focus), 0 0 0 3px var(--color-primary-200); }
+.abyan-ds .btn-primary:disabled { background: var(--color-primary-200); color: rgba(255,255,255,.85); box-shadow: none; cursor: not-allowed; }
+
+.abyan-ds .btn-secondary { background: var(--bg-surface); color: var(--color-primary); border-color: var(--color-primary); }
+.abyan-ds .btn-secondary:hover { background: var(--color-primary-50); }
+.abyan-ds .btn-secondary:focus-visible,
+.abyan-ds .btn-secondary:active { background: var(--gradient-button); color: var(--color-white); box-shadow: var(--shadow-focus); }
+.abyan-ds .btn-secondary:disabled { color: var(--color-primary-200); border-color: var(--color-primary-200); background: transparent; cursor: not-allowed; }
+
+.abyan-ds .btn-white { background: var(--color-white); color: var(--color-primary); box-shadow: var(--shadow-2); }
+.abyan-ds .btn-ghost-white { background: transparent; color: var(--color-white); border-width: 1px; border-color: var(--on-blue-border); }
+.abyan-ds .btn-ghost-white:hover { background: var(--on-blue-hover); }
+.abyan-ds .btn-ghost-white:focus-visible { background: var(--on-blue-active); box-shadow: 0 0 0 3px var(--on-blue-border); }
+
+/* Status badges, soft style (§9.8) */
+.abyan-ds .badge {
+  display: inline-flex; align-items: center; gap: 6px;
+  height: 24px; padding: 0 12px; border-radius: var(--radius-pill);
+  font: 500 12px/16px var(--font-sans); letter-spacing: .1px; white-space: nowrap;
+}
+.abyan-ds .badge-dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+.abyan-ds .badge-success { background: var(--success-100); color: var(--success-700); }
+.abyan-ds .badge-success .badge-dot { background: var(--success-500); }
+.abyan-ds .badge-warning { background: var(--warning-100); color: var(--warning-700); }
+.abyan-ds .badge-warning .badge-dot { background: var(--warning-500); }
+.abyan-ds .badge-error   { background: var(--error-100);   color: var(--error-700); }
+.abyan-ds .badge-error .badge-dot { background: var(--error-500); }
+.abyan-ds .badge-info    { background: var(--info-100);    color: var(--info-700); }
+.abyan-ds .badge-info .badge-dot { background: var(--info-500); }
+.abyan-ds .badge-neutral { background: var(--neutral-100); color: var(--neutral-800); }
+.abyan-ds .badge-neutral .badge-dot { background: var(--neutral-500); }
+/* Category tag (§10: non-status → brand tint) */
+.abyan-ds .badge-tint    { background: var(--bg-tint); color: var(--color-primary-700); }
+
+@media (prefers-reduced-motion: reduce) {
+  .abyan-ds *, .abyan-ds *::before, .abyan-ds *::after {
+    transition-duration: 0ms !important;
+    animation-duration: 0ms !important;
+    animation-iteration-count: 1 !important;
+  }
+}
