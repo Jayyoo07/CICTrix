@@ -1,12 +1,11 @@
 /* ============================================================================
-   Interviewer Dashboard — curved hero, quick-view KPIs, paginated table.
+   Interviewer Dashboard — angular hero, quick-view KPIs, paginated table.
    Every color / radius / shadow / duration is a token from abyan-tokens.css.
    The only page-local values are the hero geometry below, which the Design
    Identity guide does not define.
    ============================================================================ */
 
 .ivd {
-  --ivd-hero-curve: 56px;     /* bottom-corner swoosh (not a DI token) */
   --ivd-overlap: 56px;        /* how far the content panel rides up into the hero */
   --ivd-gutter: 24px;
 
@@ -99,45 +98,78 @@
 .ivd-logout:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--on-blue-border); }
 
 /* ── Hero ─────────────────────────────────────────────────────────────── */
+/* Straight edges on all four corners (§7.1): no radius anywhere in the hero. */
 .ivd-hero {
   position: relative;
-  overflow: hidden;
+  overflow: hidden;                /* clips bleeding shapes to a straight edge */
+  border-radius: 0;
   background: var(--gradient-hero);
   color: var(--color-white);
-  border-bottom-left-radius: var(--ivd-hero-curve);
-  border-bottom-right-radius: var(--ivd-hero-curve);
   padding: 8px 0 calc(var(--ivd-overlap) + 48px);
 }
 
-/* Flat brand-pattern shapes (§7): large filled discs / half-discs /
-   quarter-circles in the blue family. No thin outline circles. */
-.ivd-shape { position: absolute; pointer-events: none; }
-.ivd-shape--disc-left {
-  width: 560px; height: 560px; top: -330px; left: -220px;
-  border-radius: 50%;
-  background: rgba(255, 255, 255, .07);
+/* Angular brand shapes (§7.1). One inline SVG drawn at a fixed pixel size and
+   anchored to the right edge, so the 26° slant stays identical at every
+   width. Only straight-edged polygons; each tone is a DI colour at 6–14%. */
+.ivd-hero-shapes {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 900px;
+  height: 360px;
+  pointer-events: none;
 }
-.ivd-shape--disc-right {
-  width: 680px; height: 680px; top: -260px; right: -300px;
-  border-radius: 50%;
-  background: rgba(255, 255, 255, .06);
+.ivd-poly { stroke: none; }
+.ivd-poly--light  { fill: var(--color-white);          fill-opacity: .08; }
+.ivd-poly--lighter{ fill: var(--color-white);          fill-opacity: .10; }
+.ivd-poly--dark   { fill: var(--color-primary-900);    fill-opacity: .14; }
+.ivd-poly--vivid  { fill: var(--color-primary-accent); fill-opacity: .12; }
+
+/* Faint "To Evaluate" table cards (decorative, desktop only). Square corners
+   so nothing in the hero is curved. */
+.ivd-hero-ghosts {
+  position: absolute;
+  top: 36px;
+  right: 40px;
+  display: none;
+  gap: 20px;
+  opacity: .12;
+  pointer-events: none;
 }
-.ivd-shape--half {
-  width: 420px; height: 210px; bottom: 0; left: 50%;
-  border-radius: 210px 210px 0 0;
-  background: color-mix(in srgb, var(--color-primary-accent) 35%, transparent);
+.ivd-ghost {
+  width: 200px;
+  background: var(--color-white);
+  border-radius: 0;
+  overflow: hidden;
 }
-.ivd-shape--quarter {
-  width: 220px; height: 220px; bottom: 0; right: 9%;
-  border-radius: 220px 0 0 0;
-  background: rgba(255, 255, 255, .08);
+.ivd-ghost-head {
+  display: flex; align-items: center; gap: 8px;
+  height: 40px; padding: 0 12px;
+  background: var(--color-primary-900);
+  color: var(--color-white);
+  font: 700 15px/20px var(--font-sans);
+}
+.ivd-ghost-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr 16px 44px;
+  gap: 8px;
+  align-items: center;
+  padding: 10px 12px;
+  border-top: 1px solid var(--neutral-200);
+}
+.ivd-ghost-row i { display: block; height: 6px; background: var(--neutral-400); }
+.ivd-ghost-row i:nth-child(3) { height: 12px; background: var(--color-primary-200); }
+.ivd-ghost-row i:last-child { height: 14px; background: var(--color-primary); }
+
+@media (min-width: 1024px) {
+  .ivd-hero-ghosts { display: flex; }
 }
 
 .ivd-hero-text { position: relative; margin-top: 40px; max-width: 720px; }
 .ivd-hero-text h1 { margin: 0; color: var(--color-white); }
 .ivd-hero-text p { margin: 8px 0 0; color: var(--on-blue-muted); }
 
-/* ── Content panel (overlaps the curve) ──────────────────────────────── */
+/* ── Content panel (overlaps the hero's straight bottom edge) ────────── */
 .ivd-main {
   position: relative;
   z-index: 1;
@@ -148,7 +180,7 @@
 .ivd-panel {
   background: var(--bg-surface);
   border: 1px solid var(--neutral-200);
-  border-radius: var(--radius-xl);
+  border-radius: var(--radius-md);   /* small radius only, per the hero addendum */
   box-shadow: var(--shadow-2);
   padding: 24px;
   display: flex;
@@ -509,6 +541,7 @@
 /* ── Responsive (§8.3) ───────────────────────────────────────────────── */
 @media (max-width: 1023px) {
   .ivd-brand-sub { display: none; }
+  .ivd-poly--p1 { display: none; }   /* keep the band away from the title */
   .ivd-view-more { display: none; }
   .ivd-table th { white-space: normal; }
   .ivd { --ivd-gutter: 24px; }
@@ -526,7 +559,7 @@
 }
 
 @media (max-width: 639px) {
-  .ivd { --ivd-hero-curve: 32px; --ivd-overlap: 40px; --ivd-gutter: 16px; }
+  .ivd { --ivd-overlap: 40px; --ivd-gutter: 16px; }
 
   .ivd-nav { min-height: 56px; padding: 0 16px; }
   .ivd-brand img { height: 32px; }
@@ -534,15 +567,15 @@
   .ivd-user-meta, .ivd-nav-divider { display: none; }
   .ivd-logout-label { display: none; }
   .ivd-logout { padding: 0; }
-  .ivd-shape--disc-left { width: 320px; height: 320px; top: -180px; left: -140px; }
-  .ivd-shape--disc-right { width: 360px; height: 360px; top: -120px; right: -200px; }
-  .ivd-shape--half { width: 220px; height: 110px; left: 45%; }
-  .ivd-shape--quarter { width: 120px; height: 120px; right: 4%; }
+  /* Mobile: two shapes only, fainter, pushed right of the title */
+  .ivd-poly--p1, .ivd-poly--p4 { display: none; }
+  .ivd-poly--dark { fill-opacity: .10; }
+  .ivd-poly--lighter { fill-opacity: .06; }
   .ivd-hero-text { margin-top: 24px; }
   .ivd-hero-text h1 { font-size: 26px; line-height: 32px; }
   .ivd-hero-text p { font-size: 14px; line-height: 20px; }
 
-  .ivd-panel { padding: 16px; gap: 24px; border-radius: var(--radius-lg); }
+  .ivd-panel { padding: 16px; gap: 24px; }
 
   /* KPI cards go compact: chip + label + value on one line */
   .ivd-kpi { display: grid; grid-template-columns: auto 1fr auto; grid-template-areas: "chip label chev" "chip value chev" "sub sub sub"; column-gap: 12px; row-gap: 4px; }

@@ -916,12 +916,30 @@ export function InterviewerDashboard({
         </div>
       </nav>
 
-      {/* ── Curved hero with flat brand-pattern shapes (§7) ── */}
+      {/* ── Straight-edged hero with angular brand shapes (§7.1) ── */}
       <header className="ivd-hero">
-        <span className="ivd-shape ivd-shape--disc-left" aria-hidden="true" />
-        <span className="ivd-shape ivd-shape--disc-right" aria-hidden="true" />
-        <span className="ivd-shape ivd-shape--half" aria-hidden="true" />
-        <span className="ivd-shape ivd-shape--quarter" aria-hidden="true" />
+        {/* Every slanted edge moves 49px sideways per 100px down (≈26°):
+            "/" edges on P1/P2/P4, "\" on P3/P4, so only two angles are used. */}
+        <svg className="ivd-hero-shapes" viewBox="0 0 900 360" width="900" height="360" aria-hidden="true" focusable="false">
+          <polygon className="ivd-poly ivd-poly--dark" points="700,0 900,0 900,360 524,360" />
+          <polygon className="ivd-poly ivd-poly--light ivd-poly--p1" points="380,0 620,0 444,360 204,360" />
+          <polygon className="ivd-poly ivd-poly--vivid ivd-poly--p4" points="736,0 912,360 560,360" />
+          <polygon className="ivd-poly ivd-poly--lighter" points="760,0 900,0 900,286" />
+        </svg>
+
+        <div className="ivd-hero-ghosts" aria-hidden="true">
+          {[0, 1, 2].map((card) => (
+            <div key={card} className="ivd-ghost">
+              <div className="ivd-ghost-head">
+                <ClipboardList size={16} strokeWidth={1.75} />
+                To Evaluate
+              </div>
+              {[0, 1, 2, 3].map((row) => (
+                <div key={row} className="ivd-ghost-row"><i /><i /><i /><i /></div>
+              ))}
+            </div>
+          ))}
+        </div>
 
         <div className="ivd-container">
           <div className="ivd-hero-text">
