@@ -6,9 +6,14 @@
    every portal is migrated, move this block to :root.
    Values marked (§x) come straight from the guide; do not edit them here
    without updating the guide in the same PR.
+
+   `.rsp-ds` (RSP portal) shares the tokens, buttons and badges but NOT the
+   text-inherit reset below: its pages colour text with Tailwind utilities,
+   which that reset would override. Its utility remaps live in rsp-design.css.
    ============================================================================ */
 
-.abyan-ds {
+.abyan-ds,
+.rsp-ds {
   /* Brand (§3.1) */
   --color-primary: #363EE8;
   --color-primary-700: #191FA8;
@@ -98,7 +103,7 @@
 .abyan-ds .text-caps       { font: 600 12px/16px var(--font-sans); letter-spacing: .4px; text-transform: uppercase; }
 
 /* Buttons (§9.1, §14.2) */
-.abyan-ds .btn {
+:is(.abyan-ds, .rsp-ds) .btn {
   display: inline-flex; align-items: center; justify-content: center; gap: 8px;
   font-family: var(--font-sans); font-weight: 600; white-space: nowrap;
   border-radius: var(--radius-pill); border: 1.5px solid transparent;
@@ -106,47 +111,47 @@
   transition: background var(--duration-fast), box-shadow var(--duration-fast),
               color var(--duration-fast), border-color var(--duration-fast);
 }
-.abyan-ds .btn:focus-visible { outline: none; }
-.abyan-ds .btn-lg { height: 50px; padding: 0 28px; font-size: 16px; }
-.abyan-ds .btn-md { height: 45px; padding: 0 24px; font-size: 15px; }
-.abyan-ds .btn-sm { height: 36px; padding: 0 16px; font-size: 13px; }
+:is(.abyan-ds, .rsp-ds) .btn:focus-visible { outline: none; }
+:is(.abyan-ds, .rsp-ds) .btn-lg { height: 50px; padding: 0 28px; font-size: 16px; }
+:is(.abyan-ds, .rsp-ds) .btn-md { height: 45px; padding: 0 24px; font-size: 15px; }
+:is(.abyan-ds, .rsp-ds) .btn-sm { height: 36px; padding: 0 16px; font-size: 13px; }
 
-.abyan-ds .btn-primary { background: var(--gradient-button); color: var(--color-white); }
-.abyan-ds .btn-primary:hover { background: var(--color-primary-700); }
-.abyan-ds .btn-primary:focus-visible,
-.abyan-ds .btn-primary:active { box-shadow: var(--shadow-focus), 0 0 0 3px var(--color-primary-200); }
-.abyan-ds .btn-primary:disabled { background: var(--color-primary-200); color: rgba(255,255,255,.85); box-shadow: none; cursor: not-allowed; }
+:is(.abyan-ds, .rsp-ds) .btn-primary { background: var(--gradient-button); color: var(--color-white); }
+:is(.abyan-ds, .rsp-ds) .btn-primary:hover { background: var(--color-primary-700); }
+:is(.abyan-ds, .rsp-ds) .btn-primary:focus-visible,
+:is(.abyan-ds, .rsp-ds) .btn-primary:active { box-shadow: var(--shadow-focus), 0 0 0 3px var(--color-primary-200); }
+:is(.abyan-ds, .rsp-ds) .btn-primary:disabled { background: var(--color-primary-200); color: rgba(255,255,255,.85); box-shadow: none; cursor: not-allowed; }
 
-.abyan-ds .btn-secondary { background: var(--bg-surface); color: var(--color-primary); border-color: var(--color-primary); }
-.abyan-ds .btn-secondary:hover { background: var(--color-primary-50); }
-.abyan-ds .btn-secondary:focus-visible,
-.abyan-ds .btn-secondary:active { background: var(--gradient-button); color: var(--color-white); box-shadow: var(--shadow-focus); }
-.abyan-ds .btn-secondary:disabled { color: var(--color-primary-200); border-color: var(--color-primary-200); background: transparent; cursor: not-allowed; }
+:is(.abyan-ds, .rsp-ds) .btn-secondary { background: var(--bg-surface); color: var(--color-primary); border-color: var(--color-primary); }
+:is(.abyan-ds, .rsp-ds) .btn-secondary:hover { background: var(--color-primary-50); }
+:is(.abyan-ds, .rsp-ds) .btn-secondary:focus-visible,
+:is(.abyan-ds, .rsp-ds) .btn-secondary:active { background: var(--gradient-button); color: var(--color-white); box-shadow: var(--shadow-focus); }
+:is(.abyan-ds, .rsp-ds) .btn-secondary:disabled { color: var(--color-primary-200); border-color: var(--color-primary-200); background: transparent; cursor: not-allowed; }
 
-.abyan-ds .btn-white { background: var(--color-white); color: var(--color-primary); box-shadow: var(--shadow-2); }
-.abyan-ds .btn-ghost-white { background: transparent; color: var(--color-white); border-width: 1px; border-color: var(--on-blue-border); }
-.abyan-ds .btn-ghost-white:hover { background: var(--on-blue-hover); }
-.abyan-ds .btn-ghost-white:focus-visible { background: var(--on-blue-active); box-shadow: 0 0 0 3px var(--on-blue-border); }
+:is(.abyan-ds, .rsp-ds) .btn-white { background: var(--color-white); color: var(--color-primary); box-shadow: var(--shadow-2); }
+:is(.abyan-ds, .rsp-ds) .btn-ghost-white { background: transparent; color: var(--color-white); border-width: 1px; border-color: var(--on-blue-border); }
+:is(.abyan-ds, .rsp-ds) .btn-ghost-white:hover { background: var(--on-blue-hover); }
+:is(.abyan-ds, .rsp-ds) .btn-ghost-white:focus-visible { background: var(--on-blue-active); box-shadow: 0 0 0 3px var(--on-blue-border); }
 
 /* Status badges, soft style (§9.8) */
-.abyan-ds .badge {
+:is(.abyan-ds, .rsp-ds) .badge {
   display: inline-flex; align-items: center; gap: 6px;
   height: 24px; padding: 0 12px; border-radius: var(--radius-pill);
   font: 500 12px/16px var(--font-sans); letter-spacing: .1px; white-space: nowrap;
 }
-.abyan-ds .badge-dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
-.abyan-ds .badge-success { background: var(--success-100); color: var(--success-700); }
-.abyan-ds .badge-success .badge-dot { background: var(--success-500); }
-.abyan-ds .badge-warning { background: var(--warning-100); color: var(--warning-700); }
-.abyan-ds .badge-warning .badge-dot { background: var(--warning-500); }
-.abyan-ds .badge-error   { background: var(--error-100);   color: var(--error-700); }
-.abyan-ds .badge-error .badge-dot { background: var(--error-500); }
-.abyan-ds .badge-info    { background: var(--info-100);    color: var(--info-700); }
-.abyan-ds .badge-info .badge-dot { background: var(--info-500); }
-.abyan-ds .badge-neutral { background: var(--neutral-100); color: var(--neutral-800); }
-.abyan-ds .badge-neutral .badge-dot { background: var(--neutral-500); }
+:is(.abyan-ds, .rsp-ds) .badge-dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+:is(.abyan-ds, .rsp-ds) .badge-success { background: var(--success-100); color: var(--success-700); }
+:is(.abyan-ds, .rsp-ds) .badge-success .badge-dot { background: var(--success-500); }
+:is(.abyan-ds, .rsp-ds) .badge-warning { background: var(--warning-100); color: var(--warning-700); }
+:is(.abyan-ds, .rsp-ds) .badge-warning .badge-dot { background: var(--warning-500); }
+:is(.abyan-ds, .rsp-ds) .badge-error   { background: var(--error-100);   color: var(--error-700); }
+:is(.abyan-ds, .rsp-ds) .badge-error .badge-dot { background: var(--error-500); }
+:is(.abyan-ds, .rsp-ds) .badge-info    { background: var(--info-100);    color: var(--info-700); }
+:is(.abyan-ds, .rsp-ds) .badge-info .badge-dot { background: var(--info-500); }
+:is(.abyan-ds, .rsp-ds) .badge-neutral { background: var(--neutral-100); color: var(--neutral-800); }
+:is(.abyan-ds, .rsp-ds) .badge-neutral .badge-dot { background: var(--neutral-500); }
 /* Category tag (§10: non-status → brand tint) */
-.abyan-ds .badge-tint    { background: var(--bg-tint); color: var(--color-primary-700); }
+:is(.abyan-ds, .rsp-ds) .badge-tint    { background: var(--bg-tint); color: var(--color-primary-700); }
 
 @media (prefers-reduced-motion: reduce) {
   .abyan-ds *, .abyan-ds *::before, .abyan-ds *::after {
