@@ -1,3 +1,4 @@
+import { useBackClosesView } from '../../../hooks/useHistoryBack';
 /**
  * "Semester Summary of Ratings" — the second, period-scoped section that appears
  * beneath the existing Complete Summary of Ratings (Requirement 2), plus the PM
@@ -37,6 +38,7 @@ export const SemesterSummarySection = () => {
   const [sortAsc, setSortAsc] = useState(false);
   const [deptSortAsc, setDeptSortAsc] = useState(false);
   const [activeDept, setActiveDept] = useState<string | null>(null);
+  useBackClosesView(activeDept !== null, () => backToDepartments(), 'pm-semester-department');
   const [searchTerm, setSearchTerm] = useState('');
   const [expandedRows, setExpandedRows] = useState<Record<string, boolean>>({});
 

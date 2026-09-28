@@ -1,3 +1,4 @@
+import { useBackClosesView } from '../hooks/useHistoryBack';
 import {
   Activity as ActivityIcon,
   AlertCircle,
@@ -430,6 +431,7 @@ export const QualifiedApplicantsPage = () => {
   const [dateTo] = useState('');
   const [sortBy] = useState<'Application Date' | 'Qualification Score' | 'Last Updated'>('Application Date');
   const [activeApplicant, setActiveApplicant] = useState<Applicant | null>(null);
+  useBackClosesView(activeApplicant !== null, () => closeApplicantDetails(), 'qualified-applicant');
   const [activeTab, setActiveTab] = useState<'Overview' | 'Documents' | 'Activity'>('Overview');
   const [attachmentsByApplicant, setAttachmentsByApplicant] = useState<Record<string, ApplicantAttachmentRow[]>>({});
   const [attachmentsLoading, setAttachmentsLoading] = useState(false);

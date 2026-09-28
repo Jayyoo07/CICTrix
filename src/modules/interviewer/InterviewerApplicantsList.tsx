@@ -2,16 +2,19 @@ import {
     AlertCircle,
     ArrowLeft,
     CheckCircle2,
+    CircleAlert,
     Download,
     FileText,
     Plane,
     Search,
     Star,
     User,
+    Users,
     X,
 } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useBackClosesView, useHistoryBack } from '../../hooks/useHistoryBack';
 import { useRealtimeRefresh } from '../../hooks/useRealtimeRefresh';
 import { POSITION_TO_DEPARTMENT_MAP } from '../../constants/positions';
 import { getPreferredDataSourceMode } from '../../lib/dataSourceMode';
@@ -22,6 +25,23 @@ import { mockDatabase } from '../../lib/mockDatabase';
 import { ensureRecruitmentSeedData, getAuthoritativeJobPostings, getApplicants as getRecruitmentApplicants } from '../../lib/recruitmentData';
 import { ATTACHMENTS_BUCKET, isMockModeEnabled, supabase } from '../../lib/supabase';
 import '../../styles/interviewer.css';
+import '../../styles/abyan-tokens.css';
+import '../../styles/interviewer-dashboard.css';
+import { EvalStatusBadge, Pager, SearchField, SelectField } from './InterviewerDashboardParts';
+import { InterviewerNavBar, type InterviewerNavSession } from './InterviewerNavBar';
+import { formatDate as formatDateDI, paginate, toLocalKey } from './interviewerDashboardModel';
+
+const APPLICANTS_PAGE_SIZE = 8;
+const TYPE_OPTIONS = [
+  { value: 'all', label: 'Type: All' },
+  { value: 'original', label: 'Original' },
+  { value: 'promotional', label: 'Promotional' },
+];
+const APPLICANT_STATUS_OPTIONS = [
+  { value: 'all', label: 'Status: All' },
+  { value: 'to-evaluate', label: 'To evaluate' },
+  { value: 'evaluated', label: 'Completed' },
+];
 
 interface Applicant {
   id: string;
@@ -379,8 +399,15 @@ const dedupeApplicants = (rows: Applicant[]): Applicant[] => {
   return Array.from(unique.values());
 };
 
-export function InterviewerApplicantsList() {
+export function InterviewerApplicantsList({
+  session,
+  onLogout,
+}: {
+  session?: InterviewerNavSession | null;
+  onLogout?: () => void;
+} = {}) {
   const navigate = useNavigate();
+  const [page, setPage] = useState(1);
   const [searchParams] = useSearchParams();
   const jobTitle = searchParams.get('position') || 'N/A';
   
@@ -741,160 +768,236 @@ export function InterviewerApplicantsList() {
       ]
     : [];
 
+  // Back returns to the page the user came from (dashboard, history modal…),
+  // and the browser's Back closes the details / message pop-ups first.
+  const goBack = useHistoryBack('/interviewer/dashboard');
+  useBackClosesView(Boolean(activeApplicant), () => closeApplicantDetails(), 'applicant');
+  useBackClosesView(showMessageDialog, () => setShowMessageDialog(false), 'applicant-message');
+
+  useEffect(() => { setPage(1); }, [searchTerm, typeFilter, statusFilter]);
+  const { current: currentPage, pageItems } = paginate(filteredApplicants, page, APPLICANTS_PAGE_SIZE);
+
+  const office = jobDetails?.office || '';
+  const department = jobDetails?.department || '';
+  const hasActiveFilters = searchTerm.trim() !== '' || typeFilter !== 'all' || statusFilter !== 'all';
+  const clearFilters = () => {
+    setSearchTerm('');
+    setTypeFilter('all');
+    setStatusFilter('all');
+  };
+
   const today = new Date();
-  const formattedDate = today.toLocaleDateString('en-US', {
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric'
-  });
+  const formattedDate = formatDateDI(toLocalKey(today));
 
   return (
-    <div className="interviewer-applicants-list-page">
-      {/* Header */}
-      <div className="applicants-page-header">
-        <button
-          className="back-button"
-          onClick={() => navigate('/interviewer/dashboard')}
-          title="Back to Dashboard"
-        >
-          <ArrowLeft size={20} />
-        </button>
-        <div className="header-content">
-          <h1>{jobTitle || 'Job Position'}</h1>
-          <div className="header-details">
-            <span>{jobDetails?.office || 'N/A'}</span>
-            <span className="divider">•</span>
-            <span>{jobDetails?.department || 'N/A'}</span>
-            <span className="divider">•</span>
-            <span>{formattedDate}</span>
-          </div>
-        </div>
-      </div>
+    <>
+      <div className="abyan-ds ivd">
+        <InterviewerNavBar session={session} onLogout={onLogout} />
 
-      {/* Main Content */}
-      <div className="applicants-page-container">
-        <div className="applicants-toolbar" style={{ gridTemplateColumns: '1fr auto auto' }}>
-          <div className="applicants-search-box">
-            <Search className="search-icon" size={20} />
-            <input
-              className="search-input"
-              placeholder="Search applicants by name or email..."
-              value={searchTerm}
-              onChange={(event) => setSearchTerm(event.target.value)}
-            />
+        {/* ── Compact hero: back, breadcrumb, position title ── */}
+        <header className="ivd-hero ivd-hero--compact">
+          <div className="ivd-container">
+            <div className="ivd-page-head">
+              <button type="button" className="ivd-back" onClick={goBack} aria-label="Back" title="Back">
+                <ArrowLeft size={20} strokeWidth={1.75} aria-hidden="true" />
+              </button>
+              <div className="ivd-page-head-text">
+                <nav aria-label="Breadcrumb" className="ivd-breadcrumb text-caption">
+                  <button type="button" onClick={() => navigate('/interviewer/dashboard')}>Dashboard</button>
+                  {office && (<><span aria-hidden="true">/</span><span>{office}</span></>)}
+                  <span aria-hidden="true">/</span>
+                  <span aria-current="page">{jobTitle}</span>
+                </nav>
+                <h1 className="text-title-l">{jobTitle || 'Job Position'}</h1>
+                <p className="text-body-l">
+                  {[office, department && department !== office ? department : '', formattedDate].filter(Boolean).join(' · ')}
+                </p>
+              </div>
+            </div>
           </div>
-          <select
-            className="filter-select"
-            value={typeFilter}
-            onChange={(event) => setTypeFilter(event.target.value as 'all' | 'original' | 'promotional')}
-            style={{ minWidth: '180px' }}
-          >
-            <option value="all">All Types</option>
-            <option value="original">Original Applicants</option>
-            <option value="promotional">Promotional Applicants</option>
-          </select>
-          <select
-            className="filter-select"
-            value={statusFilter}
-            onChange={(event) => setStatusFilter(event.target.value as 'all' | 'to-evaluate' | 'evaluated')}
-          >
-            <option value="all">All Status</option>
-            <option value="to-evaluate">To Evaluate</option>
-            <option value="evaluated">Evaluated</option>
-          </select>
-        </div>
+        </header>
 
-        <div className="applicants-page-title-section">
-          <h2 className="applicants-page-title">Applicants List</h2>
-          <p className="applicants-page-subtitle">Showing {filteredApplicants.length} applicants</p>
-        </div>
+        <main className="ivd-container ivd-main ivd-main--compact">
+          {/* ── Filters & search (§9.4) ── */}
+          <section className="ivd-card ivd-filters" aria-labelledby="ial-filters-label">
+            <p id="ial-filters-label" className="ivd-filters-label text-caps">Filters &amp; search</p>
+            <div className="ivd-toolbar">
+              <SearchField
+                value={searchTerm}
+                onChange={setSearchTerm}
+                label="Search applicants by name, email, or contact number"
+                placeholder="Search applicants by name, email, or contact number…"
+              />
+              <SelectField
+                value={typeFilter}
+                onChange={(value) => setTypeFilter(value as 'all' | 'original' | 'promotional')}
+                label="Applicant type"
+                options={TYPE_OPTIONS}
+              />
+              <SelectField
+                value={statusFilter}
+                onChange={(value) => setStatusFilter(value as 'all' | 'to-evaluate' | 'evaluated')}
+                label="Status"
+                options={APPLICANT_STATUS_OPTIONS}
+              />
+            </div>
 
-        {loading ? (
-          <div className="loading-state">
-            <p>Loading applicants...</p>
-          </div>
-        ) : error ? (
-          <div className="error-state">
-            <p>❌ Error: {error}</p>
-            <button onClick={() => void fetchApplicantsAndJob(false)}>Retry</button>
-          </div>
-        ) : filteredApplicants.length > 0 ? (
-          <div className="applicants-table-container">
-            <table className="applicants-table">
-              <thead>
-                <tr>
-                  <th>APPLICANT NAME</th>
-                  <th>TYPE</th>
-                  <th>CONTACT INFO</th>
-                  <th>APPLICATION DATE</th>
-                  <th>ACTION</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredApplicants.map((applicant) => {
-                  const appType = getApplicantType(applicant);
-                  return (
-                  <tr key={applicant.id}>
-                    <td>
-                      <button
-                        type="button"
-                        className="applicant-name-link"
-                        onClick={() => void openApplicantDetails(applicant)}
-                      >
-                        {getFullName(applicant)}
-                      </button>
-                    </td>
-                    <td>
-                      <span style={{
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        borderRadius: '999px',
-                        padding: '0.25rem 0.75rem',
-                        fontSize: '0.75rem',
-                        fontWeight: 700,
-                        letterSpacing: '0.03em',
-                        background: appType === 'Promotional' ? '#ede9fe' : '#dbeafe',
-                        color: appType === 'Promotional' ? '#6d28d9' : '#1d4ed8',
-                      }}>
-                        {appType}
-                      </span>
-                    </td>
-                    <td>
-                      <div className="contact-info-cell">
-                        <p>{applicant.email}</p>
-                        <p>{applicant.contact_number || 'No contact number'}</p>
-                      </div>
-                    </td>
-                    <td>{formatDate(applicant.created_at)}</td>
-                    <td>
-                      {applicant.evaluation_status === 'Completed' ? (
-                        <button className="action-btn evaluated" disabled>
-                          Evaluated
-                        </button>
-                      ) : (
-                        <button
-                          className="action-btn evaluate"
-                          type="button"
-                          onClick={() => {
-                            storeApplicantTypeForEval(applicant.id, appType);
-                            navigate(`/interviewer/evaluate/${applicant.id}`);
-                          }}
-                        >
-                          Evaluate
-                        </button>
-                      )}
-                    </td>
-                  </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        ) : (
-          <div className="empty-state">
-            <p>No applicants found for this position</p>
-          </div>
-        )}
+            {hasActiveFilters && (
+              <div className="ivd-chips" aria-live="polite">
+                {searchTerm.trim() && (
+                  <span className="ivd-chip">
+                    Search: <strong>“{searchTerm.trim()}”</strong>
+                    <button type="button" onClick={() => setSearchTerm('')} aria-label="Remove search filter">
+                      <X size={14} strokeWidth={1.75} aria-hidden="true" />
+                    </button>
+                  </span>
+                )}
+                {typeFilter !== 'all' && (
+                  <span className="ivd-chip">
+                    Type: <strong>{typeFilter === 'original' ? 'Original' : 'Promotional'}</strong>
+                    <button type="button" onClick={() => setTypeFilter('all')} aria-label="Remove type filter">
+                      <X size={14} strokeWidth={1.75} aria-hidden="true" />
+                    </button>
+                  </span>
+                )}
+                {statusFilter !== 'all' && (
+                  <span className="ivd-chip">
+                    Status: <strong>{statusFilter === 'evaluated' ? 'Completed' : 'To evaluate'}</strong>
+                    <button type="button" onClick={() => setStatusFilter('all')} aria-label="Remove status filter">
+                      <X size={14} strokeWidth={1.75} aria-hidden="true" />
+                    </button>
+                  </span>
+                )}
+                <button type="button" className="ivd-link" onClick={clearFilters}>Clear all</button>
+              </div>
+            )}
+          </section>
+
+          {/* ── Applicants (§9.5) ── */}
+          <section className="ivd-card" aria-labelledby="ial-title">
+            <div className="ivd-section-head">
+              <h2 id="ial-title" className="text-title-m">Applicants</h2>
+              <p className="text-body-l">
+                {loading
+                  ? 'Loading applicants…'
+                  : `Showing ${filteredApplicants.length} of ${applicants.length} applicant${applicants.length === 1 ? '' : 's'}`}
+              </p>
+            </div>
+
+            {error ? (
+              <div className="ivd-alert" role="alert">
+                <CircleAlert size={20} strokeWidth={1.75} aria-hidden="true" />
+                <div>
+                  <h3 className="text-headline-m">We couldn't load the applicants</h3>
+                  <p className="text-body-m">{error.replace(/[.\s]+$/, '')}. Try again, or contact RSP if this keeps happening.</p>
+                  <button type="button" className="btn btn-sm btn-secondary" onClick={() => void fetchApplicantsAndJob(false)}>
+                    Try Again
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="ivd-table-wrap">
+                <table className="ivd-table" aria-busy={loading}>
+                  <thead>
+                    <tr>
+                      <th scope="col">Applicant</th>
+                      <th scope="col">Type</th>
+                      <th scope="col">Contact info</th>
+                      <th scope="col">Application date</th>
+                      <th scope="col">Status</th>
+                      <th scope="col" className="is-action"><span className="sr-only">Action</span></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {loading ? (
+                      Array.from({ length: 3 }, (_, i) => (
+                        <tr key={`skeleton-${i}`} aria-hidden="true">
+                          <td className="ivd-cell-primary"><span className="ivd-skel" style={{ width: '60%', height: 14 }} /></td>
+                          <td><span className="ivd-skel" style={{ width: 80, height: 24 }} /></td>
+                          <td><span className="ivd-skel" style={{ width: '80%', height: 14 }} /></td>
+                          <td><span className="ivd-skel" style={{ width: 100, height: 14 }} /></td>
+                          <td><span className="ivd-skel" style={{ width: 96, height: 24 }} /></td>
+                          <td className="is-action"><span className="ivd-skel" style={{ width: 96, height: 36, marginLeft: 'auto', borderRadius: 'var(--radius-pill)' }} /></td>
+                        </tr>
+                      ))
+                    ) : pageItems.length === 0 ? (
+                      <tr>
+                        <td colSpan={6} className="ivd-cell-empty">
+                          <div className="ivd-empty">
+                            <div className="ivd-empty-icon" aria-hidden="true"><Users size={24} strokeWidth={1.75} /></div>
+                            {hasActiveFilters ? (
+                              <>
+                                <h3 className="text-title-s">No applicants match these filters</h3>
+                                <p className="text-body-m">Try another type or status, or clear the filters.</p>
+                                <button type="button" className="btn btn-sm btn-secondary" onClick={clearFilters}>Clear Filters</button>
+                              </>
+                            ) : (
+                              <>
+                                <h3 className="text-title-s">No applicants for this position yet</h3>
+                                <p className="text-body-m">Applicants RSP assigns to this posting will appear here.</p>
+                              </>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    ) : (
+                      pageItems.map((applicant) => {
+                        const appType = getApplicantType(applicant);
+                        const evaluated = applicant.evaluation_status === 'Completed';
+                        const fullName = getFullName(applicant);
+                        return (
+                          <tr key={applicant.id}>
+                            <td className="ivd-cell-primary">
+                              <button
+                                type="button"
+                                className="ivd-name-link"
+                                onClick={() => void openApplicantDetails(applicant)}
+                                title={`View ${fullName}'s details`}
+                              >
+                                {fullName}
+                              </button>
+                            </td>
+                            <td data-label="Type">
+                              {/* §10: application type is a category, not a status */}
+                              <span className={`badge ${appType === 'Promotional' ? 'badge-neutral' : 'badge-tint'}`}>{appType}</span>
+                            </td>
+                            <td data-label="Contact info">
+                              <span className="ivd-contact">{applicant.email || '—'}</span>
+                              <span className="ivd-job-meta text-body-s">{applicant.contact_number || 'No contact number'}</span>
+                            </td>
+                            <td data-label="Application date">{formatDateDI(applicant.created_at)}</td>
+                            <td data-label="Status"><EvalStatusBadge evaluated={evaluated} /></td>
+                            <td className="is-action">
+                              {evaluated ? (
+                                <button type="button" className="btn btn-sm btn-secondary" disabled>Evaluated</button>
+                              ) : (
+                                <button
+                                  type="button"
+                                  className="btn btn-sm btn-primary"
+                                  aria-label={`Evaluate ${fullName}`}
+                                  onClick={() => {
+                                    storeApplicantTypeForEval(applicant.id, appType);
+                                    navigate(`/interviewer/evaluate/${applicant.id}`);
+                                  }}
+                                >
+                                  Evaluate
+                                </button>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            {!loading && !error && (
+              <Pager total={filteredApplicants.length} page={currentPage} pageSize={APPLICANTS_PAGE_SIZE} onPage={setPage} label="Applicants pages" />
+            )}
+          </section>
+        </main>
       </div>
 
       {activeApplicant && (
@@ -1242,6 +1345,6 @@ export function InterviewerApplicantsList() {
           </div>
         </div>
       )}
-    </div>
+    </>
   );
 }

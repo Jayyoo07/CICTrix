@@ -1,3 +1,4 @@
+import { useBackClosesView } from '../../../hooks/useHistoryBack';
 /**
  * PM Admin → Archive.
  *
@@ -24,6 +25,7 @@ export const PMArchive = () => {
   const [search, setSearch] = useState('');
 
   const [selected, setSelected] = useState<ArchiveEmployee | null>(null);
+  useBackClosesView(selected !== null, () => setSelected(null), 'pm-archive-employee');
   const [semesters, setSemesters] = useState<ArchiveSemester[]>([]);
   const [semLoading, setSemLoading] = useState(false);
 

@@ -1,3 +1,4 @@
+import { useBackClosesView } from '../../../hooks/useHistoryBack';
 import { ArrowLeft, ArrowUpDown, Building2, ChevronDown, ChevronRight, RefreshCw, Search } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRealtimeRefresh } from '../../../hooks/useRealtimeRefresh';
@@ -133,6 +134,7 @@ export const SummaryOfRatings = () => {
   const [searchTerm, setSearchTerm] = useState('');
   // null → department landing view; a department name → drilled-in employee view
   const [activeDept, setActiveDept] = useState<string | null>(null);
+  useBackClosesView(activeDept !== null, () => backToDepartments(), 'pm-sor-department');
   const [expandedRows, setExpandedRows] = useState<Record<string, boolean>>({});
 
   const latestLoadId = useRef(0);

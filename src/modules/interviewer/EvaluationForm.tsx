@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
+import { useHistoryBack } from '../../hooks/useHistoryBack';
 import iloiloCitySeal from '../../assets/iloilo-city-seal.png';
 import { Button } from '../../components/Button';
 import { Card } from '../../components/Card';
@@ -153,6 +154,9 @@ const resolveInterviewerIdentity = (): { name: string; locked: boolean } => {
 export function EvaluationForm() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  // Back returns to where the evaluation was opened from (the applicants list
+  // or the dashboard), falling back to the dashboard on a direct visit.
+  const goBack = useHistoryBack('/interviewer/dashboard');
   
   const [applicant, setApplicant] = useState<Applicant | null>(null);
   const [, setAttachments] = useState<Attachment[]>([]);
@@ -542,7 +546,7 @@ export function EvaluationForm() {
       <div className="evaluation-container">
         <Card className="error-card">
           <p className="error-message">❌ {error}</p>
-          <Button onClick={() => navigate('/interviewer/dashboard')}>Back to Dashboard</Button>
+          <Button onClick={goBack}>Back</Button>
         </Card>
       </div>
     );
@@ -560,8 +564,8 @@ export function EvaluationForm() {
             </div>
           )}
         </div>
-        <Button onClick={() => navigate('/interviewer/dashboard')} variant="secondary">
-          Back to Dashboard
+        <Button onClick={goBack} variant="secondary">
+          Back
         </Button>
       </div>
 
@@ -829,7 +833,7 @@ export function EvaluationForm() {
                   )}
 
                   <div className="oral-form-actions">
-                    <Button type="button" variant="secondary" onClick={() => navigate(-1)}>
+                    <Button type="button" variant="secondary" onClick={goBack}>
                       Save Draft
                     </Button>
                     <Button type="submit" disabled={submitting} className="submit-btn">
@@ -1132,7 +1136,7 @@ export function EvaluationForm() {
                 )}
 
                 <div className="oral-form-actions">
-                  <Button type="button" variant="secondary" onClick={() => navigate(-1)}>
+                  <Button type="button" variant="secondary" onClick={goBack}>
                     Save Draft
                   </Button>
                   <Button type="submit" disabled={submitting} className="submit-btn">
@@ -1149,14 +1153,14 @@ export function EvaluationForm() {
         open={showSuccess}
         onClose={() => {
           setShowSuccess(false);
-          navigate('/interviewer/dashboard');
+          goBack();
         }}
         title="Evaluation Submitted"
       >
         <p>✅ Evaluation has been successfully submitted!</p>
         <p>The applicant status has been updated to "Reviewed".</p>
-        <Button onClick={() => navigate('/interviewer/dashboard')}>
-          Back to Dashboard
+        <Button onClick={() => { setShowSuccess(false); goBack(); }}>
+          Done
         </Button>
       </Dialog>
     </div>

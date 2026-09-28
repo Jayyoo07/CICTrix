@@ -1,3 +1,4 @@
+import { useBackClosesView } from '../../../hooks/useHistoryBack';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ErrorBanner } from '../../../components/ErrorBanner';
 import {
@@ -515,6 +516,7 @@ export function PMPromotionalApplications() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [selected, setSelected] = useState<ApplicationRow | null>(null);
+  useBackClosesView(selected !== null, () => setSelected(null), 'pm-promotional-application');
   const [showNew, setShowNew] = useState(false);
 
   const [eligibilityFor, setEligibilityFor] = useState<ApplicationRow | null>(null);

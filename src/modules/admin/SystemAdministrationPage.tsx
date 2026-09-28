@@ -1,3 +1,4 @@
+import { useBackClosesView } from '../../hooks/useHistoryBack';
 import { Fragment, useEffect, useMemo, useState } from 'react';
 import { getAdminEmail } from '../../lib/adminSession';
 import { AlertCircle, Archive, Building2, CalendarClock, Check, CheckCircle2, ChevronDown, ChevronLeft, ClipboardList, Copy, History, Lock, Search, ShieldCheck, UserMinus, UserPlus, Users, X } from 'lucide-react';
@@ -166,6 +167,7 @@ const OfficeDirectory = () => {
   const [error, setError] = useState('');
   const [search, setSearch] = useState('');
   const [drillOfficeRow, setDrillOfficeRow] = useState<OfficeDirectoryRow | null>(null);
+  useBackClosesView(drillOfficeRow !== null, () => setDrillOfficeRow(null), 'sysadmin-office');
 
   useEffect(() => {
     let cancelled = false;

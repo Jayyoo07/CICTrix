@@ -1,3 +1,4 @@
+import { useBackClosesView } from '../../../hooks/useHistoryBack';
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
@@ -376,6 +377,7 @@ export const OfficeAccountConsole: React.FC = () => {
   // Subtabs
   const [targetsSubtab, setTargetsSubtab] = useState<'verify' | 'transmittal'>('verify');
   const [selectedTargetId, setSelectedTargetId] = useState<string | null>(null);
+  useBackClosesView(selectedTargetId !== null, () => setSelectedTargetId(null), 'office-console-target');
   const [ratingsSubtab, setRatingsSubtab] = useState<'review' | 'dpcr' | 'opcr'>('review');
 
   // State arrays

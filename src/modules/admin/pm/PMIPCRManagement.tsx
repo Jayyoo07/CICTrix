@@ -1,3 +1,4 @@
+import { useBackClosesView } from '../../../hooks/useHistoryBack';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   AlertCircle,
@@ -2103,6 +2104,7 @@ export const PMIPCRManagement = () => {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
   const [selectedEmployee, setSelectedEmployee] = useState<EnrichedEmployee | null>(null);
+  useBackClosesView(selectedEmployee !== null, () => setSelectedEmployee(null), 'pm-ipcr-employee');
   // IPCR Weighting used to be its own sidebar page; it now opens from here as a
   // popup so the per-office Core/Strategic/Support split lives beside the IPCR
   // records it governs.

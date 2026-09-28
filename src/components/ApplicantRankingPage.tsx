@@ -1,3 +1,4 @@
+import { useBackClosesView } from '../hooks/useHistoryBack';
 import { useEffect, useState } from 'react';
 import { ArrowLeft, Building2, CheckCircle2, ChevronRight, Printer, Trophy, UserCheck, Users } from 'lucide-react';
 import { AdminHeader } from './AdminHeader';
@@ -41,6 +42,8 @@ export const ApplicantRankingPage = () => {
   const [activeDepartment, setActiveDepartment] = useState<string | null>(null);
   const [activePosition, setActivePosition] = useState<string | null>(null);
   const [selected, setSelected]       = useState<Set<string>>(new Set());
+  useBackClosesView(activeDepartment !== null, () => { setActivePosition(null); setActiveDepartment(null); }, 'ranking-department');
+  useBackClosesView(activeDepartment !== null && activePosition !== null, () => { setActivePosition(null); setSelected(new Set()); }, 'ranking-position');
   const [hiring, setHiring]           = useState(false);
   const [toast, setToast]             = useState('');
 

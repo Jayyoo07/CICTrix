@@ -67,9 +67,10 @@ export const LoginPage = ({ onLogin }: LoginPageProps) => {
   const navigateAfterLogin = (role: Role) => {
     const returnTo = searchParams.get('returnTo');
     if (returnTo && returnTo.startsWith('/') && !returnTo.startsWith('//')) {
-      navigate(returnTo);
+      // replace: Back from the portal must not return to the login screen.
+      navigate(returnTo, { replace: true });
     } else {
-      navigate(getRoleDefaultRoute(role));
+      navigate(getRoleDefaultRoute(role), { replace: true });
     }
   };
 

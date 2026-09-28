@@ -1,3 +1,4 @@
+import { useBackClosesView } from '../hooks/useHistoryBack';
 import {
     Briefcase,
     Calendar,
@@ -209,6 +210,7 @@ export const JobPostingsPage = () => {
   const [jobApplicantsLoading, setJobApplicantsLoading] = useState(false);
   const [jobApplicantsSearch, setJobApplicantsSearch] = useState('');
   const [showAllApplicants, setShowAllApplicants] = useState(false);
+  useBackClosesView(viewingApplicantsFor !== null, () => { setViewingApplicantsFor(null); setShowAllApplicants(false); }, 'jobposting-applicants');
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | JobPosting['status']>('all');
   const [officeFilter, setOfficeFilter] = useState<string>('all');

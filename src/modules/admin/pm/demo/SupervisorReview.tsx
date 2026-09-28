@@ -1,3 +1,4 @@
+import { useBackClosesView } from '../../../../hooks/useHistoryBack';
 /**
  * IPCR Demo — Office Account review (Stages 4 & 7).
  *
@@ -32,6 +33,7 @@ export function SupervisorReview({ account, readOnly = false }: { account: DemoA
   const [schedules, setSchedules] = useState<Schedule[]>([]);
   const [accounts, setAccounts] = useState<DemoAccount[]>([]);
   const [active, setActive] = useState<Pending | null>(null);
+  useBackClosesView(active !== null, () => setActive(null), 'pm-demo-pending');
   const [loading, setLoading] = useState(true);
 
   const refresh = async () => {

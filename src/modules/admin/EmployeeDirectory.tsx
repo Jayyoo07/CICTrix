@@ -1,3 +1,4 @@
+import { useBackClosesView } from '../../hooks/useHistoryBack';
 import React, { useState, useEffect } from 'react';
 import { Search, FileText, ChevronRight, Users } from 'lucide-react';
 import { getAllEmployees } from '../../lib/api/employees';
@@ -118,6 +119,10 @@ export default function EmployeeDirectory() {
     pos.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     pos.department.toLowerCase().includes(searchTerm.toLowerCase())
   );
+
+  // Browser Back steps back one level (employee → position list → directory).
+  useBackClosesView(viewMode !== 'directory', () => handleBackToPositions(), 'directory-position');
+  useBackClosesView(viewMode === 'employee-detail', () => handleBackToPositionList(), 'directory-employee');
 
   // View: Directory - Position Cards
   if (viewMode === 'directory') {

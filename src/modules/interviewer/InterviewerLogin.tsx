@@ -60,7 +60,9 @@ export function InterviewerLogin({ onLogin }: InterviewerLoginProps) {
     navigate(
       returnTo && returnTo.startsWith('/') && !returnTo.startsWith('//')
         ? returnTo
-        : '/interviewer/dashboard'
+        : '/interviewer/dashboard',
+      // replace: Back from the dashboard must not return to the login screen.
+      { replace: true },
     );
   };
 

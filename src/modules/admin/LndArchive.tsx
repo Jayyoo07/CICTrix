@@ -1,3 +1,4 @@
+import { useBackClosesView } from '../../hooks/useHistoryBack';
 /**
  * L&D Archive — two-level drill-down.
  *
@@ -37,6 +38,7 @@ export const LndArchive = ({
   const [offices, setOffices] = useState<ArchiveOffice[]>([]);
   const [loadingOffices, setLoadingOffices] = useState(true);
   const [selectedOffice, setSelectedOffice] = useState<string | null>(initialOffice);
+  useBackClosesView(selectedOffice !== null, () => setSelectedOffice(null), 'lnd-archive-office');
   const [employees, setEmployees] = useState<ArchiveEmployee[]>([]);
   const [loadingEmployees, setLoadingEmployees] = useState(false);
 

@@ -1,3 +1,4 @@
+import { useBackClosesView } from '../../../../hooks/useHistoryBack';
 /**
  * IPCR Demo — PM Admin workflow (Stages 2, 5, 6, 8).
  *
@@ -125,6 +126,7 @@ export function PMIncoming({ pmId, tick, onChange }: { pmId: string; tick: numbe
   const { employees, schedById, refresh } = useWorkflowData(tick);
   const [accounts, setAccounts] = useState<DemoAccount[]>([]);
   const [reviewing, setReviewing] = useState<{ account: DemoAccount; phase: 1 | 2 } | null>(null);
+  useBackClosesView(reviewing !== null, () => setReviewing(null), 'pm-demo-review');
 
   useEffect(() => {
     listAccounts().then((r) => r.ok && setAccounts(r.data));

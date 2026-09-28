@@ -21,6 +21,7 @@ import { AdminHeader } from '../../components/AdminHeader';
 import { Sidebar } from '../../components/Sidebar';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
+import { useHistoryBack } from '../../hooks/useHistoryBack';
 import { getPreferredDataSourceMode } from '../../lib/dataSourceMode';
 import { mockDatabase } from '../../lib/mockDatabase';
 import { sendEmail } from '../../lib/email';
@@ -708,6 +709,7 @@ const FILE_NAME_TO_TYPE: Record<string, string> = {
 
 export function ApplicantDetailsPage() {
   const navigate = useNavigate();
+  const goBack = useHistoryBack('/admin/rsp');
   const location = useLocation();
   const { id } = useParams<{ id: string }>();
   const routeState = (location.state as ApplicantRouteState | null) ?? null;
@@ -1488,7 +1490,7 @@ export function ApplicantDetailsPage() {
     // If qualified, navigate away (remove from current list)
     if (action === 'qualified') {
       setTimeout(() => {
-        navigate(-1); // Go back to previous page/list
+        goBack(); // previous page/list, or the RSP home on a direct visit
       }, 500);
     }
   };

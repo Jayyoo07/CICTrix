@@ -436,9 +436,11 @@ function AppContent() {
     const empParams = new URLSearchParams(location.search);
     const empReturnTo = empParams.get('returnTo');
     const empDefault = session.mustChangePassword ? '/employee/set-password' : '/employee/dashboard';
+    // replace: Back from the portal must not return to the login screen.
     navigate(empReturnTo && empReturnTo.startsWith('/') && !empReturnTo.startsWith('//')
       ? empReturnTo
-      : empDefault
+      : empDefault,
+      { replace: true },
     );
   };
 
@@ -447,20 +449,20 @@ function AppContent() {
     const updated: EmployeeSession = { ...employeeSession, mustChangePassword: false };
     setEmployeeSession(updated);
     writeEmployeeSession(updated);
-    navigate('/employee/dashboard');
+    navigate('/employee/dashboard', { replace: true });
   };
 
   const handleInterviewerLogout = () => {
     setInterviewerSession(null);
     localStorage.removeItem(INTERVIEWER_SESSION_KEY);
-    navigate('/interviewer/login');
+    navigate('/interviewer/login', { replace: true });
   };
 
   const handleEmployeeLogout = () => {
     setEmployeeSession(null);
     setCurrentEmployee(null);
     clearEmployeeSession();
-    navigate('/employee/login');
+    navigate('/employee/login', { replace: true });
   };
 
   const handleRevokedInterviewerAcknowledge = async () => {
@@ -505,7 +507,7 @@ function AppContent() {
             path="/interviewer/applicants"
             element={
               <InterviewerRoute session={interviewerSession}>
-                <InterviewerApplicantsList />
+                <InterviewerApplicantsList session={interviewerSession} onLogout={handleInterviewerLogout} />
               </InterviewerRoute>
             }
           />

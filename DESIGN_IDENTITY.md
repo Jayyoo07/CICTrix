@@ -367,6 +367,27 @@ Every portal keeps the same top bar, so users always recognise where they are:
 
 Page titles do **not** go in this bar; they go in the hero or at the top of the page content.
 
+#### Sub-pages (e.g. Interviewer → Office → Position)
+
+Keep the same top bar, then a **compact hero**: the gradient with straight edges and no photo. It contains:
+- an icon-only **Back** button (44×44, same glass treatment as the Header Logout, `aria-label="Back"`);
+- breadcrumbs (Caption, white at 85%; current page white SemiBold);
+- the page title (Title L, white);
+- one meta line (Body L, white at 90%).
+
+Show the office/department **once**. The content cards overlap the hero by ~48px and follow the dashboard card, toolbar, table and pagination patterns.
+
+#### Back navigation (all portals)
+
+"Back" always means **the page or view the user was just on**, never a fixed home route and never a login screen.
+
+| Situation | Rule |
+|---|---|
+| In-page Back button | Step back in history (`useHistoryBack(fallback)`). Use the portal home as a fallback only when there is no earlier in-app page, e.g. after a direct visit. Label it "Back", not "Back to Dashboard", unless the destination is fixed. |
+| Drill-downs, detail panels, list modals | Browser Back closes **one level** and stays on the page (`useBackClosesView`). Closing the view with its own button must not leave an extra history step. |
+| Login / logout | Redirect with `replace`, so Back from a portal home never returns to the login screen, and Back after logout never re-enters the portal. |
+| Explicitly named links ("Back to Home") | Allowed only when they really go to that named place. |
+
 ### 8.3 Responsive breakpoints
 
 | Name | Width |

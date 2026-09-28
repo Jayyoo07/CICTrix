@@ -1,3 +1,4 @@
+import { useBackClosesView } from '../../../hooks/useHistoryBack';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { CheckCircle, Lock, Loader2, Star, ChevronDown, ChevronRight, ArrowLeft, Edit3, X, Info } from 'lucide-react';
 import { useRealtimeRefresh } from '../../../hooks/useRealtimeRefresh';
@@ -35,6 +36,7 @@ export const Phase2RatingPanel: React.FC<{
   const [submissions, setSubmissions] = useState<RatingSheet[]>([]);
   const [collapsedPositions, setCollapsedPositions] = useState<Set<string>>(new Set());
   const [selectedSheetId, setSelectedSheetId] = useState<string | null>(null);
+  useBackClosesView(selectedSheetId !== null, () => setSelectedSheetId(null), 'pm-phase2-sheet');
   const [loadingList, setLoadingList] = useState(false);
   
   // Rating inputs state

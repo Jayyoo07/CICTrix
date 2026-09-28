@@ -1,3 +1,4 @@
+import { useBackClosesView } from '../hooks/useHistoryBack';
 import {
   ArrowLeft,
   CheckCircle2,
@@ -41,6 +42,7 @@ export const NewlyHiredPage = () => {
   const [rows, setRows] = useState<NewlyHired[]>([]);
   const [mode, setMode] = useState<ViewMode>('overview');
   const [selectedDepartment, setSelectedDepartment] = useState<string>('');
+  useBackClosesView(mode === 'department', () => closeDepartment(), 'newly-hired-department');
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [showCredentialsModal, setShowCredentialsModal] = useState(false);
   const [generatedCredentials, setGeneratedCredentials] = useState<GeneratedCredential[]>([]);

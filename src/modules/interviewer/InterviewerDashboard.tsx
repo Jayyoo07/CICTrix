@@ -3,19 +3,18 @@ import {
   Briefcase,
   Building2,
   CircleAlert,
-  LogOut,
   Trash2,
-  UserCircle2,
   X,
 } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useBackClosesView } from '../../hooks/useHistoryBack';
 import { useRealtimeRefresh } from '../../hooks/useRealtimeRefresh';
-import abyanLogo from '../../assets/abyan-logo.png';
 import { Dialog } from '../../components/Dialog';
 import { POSITION_TO_DEPARTMENT_MAP } from '../../constants/positions';
 import { isPositionAssignedToInterviewer, resolveAssignedPositionsForInterviewer } from '../../lib/interviewerAccess';
 import { storeApplicantTypeForEval } from '../../lib/interviewerEvalNavigation';
+import { InterviewerNavBar } from './InterviewerNavBar';
 import { mockDatabase } from '../../lib/mockDatabase';
 import { ensureRecruitmentSeedData, getAuthoritativeJobPostings, getJobPostingsFromSupabase } from '../../lib/recruitmentData';
 import { supabase } from '../../lib/supabase';
@@ -257,7 +256,6 @@ export function InterviewerDashboard({
   const kpiCardRefs = useRef<Partial<Record<KpiKey, HTMLDivElement | null>>>({});
   const lastOpenedKpi = useRef<KpiKey | null>(null);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
-  const [logoutConfirmOpen, setLogoutConfirmOpen] = useState(false);
   const [applicantToDelete, setApplicantToDelete] = useState<Applicant | null>(null);
   const [deleting, setDeleting] = useState(false);
 
@@ -438,6 +436,8 @@ export function InterviewerDashboard({
     setOpenKpi(kpi);
   };
   const closeKpiModal = useCallback(() => setOpenKpi(null), []);
+  // Browser Back closes the list modal instead of leaving the dashboard.
+  useBackClosesView(openKpi !== null, closeKpiModal, 'kpi-modal');
 
   // Return focus to the card that opened the modal.
   useEffect(() => {
@@ -492,39 +492,7 @@ export function InterviewerDashboard({
 
   return (
     <div className="abyan-ds ivd">
-      {/* ── Top navigation bar (§8.2) ── */}
-      <nav className="ivd-nav" aria-label="Interviewer Portal">
-        <button type="button" className="ivd-brand" onClick={() => navigate('/interviewer/dashboard')}>
-          <img src={abyanLogo} alt="" />
-          <span className="ivd-brand-name">ABYAN</span>
-          <span className="ivd-brand-sub">Human Resource Information System</span>
-        </button>
-
-        <div className="ivd-user">
-          <span className="ivd-user-avatar" aria-hidden="true">
-            <UserCircle2 size={20} strokeWidth={1.75} />
-          </span>
-          <span className="ivd-user-meta">
-            <span className="ivd-user-name" title={session?.name}>{session?.name || 'Interviewer'}</span>
-            <span className="ivd-user-role">Interviewer Portal</span>
-          </span>
-          {onLogout && (
-            <>
-              <span className="ivd-nav-divider" aria-hidden="true" />
-              <button
-                type="button"
-                onClick={() => setLogoutConfirmOpen(true)}
-                className="ivd-logout"
-                aria-label="Logout"
-                title="Logout"
-              >
-                <LogOut size={16} strokeWidth={1.75} aria-hidden="true" />
-                <span className="ivd-logout-label">Logout</span>
-              </button>
-            </>
-          )}
-        </div>
-      </nav>
+      <InterviewerNavBar session={session} onLogout={onLogout} />
 
       {/* ── Hero: gradient + blended Iloilo City Hall photo, straight edges ── */}
       <header className="ivd-hero">
@@ -548,34 +516,6 @@ export function InterviewerDashboard({
         </div>
       </header>
 
-      {/* ── Logout Confirmation Dialog (§9.10) ── */}
-      {logoutConfirmOpen && (
-        <div className="ivd-modal-overlay" onClick={() => setLogoutConfirmOpen(false)}>
-          <div
-            className="ivd-modal"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="ivd-logout-title"
-            onClick={(e) => e.stopPropagation()}
-            onKeyDown={(e) => { if (e.key === 'Escape') setLogoutConfirmOpen(false); }}
-          >
-            <div className="ivd-modal-icon" aria-hidden="true">
-              <LogOut size={22} strokeWidth={1.75} />
-            </div>
-            <h3 id="ivd-logout-title" className="text-title-s">Confirm Logout</h3>
-            <p className="text-body-m">Are you sure you want to log out of your Interviewer Portal session?</p>
-            <div className="ivd-modal-actions">
-              <button type="button" className="btn btn-md btn-secondary" onClick={() => setLogoutConfirmOpen(false)} autoFocus>
-                Cancel
-              </button>
-              <button type="button" className="btn btn-md btn-primary" onClick={() => { setLogoutConfirmOpen(false); onLogout?.(); }}>
-                Yes, Logout
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
       <main className="ivd-container ivd-main">
         {error ? (
           <div className="ivd-card">
@@ -583,7 +523,7 @@ export function InterviewerDashboard({
               <CircleAlert size={20} strokeWidth={1.75} aria-hidden="true" />
               <div>
                 <h3 className="text-headline-m">We couldn't load your assignments</h3>
-                <p className="text-body-m">{error}. Check your connection and try again.</p>
+                <p className="text-body-m">{error.replace(/[.\s]+$/, '')}. Try again, or contact RSP if this keeps happening.</p>
                 <button type="button" className="btn btn-sm btn-secondary" onClick={() => void fetchJobsAndApplicants(false)}>
                   Try Again
                 </button>

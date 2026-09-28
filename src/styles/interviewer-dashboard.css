@@ -146,6 +146,46 @@
 .ivd-hero-text h1 { margin: 0; color: var(--color-white); }
 .ivd-hero-text p { margin: 8px 0 0; color: var(--on-blue-text); }
 
+/* ── Compact hero for sub-pages (e.g. a position's applicants) ─────────── */
+.ivd-hero--compact {
+  --ivd-overlap: 48px;
+  min-height: 0;
+  padding: 32px 0 calc(var(--ivd-overlap) + 32px);
+}
+.ivd-main--compact { --ivd-overlap: 48px; }
+
+.ivd-page-head { position: relative; z-index: 1; display: flex; align-items: flex-start; gap: 16px; }
+.ivd-page-head-text { min-width: 0; }
+.ivd-page-head h1 { margin: 4px 0 0; color: var(--color-white); overflow-wrap: anywhere; }
+.ivd-page-head p { margin: 8px 0 0; color: var(--on-blue-text); }
+
+/* Icon-only back button on blue: same glass treatment as the header Logout. */
+.ivd-back {
+  flex: none;
+  width: 44px; height: 44px;
+  display: grid; place-items: center;
+  margin-top: 2px;
+  border: 1px solid rgba(255, 255, 255, .35);
+  border-radius: var(--radius-lg);
+  background: rgba(255, 255, 255, .12);
+  color: var(--color-white);
+  cursor: pointer;
+  transition: background var(--duration-fast), box-shadow var(--duration-fast);
+}
+.ivd-back:hover { background: rgba(255, 255, 255, .20); }
+.ivd-back:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--on-blue-border); }
+
+/* §9.2 breadcrumbs, on blue */
+.ivd-breadcrumb { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; color: var(--on-blue-muted); }
+.ivd-breadcrumb button {
+  padding: 0; border: 0; background: none; cursor: pointer;
+  font: inherit; color: var(--on-blue-muted);
+  border-radius: var(--radius-sm);
+}
+.ivd-breadcrumb button:hover { color: var(--color-white); text-decoration: underline; }
+.ivd-breadcrumb button:focus-visible { outline: 2px solid var(--color-white); outline-offset: 2px; }
+.ivd-breadcrumb [aria-current='page'] { color: var(--color-white); font-weight: 600; }
+
 /* ── Page body ────────────────────────────────────────────────────────── */
 .ivd-main {
   position: relative;
@@ -364,6 +404,17 @@
 .ivd-table tbody tr { transition: background var(--duration-fast); }
 .ivd-table tbody tr:hover { background: var(--bg-row-hover); }
 
+/* Applicant name opens the details panel: a §3.4 link in the primary column. */
+.ivd-name-link {
+  padding: 0; border: 0; background: none; cursor: pointer; text-align: left;
+  font: 600 15px/20px var(--font-sans);
+  color: var(--color-primary);
+  border-radius: var(--radius-sm);
+}
+.ivd-name-link:hover { color: var(--color-primary-700); text-decoration: underline; }
+.ivd-name-link:focus-visible { outline: 2px solid var(--color-primary); outline-offset: 2px; }
+.ivd-contact { display: block; overflow-wrap: anywhere; }
+
 .ivd-job-title { display: block; font: 600 15px/20px var(--font-sans); color: var(--color-primary-900); }
 .ivd-job-meta { display: block; margin-top: 2px; color: var(--neutral-600); }
 
@@ -527,7 +578,10 @@
   /* Title spans the full width on phones, so the photo steps out. */
   .ivd-hero-photo { display: none; }
   .ivd-hero { padding-top: 24px; }
-  .ivd-hero-text h1 { font-size: 26px; line-height: 32px; }
+  .ivd-hero-text h1,
+  .ivd-page-head h1 { font-size: 26px; line-height: 32px; }
+  .ivd-hero--compact { padding-top: 20px; }
+  .ivd-page-head { gap: 12px; }
   .ivd-hero-text p { font-size: 14px; line-height: 20px; }
 
   .ivd-card { padding: 16px; }
