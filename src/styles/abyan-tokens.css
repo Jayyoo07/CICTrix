@@ -74,6 +74,13 @@
   --duration-fast: 150ms;
   --duration: 200ms;
   --ease-out: cubic-bezier(.2,.8,.2,1);
+  /* §14.1 names for the same curve / duration; --ease-out above predates them. */
+  --ease-standard: cubic-bezier(.2,.8,.2,1);
+  --dur-base: 200ms;
+
+  /* Side navigation (§9.12) */
+  --rail-collapsed: 72px;
+  --rail-open: 256px;
 
   /* Type (§4) */
   --font-sans: 'Poppins', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;

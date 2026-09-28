@@ -1,9 +1,10 @@
-import { BookOpen, Briefcase, ClipboardCheck, ClipboardList, FileText, LayoutDashboard, ListChecks, Network, Settings, ShieldCheck, TrendingUp, UserCheck, UserCog, Users } from 'lucide-react';
+import { BookOpen, Briefcase, ClipboardCheck, ClipboardList, FileText, GitBranch, LayoutDashboard, ListChecks, Settings, ShieldCheck, TrendingUp, UserCheck, UserCog, Users } from 'lucide-react';
 import { readAdminSession } from '../lib/adminSession';
 import { Link, useLocation } from 'react-router-dom';
 import { useEffect, useState } from 'react';
 import { getApplicantsFromSupabase, getApplicants } from '../lib/recruitmentData';
 import '../styles/sidebar.css';
+import { RailNav } from './RailNav';
 
 type AdminRole = 'super-admin' | 'rsp' | 'lnd' | 'pm';
 
@@ -182,7 +183,7 @@ export const Sidebar = ({ activeModule, userRole }: SidebarProps) => {
       icon: Briefcase,
       label: 'Job Posts',
       sublabel: 'Manage positions',
-      isActive: location.pathname === '/admin/rsp/jobs',
+      isActive: location.pathname === '/admin/rsp/jobs' || location.pathname.startsWith('/admin/rsp/job/'),
       roles: ['rsp'],
     },
     // ── Applicants (tabs live inside the Applications page) ───────────────
@@ -195,13 +196,16 @@ export const Sidebar = ({ activeModule, userRole }: SidebarProps) => {
         location.pathname === '/admin/rsp/applications' ||
         location.pathname === '/admin/rsp/qualified' ||
         location.pathname === '/admin/rsp/applicant-score' ||
-        location.pathname === '/admin/rsp/applicant-ranking',
+        location.pathname === '/admin/rsp/applicant-ranking' ||
+        location.pathname === '/admin/rsp/for-hiring' ||
+        location.pathname.startsWith('/admin/rsp/qualified/') ||
+        location.pathname.startsWith('/admin/rsp/applicant/'),
       roles: ['rsp'],
     },
     // ── Other sections ────────────────────────────────────────────────────
     {
       path: '/admin/rsp/new-hired',
-      icon: Users,
+      icon: UserCheck,
       label: 'Newly Hired',
       sublabel: 'Generate credentials',
       isActive: location.pathname === '/admin/rsp/new-hired',
@@ -225,7 +229,7 @@ export const Sidebar = ({ activeModule, userRole }: SidebarProps) => {
     },
     {
       path: '/admin/rsp/succession',
-      icon: Network,
+      icon: GitBranch,
       label: 'Succession Planning',
       sublabel: 'Backup employees per position',
       isActive:
@@ -258,6 +262,22 @@ export const Sidebar = ({ activeModule, userRole }: SidebarProps) => {
     if (!resolvedRole) return false;
     return item.roles.includes(resolvedRole);
   });
+
+  // RSP portal uses the collapsible rail (DESIGN_IDENTITY §9.12); Settings is
+  // pinned to the bottom group. Other roles keep the classic sidebar for now.
+  if (isRspRole) {
+    return (
+      <RailNav
+        items={filteredMenuItems.map((item) => ({
+          path: item.path,
+          label: item.label,
+          icon: item.icon,
+          isActive: item.isActive,
+          bottom: item.path === '/admin/rsp/settings',
+        }))}
+      />
+    );
+  }
 
   return (
     <aside className="sidebar">
