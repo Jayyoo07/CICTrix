@@ -128,7 +128,7 @@ This document is the single source of truth for how ABYAN looks and feels. Every
 | **Brand Soft** | `linear-gradient(135deg, #C8D1FF 0%, #363EE8 100%)` | Feature panels, illustration backdrops, progress accents |
 | **Primary Button** | `linear-gradient(180deg, #363EE8 0%, #191FA8 100%)` | Primary buttons (subtle; see Buttons) |
 
-Decorative faint circle outlines (1px, white at ~10–15% opacity) may be placed at hero corners as seen on the landing page.
+Hero backgrounds are decorated with **large flat, filled brand shapes** (discs, half-discs, quarter-circles). See §7.1. **Do not use thin circle outlines** (1px rings); they were retired in favour of the filled shapes.
 
 ### 3.6 Semantic status colors
 
@@ -279,6 +279,21 @@ The brand pattern is a set of **geometric blue tiles**: quarter-circles, half-di
 - Keep a single accent direction per composition.
 - Keep text over patterns at ≥4.5:1 contrast, or place text on a solid blue panel beside the pattern.
 
+### 7.1 Hero backdrop shapes
+
+Portal and landing heroes use a few **oversized, flat, filled shapes** that bleed off the hero's edges, creating soft tonal depth on the blue gradient (reference: the "large blue shapes behind a floating white card" composition). They replace the old thin outline circles.
+
+| Shape | Size (desktop) | Placement | Fill |
+|---|---|---|---|
+| Disc | 520–680px | Bleeding off the top-left and top-right corners | White at 6–8% |
+| Half-disc (flat side down) | ~420 × 210px | Sitting on the hero's bottom edge, right of the title | Vivid `#000CFF` at ~35% |
+| Quarter-circle (rounded corner top-left) | ~220px | Sitting on the bottom edge near the right | White at ~8% |
+
+- Shapes are **flat and filled**: no borders, outlines, shadows or blur.
+- Keep them behind the text and never behind the white content card.
+- Scale them down on mobile (roughly 50–60%) so they stay decorative.
+- The white content card overlaps the hero's curved bottom edge (48–64px corner radius on desktop, 32px on mobile), so the shapes and the curve read together.
+
 ---
 
 ## 8. Layout & Page Anatomy
@@ -320,6 +335,28 @@ The brand pattern is a set of **geometric blue tiles**: quarter-circles, half-di
 - Page background `#F1F5F9`; all content sits on white cards (`--radius-lg`, 1px `#E2E8F0` border).
 - Sidebar: 256px expanded / 72px collapsed. Use the same blue (`#363EE8`) or the deep gradient with white text; active item uses the `rgba(255,255,255,.18)` pill, matching the public header.
 - Page order: **Title → KPIs → primary content → secondary content.**
+
+#### Top navigation bar (all authenticated portals: RSP, L&D, PM, Interviewer, Office console)
+
+Every portal keeps the same top bar, so users always recognise where they are:
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ [Mark] ABYAN  Human Resource Information System      (👤) Name     │ [⎋ Logout] │
+│                                                            Role / portal    │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+| Part | Spec |
+|---|---|
+| Bar | Solid `#363EE8`, full width, height 64px (56px mobile), side padding 24px (16px mobile), sticky at the top |
+| Logo lockup | White mark, 40px tall (32px mobile), then **ABYAN** (Poppins Bold, 20–22px, white), then **Human Resource Information System** (Poppins Regular, 16px, white). All three sit **on one line**, 12px apart. The system name is hidden below 1024px. Clicking the lockup goes to the portal home. |
+| Avatar | 36px circle, `rgba(255,255,255,.18)` fill, white `user-circle` icon |
+| Name / role | Name: SemiBold 14px white (truncate with a tooltip). Role or portal: Regular 12px, white at 75–85%. Hidden on mobile. |
+| Divider | 1px × 28px, `rgba(255,255,255,.25)`. Hidden on mobile. |
+| Logout | The **Header Logout** button (§9.1) |
+
+Page titles do **not** go in this bar; they go in the hero or at the top of the page content.
 
 ### 8.3 Responsive breakpoints
 
@@ -372,6 +409,9 @@ Tables scroll horizontally inside their container on small screens. Toolbars wra
 |---|---|
 | **Solid white** | Bg `#FFFFFF`, text/icon `#363EE8` or `#040E6B`, soft shadow. E.g. **Apply for a Job**, **Login** |
 | **Ghost / outline white** | Transparent bg, 1px border `rgba(255,255,255,.5)`, text `#FFFFFF`. E.g. **Track Application** |
+| **Header Logout** | Glass rectangle: bg `rgba(255,255,255,.12)`, 1px border `rgba(255,255,255,.35)`, radius 12px, min 44×44px, padding `0 16px`, Poppins SemiBold 14px. Leading `log-out` icon 16px. **The "Logout" label and the icon are always `#FFFFFF`**, in every portal and state. Hover bg `rgba(255,255,255,.20)`; focus ring `0 0 0 3px rgba(255,255,255,.5)`. Below 640px the label hides and the button becomes icon-only, still 44×44px with `aria-label="Logout"`. |
+
+> **Logout label must be white.** The legacy `globals.css` sets a dark `color` directly on every `span`, `p`, `label`, `a` and `button`. A `<span>Logout</span>` inside a white button therefore renders **dark** unless the span gets its own white color. Always set `color: #FFFFFF` on the label element itself (or render it inside an `.abyan-ds` scope, which resets text to inherit).
 
 **Destructive:** Use only for irreversible actions. Bg `#E05252`, hover `#B42323`, white text; outline variant uses the red border/text. Always confirm in a modal.
 
@@ -379,7 +419,7 @@ Tables scroll horizontally inside their container on small screens. Toolbars wra
 - One primary button per view/section. Everything else is secondary.
 - Button order in dialogs: **Secondary (Cancel) on the left, Primary on the right.**
 - Loading state: replace label with a 16px spinner, keep width, disable clicks.
-- Don't use square or slightly rounded buttons. Rounded-rectangles (12px) are reserved for the header **Login** button, nav pills, and pagination.
+- Don't use square or slightly rounded buttons. Rounded-rectangles (12px) are reserved for the header **Login** and **Logout** buttons, nav pills, and pagination.
 
 > **Note:** The button kit lists the Small **Secondary** height as 45px, which appears to be a typo. Use **36px** for all Small buttons.
 
@@ -611,6 +651,7 @@ Categories such as **Department**, **Employment type** (Permanent, Casual, Contr
 | **Employee portal** | Sidebar + topbar, `#F1F5F9` page | Personal KPIs (competency score, trainings, career path), progress bars in brand blue |
 | **HR / Admin portal** | Sidebar + topbar, `#F1F5F9` page | Dense tables, filters, bulk actions, charts; follow the table toolbar pattern strictly |
 | **Reports / Print** | White background, no gradients | Use Poppins, blue table headers `#040E6B` with white text, logo top-left |
+| **Interviewer portal** | Top navigation bar (§8.2) + curved gradient hero with backdrop shapes (§7.1); white content card overlaps the curve | KPI cards open a compact quick view; table paginates (no long scroll) |
 | **Emails / PDFs** | Blue header band with white logo | Buttons follow primary pill style; status badges as in §9.8 |
 
 ---
@@ -774,6 +815,9 @@ module.exports = {
 | Reuse the table toolbar and pagination patterns | Re-style search/sort/pagination per module |
 | Show KPI: icon chip + title + value | Add gradients, shadows, or clashing colors to KPI cards |
 | Keep brand patterns in heroes/auth/empty states | Put patterns behind dense data |
+| Use large flat filled shapes in hero backgrounds (§7.1) | Use thin outline circles as hero decoration |
+| Keep the same top navigation bar and lockup in every portal (§8.2) | Restyle the header, logo lockup or Logout per portal |
+| Keep the Logout label and icon white | Let a global text color turn the Logout label dark |
 
 ---
 
@@ -791,6 +835,7 @@ Before merging any UI change, confirm:
 - [ ] Icons are from the approved set, correct size and stroke.
 - [ ] Spacing uses the 4px scale; radii use the tokens.
 - [ ] Contrast and keyboard navigation are checked.
+- [ ] The top bar follows §8.2, and the Logout label and icon render **white** (check the rendered color, not just the code).
 - [ ] Verified at mobile, tablet, and desktop widths.
 - [ ] Works identically across Public, Employee, and HR/Admin portals.
 
@@ -807,6 +852,8 @@ These were found while compiling this guide and should be resolved by the design
 5. **Primary button color** in the kit appears slightly more violet than `#363EE8`. This guide standardizes on `#363EE8` → `#191FA8` for the gradient. Update tokens if the design file uses a different value.
 6. **KPI card reference** was described but no image was attached; §9.7 follows the description (small icon + KPI title). Adjust if the source mock differs.
 7. **Logo file** is referenced as `USWAG (3)`. Add the final SVG to the repo (e.g. `/assets/brand/abyan-logo.svg`) and reference that path here.
+8. **Legacy global text color.** `src/styles/globals.css` sets `color: var(--text-primary)` directly on `span, p, label, button, a` and headings, so they ignore their parent's color. This is why Logout labels rendered dark on the blue header. It is patched per component for now: explicit white on header labels, and a text-inherit reset inside `.abyan-ds`. Remove the global rule once every portal uses the token file.
+9. **Admin header lockup.** `AdminHeader` still stacks "ABYAN" above the system name. Move it to the single-line lockup in §8.2.
 
 ---
 

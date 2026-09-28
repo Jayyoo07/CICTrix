@@ -76,6 +76,15 @@
   color: var(--neutral-800);
 }
 
+/* globals.css sets `color: var(--text-primary)` directly on span, p, label,
+   button, a and headings, so they ignore their parent's color — which is why
+   a white button could still show a dark "Logout" label. Inside the design
+   system, text inherits instead. :where() keeps this at single-class
+   specificity, so any component class loaded after this file still wins. */
+.abyan-ds :where(span, p, label, a, button, strong, h1, h2, h3, h4, h5, h6) {
+  color: inherit;
+}
+
 /* Type scale (§4.3) */
 .abyan-ds .text-title-l    { font: 700 36px/40px var(--font-sans); }
 .abyan-ds .text-title-m    { font: 600 24px/32px var(--font-sans); }

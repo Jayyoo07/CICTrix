@@ -12,6 +12,7 @@ import {
   LogOut,
   Search,
   Trash2,
+  UserCircle2,
   X,
   type LucideIcon,
 } from 'lucide-react';
@@ -870,7 +871,7 @@ export function InterviewerDashboard({
               onClick={() => handleViewJobApplicants(job.title)}
               aria-label={`View applicants for ${job.title}`}
             >
-              View Applicants
+              View<span className="ivd-view-more">Applicants</span>
               <ArrowRight size={16} strokeWidth={1.75} aria-hidden="true" />
             </button>
           </td>
@@ -881,44 +882,48 @@ export function InterviewerDashboard({
 
   return (
     <div className="abyan-ds ivd">
-      {/* ── Curved hero: top bar + page title in one gradient block ── */}
+      {/* ── Top navigation bar (same lockup as the admin portals' header) ── */}
+      <nav className="ivd-nav" aria-label="Interviewer Portal">
+        <button type="button" className="ivd-brand" onClick={() => navigate('/interviewer/dashboard')}>
+          <img src={abyanLogo} alt="" />
+          <span className="ivd-brand-name">ABYAN</span>
+          <span className="ivd-brand-sub">Human Resource Information System</span>
+        </button>
+
+        <div className="ivd-user">
+          <span className="ivd-user-avatar" aria-hidden="true">
+            <UserCircle2 size={20} strokeWidth={1.75} />
+          </span>
+          <span className="ivd-user-meta">
+            <span className="ivd-user-name" title={session?.name}>{session?.name || 'Interviewer'}</span>
+            <span className="ivd-user-role">Interviewer Portal</span>
+          </span>
+          {onLogout && (
+            <>
+              <span className="ivd-nav-divider" aria-hidden="true" />
+              <button
+                type="button"
+                onClick={() => setLogoutConfirmOpen(true)}
+                className="ivd-logout"
+                aria-label="Logout"
+                title="Logout"
+              >
+                <LogOut size={16} strokeWidth={1.75} aria-hidden="true" />
+                <span className="ivd-logout-label">Logout</span>
+              </button>
+            </>
+          )}
+        </div>
+      </nav>
+
+      {/* ── Curved hero with flat brand-pattern shapes (§7) ── */}
       <header className="ivd-hero">
-        <span className="ivd-hero-ring ivd-hero-ring--a" aria-hidden="true" />
-        <span className="ivd-hero-ring ivd-hero-ring--b" aria-hidden="true" />
-        <span className="ivd-hero-ring ivd-hero-ring--c" aria-hidden="true" />
+        <span className="ivd-shape ivd-shape--disc-left" aria-hidden="true" />
+        <span className="ivd-shape ivd-shape--disc-right" aria-hidden="true" />
+        <span className="ivd-shape ivd-shape--half" aria-hidden="true" />
+        <span className="ivd-shape ivd-shape--quarter" aria-hidden="true" />
 
         <div className="ivd-container">
-          <div className="ivd-topbar">
-            <button type="button" className="ivd-brand" onClick={() => navigate('/interviewer/dashboard')}>
-              <img src={abyanLogo} alt="" />
-              <span>
-                <span className="ivd-brand-name">ABYAN HRIS</span>
-                <span className="ivd-brand-sub">Interviewer Portal</span>
-              </span>
-            </button>
-
-            <div className="ivd-user">
-              {session?.name && (
-                <div className="ivd-user-meta">
-                  <span>Signed in as</span>
-                  <span>{session.name}</span>
-                </div>
-              )}
-              {onLogout && (
-                <button
-                  type="button"
-                  onClick={() => setLogoutConfirmOpen(true)}
-                  className="btn btn-sm btn-ghost-white ivd-logout"
-                  aria-label="Logout"
-                  title="Logout"
-                >
-                  <LogOut size={16} strokeWidth={1.75} aria-hidden="true" />
-                  <span className="ivd-logout-label">Logout</span>
-                </button>
-              )}
-            </div>
-          </div>
-
           <div className="ivd-hero-text">
             <h1 className="text-title-l">Interviewer Dashboard</h1>
             <p className="text-body-l">View assigned job postings and manage applicant evaluations</p>

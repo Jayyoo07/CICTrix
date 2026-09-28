@@ -92,8 +92,10 @@ export const AdminHeader = ({
               color: '#ffffff',
             }}
           >
-            <LogOut className="h-4 w-4 shrink-0" />
-            <span className="hidden sm:inline">Logout</span>
+            <LogOut className="h-4 w-4 shrink-0" style={{ color: '#ffffff' }} />
+            {/* Colour set on the span itself: globals.css colours every <span>
+                directly, so it would not inherit the button's white. */}
+            <span className="hidden sm:inline" style={{ color: '#ffffff' }}>Logout</span>
           </LogoutConfirmPopover>
         </div>
       </div>
