@@ -8,8 +8,11 @@
 
 .ivd {
   --ivd-overlap: 72px;        /* how far the KPI cards ride up into the hero */
-  --ivd-gutter: 24px;
-  --ivd-photo-width: 62%;
+  /* Side margins grow with the window (24px → 96px), so a 1280px screen
+     keeps the same breathing room as a wider one. */
+  --ivd-gutter: clamp(24px, 6vw, 96px);
+  --ivd-content-max: 1232px;
+  --ivd-photo-width: 50%;       /* photo covers the right half of the page */
 
   min-height: 100vh;
   background: var(--bg-page);
@@ -17,7 +20,7 @@
 
 .ivd-container {
   width: 100%;
-  max-width: 1280px;
+  max-width: calc(var(--ivd-content-max) + 2 * var(--ivd-gutter));
   margin: 0 auto;
   padding: 0 var(--ivd-gutter);
   box-sizing: border-box;
@@ -105,7 +108,11 @@
   border-radius: 0;
   background: var(--gradient-hero);
   color: var(--color-white);
-  padding: 40px 0 calc(var(--ivd-overlap) + 48px);
+  /* Nav bar + hero fill the top half of the viewport (capped so tall screens
+     don't get a wall of blue); the extra height becomes air above the cards. */
+  box-sizing: border-box;
+  min-height: clamp(260px, calc(50vh - 64px), 400px);
+  padding: 48px 0 calc(var(--ivd-overlap) + 72px);
 }
 
 /* The photo covers the right ~62%, fades to nothing toward the text, and is
@@ -218,7 +225,7 @@
 .ivd-kpi-sub { color: var(--neutral-600); min-width: 0; }
 
 .ivd-kpi-list { flex: 1; list-style: none; margin: 0; padding: 0; min-height: 0; }
-.ivd-kpi-row { display: flex; align-items: center; gap: 12px; height: 56px; box-sizing: border-box; min-width: 0; }
+.ivd-kpi-row { display: flex; align-items: center; gap: 12px; height: 52px; box-sizing: border-box; min-width: 0; }
 .ivd-kpi-row + .ivd-kpi-row { border-top: 1px solid var(--neutral-200); }
 .ivd-row-chip {
   flex: none;
@@ -248,15 +255,15 @@
 .ivd-kpi-empty .text-headline-m { margin-top: 8px; color: var(--color-primary-900); }
 .ivd-kpi-empty .text-body-s { color: var(--neutral-600); }
 
+/* "View all" wears the Small secondary button (§9.1). It is visual only:
+   the whole card is the control, so it mirrors the card's hover / focus. */
 .ivd-kpi-foot {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding-top: 12px;
-  font: 500 14px/18px var(--font-sans);
-  color: var(--color-primary);
+  align-self: flex-start;
+  margin-top: 12px;
 }
-.ivd-kpi:hover .ivd-kpi-foot { color: var(--color-primary-700); }
+.ivd-kpi:hover .ivd-kpi-foot { background: var(--color-primary-50); }
+.ivd-kpi:focus-visible .ivd-kpi-foot,
+.ivd-kpi:active .ivd-kpi-foot { background: var(--gradient-button); color: var(--color-white); box-shadow: var(--shadow-focus); }
 
 /* ── Toolbar & fields (§9.3, §9.4) ───────────────────────────────────── */
 .ivd-filters { padding: 20px; gap: 12px; }
@@ -501,7 +508,10 @@
   .ivd-view-more { display: none; }
   .ivd-table th { white-space: normal; }
   .ivd-table th, .ivd-table td { padding-left: 16px; padding-right: 16px; }
-  .ivd { --ivd-photo-width: 70%; }
+  /* Proportional margins and the half-height hero are for laptop widths and
+     up; tablets keep the full width for the 7-column history table. */
+  .ivd { --ivd-photo-width: 60%; --ivd-gutter: 24px; }
+  .ivd-hero { min-height: 0; }
 }
 
 @media (max-width: 639px) {

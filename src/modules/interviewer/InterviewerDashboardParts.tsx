@@ -342,7 +342,7 @@ export function KpiCard({
       )}
 
       {/* Visual only: the whole card is the button. */}
-      <span className="ivd-kpi-foot" aria-hidden="true">
+      <span className="ivd-kpi-foot btn btn-sm btn-secondary" aria-hidden="true">
         View all ({rows.length}) <ArrowRight size={16} strokeWidth={1.75} />
       </span>
     </div>
