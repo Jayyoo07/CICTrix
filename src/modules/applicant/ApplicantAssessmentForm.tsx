@@ -1,5 +1,7 @@
-import React, { useEffect, useRef, useState } from 'react';
-import { Card, Input, Select } from '../../components';
+import React, { useEffect, useRef, useState, type ReactNode } from 'react';
+import { Briefcase, BriefcaseBusiness, ClipboardList, GraduationCap, Mail, UserRound } from 'lucide-react';
+import { Input, Select } from '../../components';
+import { FormSection } from './flow/FlowUi';
 import { POSITION_TO_DEPARTMENT_MAP } from '../../constants/positions';
 import { useDepartmentOptions } from '../../hooks/useDepartmentOptions';
 import { ensureRecruitmentSeedData, getAuthoritativeJobPostings, loadJobPostings } from '../../lib/recruitmentData';
@@ -18,7 +20,17 @@ interface ApplicantAssessmentFormProps {
   onApplicationTypeChange?: (next: 'job' | 'promotion') => void;
   /** When true the position/department were prefilled from a job click and should be locked */
   lockedPosition?: boolean;
+  /**
+   * Rendered between Educational background and Relevant work experience, so
+   * a short card from another component (Government ID) can sit beside
+   * Education in the two-column grid while DOM order stays reading order.
+   */
+  afterEducation?: ReactNode;
+  /** Makes element ids unique per plantilla form (one form per tab). */
+  idPrefix?: string;
 }
+
+const icon = (Icon: typeof UserRound) => <Icon size={20} strokeWidth={1.75} />;
 
 export const ApplicantAssessmentForm: React.FC<ApplicantAssessmentFormProps> = ({
   formData,
@@ -29,6 +41,8 @@ export const ApplicantAssessmentForm: React.FC<ApplicantAssessmentFormProps> = (
   isLoadingPrefill = false,
   onApplicationTypeChange,
   lockedPosition = false,
+  afterEducation,
+  idPrefix = 'af',
 }) => {
   // Departments come from the canonical Supabase table, shared with every other
   // screen — never a list local to this form.
@@ -162,268 +176,267 @@ export const ApplicantAssessmentForm: React.FC<ApplicantAssessmentFormProps> = (
 
   const isPromotion = applicationType === 'promotion';
 
-  return (
-    <Card title="Applicant Assessment Form">      {/* Application Type — radio group for both Original and Promotional. */}
-      <fieldset className="mb-6 rounded-xl border border-slate-200 bg-slate-50 p-4">
-        <legend className="px-2 text-sm font-semibold uppercase tracking-wide text-slate-700">
-          Application Type
-        </legend>
+  // Two-column section cards (DESIGN_IDENTITY.md §9.3). Fields, labels and
+  // validation are exactly what the single-card form had; only the grouping
+  // and layout changed. DOM order = reading order (left→right, top→bottom).
+  const educationNeedsDegree =
+    formData.education_attainment === 'College Graduate' ||
+    formData.education_attainment === 'Masteral Units' ||
+    formData.education_attainment === 'Graduate School';
 
-        <div role="radiogroup" aria-required className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+  return (
+    <>
+      {/* Application Type — radio group for both Original and Promotional. */}
+      <FormSection icon={icon(ClipboardList)} title="Application type" headingId={`${idPrefix}-type`}>
+        <div role="radiogroup" aria-required aria-labelledby={`${idPrefix}-type`} className="af-options">
           {([
             { value: 'job' as const, label: 'Original', description: 'Initial entry into the service.' },
             { value: 'promotion' as const, label: 'Promotional', description: 'Higher position or specific eligibility.' },
           ]).map((opt) => {
             const checked = applicationType === opt.value;
             return (
-              <label
-                key={opt.value}
-                className={`flex cursor-pointer items-start gap-3 rounded-lg border p-3 transition-colors ${
-                  checked
-                    ? 'border-blue-600 bg-blue-50'
-                    : 'border-slate-200 bg-white hover:border-slate-300'
-                }`}
-              >
+              <label key={opt.value} className="af-option" data-checked={checked}>
                 <input
                   type="radio"
-                  name="application_type"
+                  name={`${idPrefix}-application_type`}
                   value={opt.value}
                   checked={checked}
                   onChange={() => onApplicationTypeChange?.(opt.value)}
-                  className="mt-1 h-4 w-4 shrink-0 accent-blue-600"
                 />
-                <span className="flex-1 min-w-0">
-                  <span className="block text-sm font-semibold text-slate-900">{opt.label}</span>
-                  <span className="block text-xs text-slate-600">{opt.description}</span>
+                <span>
+                  <span className="af-option-title">{opt.label}</span>
+                  <span className="af-option-desc">{opt.description}</span>
                 </span>
               </label>
             );
           })}
         </div>
-      </fieldset>
+      </FormSection>
 
-      <div className="grid gap-md md:grid-cols-2">
-        {isPromotion && (
-          <>
-            <Input
-              label="Employee ID"
-              placeholder="Enter your employee ID"
-              value={formData.employee_id}
-              onChange={(e) => onChange('employee_id', e.target.value)}
-              error={errors.employee_id}
-              required
-            />
+      <FormSection icon={icon(UserRound)} title="Personal information" headingId={`${idPrefix}-personal`}>
+        <div className="af-fields">
+          {isPromotion && (
+            <>
+              <Input
+                label="Employee ID"
+                placeholder="Enter your employee ID"
+                value={formData.employee_id}
+                onChange={(e) => onChange('employee_id', e.target.value)}
+                error={errors.employee_id}
+                required
+              />
 
-            <Input
-              label="Employee Portal Username"
-              placeholder="Enter your portal username"
-              value={formData.employee_username}
-              onChange={(e) => onChange('employee_username', e.target.value)}
-              helperText={isLoadingPrefill ? 'Looking up your records...' : undefined}
-              icon={isLoadingPrefill ? (
-                <svg className="animate-spin h-4 w-4 text-blue-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-                </svg>
-              ) : undefined}
-            />
+              <Input
+                label="Employee Portal Username"
+                placeholder="Enter your portal username"
+                value={formData.employee_username}
+                onChange={(e) => onChange('employee_username', e.target.value)}
+                helperText={isLoadingPrefill ? 'Looking up your records...' : undefined}
+                icon={isLoadingPrefill ? <span className="af-spinner" aria-hidden="true" /> : undefined}
+              />
 
-            <Input
-              label="Current Position"
-              placeholder="Enter your current position"
-              value={formData.current_position}
-              onChange={(e) => onChange('current_position', e.target.value)}
-              error={errors.current_position}
-              required
-            />
+              <Input
+                label="Current Position"
+                placeholder="Enter your current position"
+                value={formData.current_position}
+                onChange={(e) => onChange('current_position', e.target.value)}
+                error={errors.current_position}
+                required
+              />
 
-            <Input
-              label="Current Department"
-              placeholder="Enter your current department"
-              value={formData.current_department}
-              onChange={(e) => onChange('current_department', e.target.value)}
-              error={errors.current_department}
-              required
-            />
-          </>
-        )}
+              <Input
+                label="Current Department"
+                placeholder="Enter your current department"
+                value={formData.current_department}
+                onChange={(e) => onChange('current_department', e.target.value)}
+                error={errors.current_department}
+                required
+              />
+            </>
+          )}
 
-        <Input
-          label="First Name"
-          placeholder="Enter your first name"
-          value={formData.first_name}
-          onChange={(e) => onChange('first_name', e.target.value)}
-          error={errors.first_name}
-          required
-        />
-
-        <Input
-          label="Middle Name"
-          placeholder="Enter your middle name"
-          value={formData.middle_name}
-          onChange={(e) => onChange('middle_name', e.target.value)}
-          error={errors.middle_name}
-        />
-
-        <Input
-          label="Last Name"
-          placeholder="Enter your last name"
-          value={formData.last_name}
-          onChange={(e) => onChange('last_name', e.target.value)}
-          error={errors.last_name}
-          required
-        />
-
-        <Select
-          label="Gender"
-          options={[
-            { value: 'Male', label: 'Male' },
-            { value: 'Female', label: 'Female' }
-          ]}
-          value={formData.gender}
-          onChange={(e) => onChange('gender', e.target.value)}
-          error={errors.gender}
-          required
-        />
-
-        <Input
-          label="Email Address"
-          type="email"
-          placeholder="your.email@example.com"
-          value={formData.email}
-          onChange={(e) => onChange('email', e.target.value)}
-          error={errors.email}
-          required
-        />
-
-        <Input
-          label="Contact Number"
-          type="tel"
-          placeholder="+63 912 345 6789"
-          value={formData.contact_number}
-          onChange={(e) => onChange('contact_number', e.target.value)}
-          error={errors.contact_number}
-          required
-        />
-
-        <div className="md:col-span-2">
           <Input
-            label="Address"
-            placeholder="Enter your complete address"
-            value={formData.address}
-            onChange={(e) => onChange('address', e.target.value)}
-            error={errors.address}
+            label="First Name"
+            placeholder="Enter your first name"
+            value={formData.first_name}
+            onChange={(e) => onChange('first_name', e.target.value)}
+            error={errors.first_name}
             required
           />
+
+          <Input
+            label="Middle Name"
+            placeholder="Enter your middle name"
+            value={formData.middle_name}
+            onChange={(e) => onChange('middle_name', e.target.value)}
+            error={errors.middle_name}
+          />
+
+          <Input
+            label="Last Name"
+            placeholder="Enter your last name"
+            value={formData.last_name}
+            onChange={(e) => onChange('last_name', e.target.value)}
+            error={errors.last_name}
+            required
+          />
+
+          <Select
+            label="Gender"
+            options={[
+              { value: 'Male', label: 'Male' },
+              { value: 'Female', label: 'Female' }
+            ]}
+            value={formData.gender}
+            onChange={(e) => onChange('gender', e.target.value)}
+            error={errors.gender}
+            required
+          />
+
+          <fieldset className="af-field af-field-full af-fieldset">
+            <legend className="af-label">Are you a Person with Disability (PWD)?</legend>
+            <div className="af-inline-radios">
+              <label>
+                <input
+                  type="radio"
+                  name={`${idPrefix}-is_pwd`}
+                  value="yes"
+                  checked={formData.is_pwd === true}
+                  onChange={() => onChange('is_pwd', true)}
+                />
+                Yes, I am a PWD
+              </label>
+              <label>
+                <input
+                  type="radio"
+                  name={`${idPrefix}-is_pwd`}
+                  value="no"
+                  checked={formData.is_pwd === false}
+                  onChange={() => onChange('is_pwd', false)}
+                />
+                No
+              </label>
+            </div>
+          </fieldset>
         </div>
+      </FormSection>
 
-        {lockedPosition ? (
+      <FormSection icon={icon(Mail)} title="Contact and address" headingId={`${idPrefix}-contact`}>
+        <div className="af-fields">
           <Input
-            label="Position Applied For"
-            value={formData.position}
-            readOnly
+            label="Email Address"
+            type="email"
+            placeholder="your.email@example.com"
+            value={formData.email}
+            onChange={(e) => onChange('email', e.target.value)}
+            error={errors.email}
+            required
           />
-        ) : (
-          (() => {
-            const posOpts: Array<{ value: string; label: string }> = [...dynamicPositionOptions];
-            if (formData.position && !posOpts.some((p) => p.value === formData.position)) {
-              posOpts.unshift({ value: formData.position, label: formData.position });
-            }
 
-            return (
-              <Select
-                label="Position Applied For"
-                options={posOpts}
-                value={formData.position}
-                onChange={(e) => handlePositionChange(e.target.value)}
-                error={errors.position}
-                required
-              />
-            );
-          })()
-        )}
-
-        {/* The position's official staffing-pattern code, shown only when the
-            applicant came in through a job post. Their own tracking code is
-            the Reference No., which the system issues on submission. */}
-        <Input
-          label="Plantilla Item No."
-          placeholder="Applies only when you apply through a specific job posting"
-          value={formData.item_number}
-          readOnly
-        />
-
-        {
-          // Ensure the department dropdown contains the prefilled office when it
-          // isn't in the canonical departments table (e.g. a legacy value).
-        }
-        {lockedPosition ? (
           <Input
-            label="Department"
-            value={formData.office}
-            readOnly
+            label="Contact Number"
+            type="tel"
+            placeholder="+63 912 345 6789"
+            value={formData.contact_number}
+            onChange={(e) => onChange('contact_number', e.target.value)}
+            error={errors.contact_number}
+            required
           />
-        ) : (
-          (() => {
-            const deptOpts: Array<{ value: string; label: string }> = [...departmentOptions];
-            if (formData.office && !deptOpts.some((d) => d.value === formData.office)) {
-              deptOpts.unshift({ value: formData.office, label: formData.office });
-            }
 
-            return (
-              <Select
-                label="Department"
-                options={deptOpts}
-                value={formData.office}
-                onChange={(e) => onChange('office', e.target.value)}
-                error={errors.office}
-                required
-              />
-            );
-          })()
-        )}
-
-        <div className="md:col-span-2">
-          <p className="mb-2 text-sm font-medium text-slate-700">Are you a Person with Disability (PWD)?</p>
-          <div className="flex gap-6">
-            <label className="flex cursor-pointer items-center gap-2 text-sm text-slate-700">
-              <input
-                type="radio"
-                name="is_pwd"
-                value="yes"
-                checked={formData.is_pwd === true}
-                onChange={() => onChange('is_pwd', true)}
-                className="h-4 w-4 accent-blue-600"
-              />
-              Yes, I am a PWD
-            </label>
-            <label className="flex cursor-pointer items-center gap-2 text-sm text-slate-700">
-              <input
-                type="radio"
-                name="is_pwd"
-                value="no"
-                checked={formData.is_pwd === false}
-                onChange={() => onChange('is_pwd', false)}
-                className="h-4 w-4 accent-blue-600"
-              />
-              No
-            </label>
+          <div className="af-field-full">
+            <Input
+              label="Address"
+              placeholder="Enter your complete address"
+              value={formData.address}
+              onChange={(e) => onChange('address', e.target.value)}
+              error={errors.address}
+              required
+            />
           </div>
         </div>
-      </div>
+      </FormSection>
+
+      <FormSection icon={icon(Briefcase)} title="Position applied for" headingId={`${idPrefix}-position`}>
+        <div className="af-fields">
+          <div className="af-field-full">
+            {lockedPosition ? (
+              <Input
+                label="Position Applied For"
+                value={formData.position}
+                readOnly
+              />
+            ) : (
+              (() => {
+                const posOpts: Array<{ value: string; label: string }> = [...dynamicPositionOptions];
+                if (formData.position && !posOpts.some((p) => p.value === formData.position)) {
+                  posOpts.unshift({ value: formData.position, label: formData.position });
+                }
+
+                return (
+                  <Select
+                    label="Position Applied For"
+                    options={posOpts}
+                    value={formData.position}
+                    onChange={(e) => handlePositionChange(e.target.value)}
+                    error={errors.position}
+                    required
+                  />
+                );
+              })()
+            )}
+          </div>
+
+          {/* The position's official staffing-pattern code, shown only when the
+              applicant came in through a job post. Their own tracking code is
+              the Reference No., which the system issues on submission. */}
+          <Input
+            label="Plantilla Item No."
+            placeholder="Applies only when you apply through a specific job posting"
+            value={formData.item_number}
+            readOnly
+          />
+
+          {
+            // Ensure the department dropdown contains the prefilled office when it
+            // isn't in the canonical departments table (e.g. a legacy value).
+          }
+          {lockedPosition ? (
+            <Input
+              label="Department"
+              value={formData.office}
+              readOnly
+            />
+          ) : (
+            (() => {
+              const deptOpts: Array<{ value: string; label: string }> = [...departmentOptions];
+              if (formData.office && !deptOpts.some((d) => d.value === formData.office)) {
+                deptOpts.unshift({ value: formData.office, label: formData.office });
+              }
+
+              return (
+                <Select
+                  label="Department"
+                  options={deptOpts}
+                  value={formData.office}
+                  onChange={(e) => onChange('office', e.target.value)}
+                  error={errors.office}
+                  required
+                />
+              );
+            })()
+          )}
+        </div>
+      </FormSection>
 
       {/* Educational Background */}
-      <fieldset className="mt-6 rounded-xl border border-slate-200 bg-slate-50 p-4">
-        <legend className="px-2 text-sm font-semibold uppercase tracking-wide text-slate-700">
-          Educational Background
-        </legend>
-        <div className="space-y-3">
-          <div>
-            <label htmlFor="education-attainment" className="mb-1.5 block text-sm font-medium text-slate-700">
+      <FormSection icon={icon(GraduationCap)} title="Educational background" headingId={`${idPrefix}-education`}>
+        <div className="af-fields">
+          <div className="af-field af-field-full">
+            <label htmlFor={`${idPrefix}-education-attainment`} className="af-label">
               Highest Educational Attainment
             </label>
             <select
-              id="education-attainment"
+              id={`${idPrefix}-education-attainment`}
               value={formData.education_attainment}
               onChange={(e) => {
                 const next = e.target.value;
@@ -436,7 +449,7 @@ export const ApplicantAssessmentForm: React.FC<ApplicantAssessmentFormProps> = (
                   onChange('education_degree', '');
                 }
               }}
-              className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+              className="af-control"
             >
               <option value="">Select educational attainment...</option>
               <option value="Elementary Level">Elementary Level</option>
@@ -450,28 +463,34 @@ export const ApplicantAssessmentForm: React.FC<ApplicantAssessmentFormProps> = (
             </select>
           </div>
 
-          {(formData.education_attainment === 'College Graduate' ||
-            formData.education_attainment === 'Masteral Units' ||
-            formData.education_attainment === 'Graduate School') && (
-            <Input
-              label="Degree / Course"
-              placeholder="e.g. Bachelor of Science in Information Technology"
-              value={formData.education_degree}
-              onChange={(e) => onChange('education_degree', e.target.value)}
-            />
+          {educationNeedsDegree && (
+            <div className="af-field-full">
+              <Input
+                label="Degree / Course"
+                placeholder="e.g. Bachelor of Science in Information Technology"
+                value={formData.education_degree}
+                onChange={(e) => onChange('education_degree', e.target.value)}
+              />
+            </div>
           )}
         </div>
-      </fieldset>
+      </FormSection>
 
-      {/* Work Experience */}
-      <fieldset className="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-4">
-        <legend className="px-2 text-sm font-semibold uppercase tracking-wide text-slate-700">
-          Relevant Work Experience
-        </legend>
-        <div className="mb-3 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-sm text-blue-800">
-          <strong>HR Policy Notice:</strong> Only work experience relevant to the position you are applying for should be entered if required by HR policies. In Step 2, you will be asked to upload your <strong>Curriculum Vitae (CV)</strong> as supporting document.
-        </div>
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+      {afterEducation}
+
+      {/* Work Experience — wide: five fields plus a free-text description */}
+      <FormSection
+        icon={icon(BriefcaseBusiness)}
+        title="Relevant work experience"
+        headingId={`${idPrefix}-experience`}
+        wide
+      >
+        <p className="af-notice" style={{ marginBottom: 20 }}>
+          <strong>HR policy notice:</strong> Only enter work experience relevant to the position you are applying for,
+          if required by HR policies. Upload your <strong>Curriculum Vitae (CV)</strong> as a supporting document in the
+          Documents section below.
+        </p>
+        <div className="af-fields">
           <Input
             label="Years of Relevant Experience"
             type="number"
@@ -490,44 +509,41 @@ export const ApplicantAssessmentForm: React.FC<ApplicantAssessmentFormProps> = (
             value={formData.work_experience_months}
             onChange={(e) => onChange('work_experience_months', e.target.value)}
           />
-          <div className="sm:col-span-2">
-            <Input
-              label="Position Held"
-              placeholder="e.g. Senior Administrative Assistant"
-              value={formData.relevant_experience_position || ''}
-              onChange={(e) => onChange('relevant_experience_position', e.target.value)}
-              error={errors.relevant_experience_position}
-            />
-          </div>
-          <div className="sm:col-span-2">
-            <Input
-              label="Company / Organization"
-              placeholder="e.g. Department of Public Works and Highways"
-              value={formData.relevant_experience_company || ''}
-              onChange={(e) => onChange('relevant_experience_company', e.target.value)}
-              error={errors.relevant_experience_company}
-            />
-          </div>
-          <div className="sm:col-span-2 mb-2">
-            <label className="mb-1.5 block text-sm font-medium text-slate-700">
+          <Input
+            label="Position Held"
+            placeholder="e.g. Senior Administrative Assistant"
+            value={formData.relevant_experience_position || ''}
+            onChange={(e) => onChange('relevant_experience_position', e.target.value)}
+            error={errors.relevant_experience_position}
+          />
+          <Input
+            label="Company / Organization"
+            placeholder="e.g. Department of Public Works and Highways"
+            value={formData.relevant_experience_company || ''}
+            onChange={(e) => onChange('relevant_experience_company', e.target.value)}
+            error={errors.relevant_experience_company}
+          />
+          <div className="af-field af-field-full">
+            <label htmlFor={`${idPrefix}-duties`} className="af-label">
               Description of Duties (Related to the job applied for)
             </label>
             <textarea
+              id={`${idPrefix}-duties`}
               placeholder="Describe your relevant duties and achievements..."
               value={formData.relevant_experience_duties || ''}
               onChange={(e) => onChange('relevant_experience_duties', e.target.value)}
-              className={`w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 min-h-[80px] ${
-                errors.relevant_experience_duties ? 'border-red-500 ring-1 ring-red-500' : ''
-              }`}
+              className="af-control"
+              aria-invalid={errors.relevant_experience_duties ? true : undefined}
+              aria-describedby={errors.relevant_experience_duties ? `${idPrefix}-duties-msg` : undefined}
             />
             {errors.relevant_experience_duties && (
-              <span className="text-sm font-medium text-red-500 mt-1 block">
+              <span id={`${idPrefix}-duties-msg`} className="af-error" role="alert">
                 {errors.relevant_experience_duties}
               </span>
             )}
           </div>
         </div>
-      </fieldset>
-    </Card>
+      </FormSection>
+    </>
   );
 };

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useId } from 'react';
 import '../styles/components.css';
 
 interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> {
@@ -16,8 +16,15 @@ export const Input: React.FC<InputProps> = ({
   icon,
   readOnly,
   style,
+  id,
   ...props
 }) => {
+  // Tie the label, error and helper text to the control so screen readers
+  // announce them (DESIGN_IDENTITY.md §13). A caller-supplied id still wins.
+  const autoId = useId();
+  const inputId = id ?? autoId;
+  const messageId = `${inputId}-msg`;
+  const hasMessage = Boolean(error || helperText);
   // Spec (Applicant Portal Improvements → Uneditable Fields):
   // read-only fields must be visually distinguished — gray background, no
   // text-cursor on focus, and they should not steal tab focus from real
@@ -33,8 +40,11 @@ export const Input: React.FC<InputProps> = ({
   return (
     <div className="input-wrapper">
       {label && (
-        <label className="input-label" style={readOnlyLabelStyle}>
+        <label className="input-label" style={readOnlyLabelStyle} htmlFor={inputId}>
           {label}
+          {props.required && !readOnly && (
+            <span className="input-required" aria-hidden="true"> *</span>
+          )}
           {readOnly && (
             <span
               aria-label="Read only"
@@ -69,12 +79,15 @@ export const Input: React.FC<InputProps> = ({
           readOnly={readOnly}
           tabIndex={readOnly ? -1 : props.tabIndex}
           aria-readonly={readOnly || undefined}
+          aria-invalid={error ? true : undefined}
+          aria-describedby={hasMessage ? messageId : undefined}
           style={{ ...readOnlyInputStyle, ...style }}
+          id={inputId}
           {...props}
         />
       </div>
-      {error && <span className="input-error-text">{error}</span>}
-      {helperText && !error && <span className="input-helper-text">{helperText}</span>}
+      {error && <span id={messageId} className="input-error-text" role="alert">{error}</span>}
+      {helperText && !error && <span id={messageId} className="input-helper-text">{helperText}</span>}
     </div>
   );
 };

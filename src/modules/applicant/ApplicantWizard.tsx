@@ -1,18 +1,27 @@
 import {
-    BadgeCheck,
+    AlertCircle,
+    ArrowLeft,
+    ArrowRight,
+    Briefcase,
     CheckCircle2,
+    CircleAlert,
     CircleCheck,
+    CircleDashed,
+    Copy,
     Eye,
     EyeOff,
     FileText,
+    Info,
+    Pencil,
+    PencilLine,
+    Search,
+    Send,
     ShieldCheck,
     UserPlus,
     Users,
-    Briefcase,
 } from 'lucide-react';
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import abyanLogo from '../../assets/abyan-logo.png';
 import { Button, Dialog } from '../../components';
 import { POSITION_TO_DEPARTMENT_MAP } from '../../constants/positions';
 import {
@@ -27,54 +36,33 @@ import { linkApplicationToSlots } from '../../lib/plantillaSlots';
 import { ATTACHMENTS_BUCKET, supabase } from '../../lib/supabase';
 import '../../styles/wizard.css';
 import type { ApplicantFormData, UploadedFile, ValidationErrors } from '../../types/applicant.types';
-import type { JobPosting, PlantillaSlot } from '../../types/recruitment.types';
+import type { JobPosting } from '../../types/recruitment.types';
 import { validateApplicantForm, validateFiles } from '../../utils/validation';
 import { logErrorForAdmin } from '../../utils/errorLogger';
 import { ApplicantAssessmentForm } from './ApplicantAssessmentForm';
 import { AttachmentsUploadForm, REQUIRED_DOCUMENTS } from './AttachmentsUploadForm';
+import {
+    APPLY_STEPS,
+    ConfirmModal,
+    GENERAL_APPLY_STEPS,
+    PublicTopBar,
+    Stepper,
+} from './flow/FlowUi';
+import {
+    GENERAL_KEY,
+    choiceLabel,
+    clearDrafts,
+    draftHasData,
+
+    loadDrafts,
+    markApplied,
+    saveDrafts,
+    type ApplyDrafts,
+    type PlantillaChoice,
+} from './flow/applicationDrafts';
 
 const ATTACHMENT_PREVIEW_CACHE_KEY = 'cictrix_attachment_previews';
 const APPOINTMENT_TYPE_STORAGE_KEY = 'cictrix_rsp_score_setup';
-
-// Per-tab wizard state. Survives a page refresh but clears when the tab is
-// closed — UI state only, not a data layer. `files` are not persisted (File
-// objects aren't serializable); after refresh the user re-uploads on step 2.
-const WIZARD_STATE_KEY = 'cictrix_wizard_state';
-
-interface PersistedWizardState {
-  entryMode?: 'landing' | 'wizard';
-  applicationType?: 'job' | 'promotion';
-  currentStep?: 1 | 2 | 3;
-  formData?: ApplicantFormData;
-  authenticatedEmployeeAccount?: EmployeePortalAccount | null;
-}
-
-const loadWizardState = (): PersistedWizardState => {
-  try {
-    const raw = sessionStorage.getItem(WIZARD_STATE_KEY);
-    if (!raw) return {};
-    const parsed = JSON.parse(raw);
-    return parsed && typeof parsed === 'object' ? (parsed as PersistedWizardState) : {};
-  } catch {
-    return {};
-  }
-};
-
-const saveWizardState = (state: PersistedWizardState): void => {
-  try {
-    sessionStorage.setItem(WIZARD_STATE_KEY, JSON.stringify(state));
-  } catch {
-    // sessionStorage may be unavailable (private mode); not fatal.
-  }
-};
-
-const clearWizardState = (): void => {
-  try {
-    sessionStorage.removeItem(WIZARD_STATE_KEY);
-  } catch {
-    // ignore
-  }
-};
 const MAX_PREVIEWABLE_FILE_BYTES = 10 * 1024 * 1024;
 
 type CachedPreviewFile = {
@@ -124,6 +112,31 @@ const INITIAL_FORM_DATA: ApplicantFormData = {
   gov_id_expiration: '',
 };
 
+/** One isolated application: its own answers, its own files, its own errors. */
+interface AppState {
+  formData: ApplicantFormData;
+  files: UploadedFile[];
+  errors: ValidationErrors;
+  fileError: string;
+}
+
+type SubmitOutcome =
+  | { status: 'submitting' }
+  | { status: 'ok'; referenceNo: string }
+  | { status: 'already'; referenceNo?: string }
+  | { status: 'failed'; error: string };
+
+type TabStatus = 'new' | 'progress' | 'complete' | 'attention';
+
+const TAB_STATUS: Record<TabStatus, { label: string; Icon: typeof CircleCheck }> = {
+  new: { label: 'Not started', Icon: CircleDashed },
+  progress: { label: 'In progress', Icon: PencilLine },
+  complete: { label: 'Complete', Icon: CircleCheck },
+  attention: { label: 'Needs attention', Icon: CircleAlert },
+};
+
+const blankApp = (formData: ApplicantFormData): AppState => ({ formData, files: [], errors: {}, fileError: '' });
+
 const normalizeAuthValue = (value: string) => String(value ?? '').trim().toLowerCase();
 
 const saveApplicantAppointmentType = (applicantId: string, applicationType: 'job' | 'promotion') => {
@@ -137,71 +150,121 @@ const saveApplicantAppointmentType = (applicantId: string, applicationType: 'job
   }
 };
 
-export const ApplicantWizard: React.FC = () => {
-  // Hydrate from sessionStorage so a refresh keeps the user on the same step
-  // with the same form values, instead of bouncing back to the landing page.
-  const persisted = (() => {
-    try { return loadWizardState(); } catch { return {} as PersistedWizardState; }
-  })();
+const formatFileSize = (bytes?: number) => {
+  if (!bytes) return '';
+  if (bytes < 1024) return `${bytes} B`;
+  const kb = bytes / 1024;
+  if (kb < 1024) return `${kb.toFixed(1)} KB`;
+  return `${(kb / 1024).toFixed(1)} MB`;
+};
 
-  const [entryMode, setEntryMode] = useState<'landing' | 'wizard'>(persisted.entryMode ?? 'landing');
-  const [applicationType, setApplicationType] = useState<'job' | 'promotion'>(persisted.applicationType ?? 'job');
-  const [currentStep, setCurrentStep] = useState<1 | 2 | 3>(persisted.currentStep ?? 1);
-  const [formData, setFormData] = useState<ApplicantFormData>(persisted.formData ?? INITIAL_FORM_DATA);
-  const [files, setFiles] = useState<UploadedFile[]>([]);
-  const [errors, setErrors] = useState<ValidationErrors>({});
-  const [fileError, setFileError] = useState('');
+/** Validation is unchanged: the same two validators, run over the whole form. */
+const validateApp = (app: AppState) => {
+  const errors = validateApplicantForm(app.formData, 'all');
+  const fileError =
+    validateFiles(app.files.map((f) => f.file), app.files, app.formData.application_type === 'promotion' ? 'promotion' : 'job') ?? '';
+  return { errors, fileError, count: Object.keys(errors).length + (fileError ? 1 : 0) };
+};
+
+export const ApplicantWizard: React.FC = () => {
+  // Hydrate from sessionStorage so a refresh keeps the applicant on the same
+  // step with the same answers for every plantilla.
+  const persisted = useMemo(() => loadDrafts(), []);
+  const location = useLocation();
+  const navigate = useNavigate();
+
+  const [entryMode, setEntryMode] = useState<'landing' | 'wizard'>(persisted.entryMode);
+  const [step, setStep] = useState<'fill' | 'review'>(persisted.step);
+  const [posting, setPosting] = useState<ApplyDrafts['posting']>(persisted.posting);
+  const [choices, setChoices] = useState<PlantillaChoice[]>(persisted.choices);
+  const [lockedPosition, setLockedPosition] = useState(persisted.lockedPosition);
+  const [apps, setApps] = useState<Record<string, AppState>>(() =>
+    Object.fromEntries(Object.entries(persisted.drafts).map(([key, formData]) => [key, blankApp(formData)])),
+  );
+  const [activeKey, setActiveKey] = useState(persisted.activeKey);
+  const [authenticatedEmployeeAccount, setAuthenticatedEmployeeAccount] = useState<EmployeePortalAccount | null>(
+    persisted.authenticatedEmployeeAccount,
+  );
+
+  /** True after "Review Application" has been pressed once: tabs may then show "Needs attention". */
+  const [reviewAttempted, setReviewAttempted] = useState(false);
+  const [validationSummary, setValidationSummary] = useState<Array<{ key: string; count: number }>>([]);
+  const [copyMenuOpen, setCopyMenuOpen] = useState(false);
+  const [pendingCopy, setPendingCopy] = useState<{ from: string; to: string } | null>(null);
+  const [copyNotice, setCopyNotice] = useState('');
+  const [declared, setDeclared] = useState(false);
+  const [confirmSubmit, setConfirmSubmit] = useState(false);
+  const [outcomes, setOutcomes] = useState<Record<string, SubmitOutcome>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [showSuccessDialog, setShowSuccessDialog] = useState(false);
-  const [submissionReference, setSubmissionReference] = useState('');
-  const [submitError, setSubmitError] = useState('');
+  const [completed, setCompleted] = useState<null | Array<{ key: string; label: string; outcome: SubmitOutcome }>>(null);
+
   const [showEmployeeAuth, setShowEmployeeAuth] = useState(false);
   const [employeeNumber, setEmployeeNumber] = useState('');
-  // Explains that the form was auto-filled from the employee's record (or why
-  // it wasn't). Cleared once they leave the promotional flow.
-  const [prefillNotice, setPrefillNotice] = useState('');
   const [employeePassword, setEmployeePassword] = useState('');
   const [showEmployeePassword, setShowEmployeePassword] = useState(false);
   const [employeeAuthError, setEmployeeAuthError] = useState('');
-  const [authenticatedEmployeeAccount, setAuthenticatedEmployeeAccount] = useState<EmployeePortalAccount | null>(
-    persisted.authenticatedEmployeeAccount ?? null,
-  );
-  const [activeJobs, setActiveJobs] = useState<JobPosting[]>([]);
-  const [isLockedPosition, setIsLockedPosition] = useState(false);
-  /**
-   * The plantilla items of the posting being applied to. A post can advertise
-   * several identical vacancies; the applicant ticks the ones they want and
-   * still files ONE application linked to all of them.
-   */
-  const [postingSlots, setPostingSlots] = useState<PlantillaSlot[]>([]);
-  const [selectedSlotIds, setSelectedSlotIds] = useState<string[]>([]);
-  const [slotSelectionError, setSlotSelectionError] = useState('');
+  // Explains that a promotional form was auto-filled from the employee's record (or why it wasn't).
+  const [prefillNotice, setPrefillNotice] = useState<Record<string, string>>({});
   const [isLoadingPrefill, setIsLoadingPrefill] = useState(false);
-  const lastPrefilledRef = useRef<{ employeeId: string; username: string } | null>(null);
-  const location = useLocation();
-  const navigate = useNavigate();
-  const landingJobAppliedRef = useRef(false);
-  const [prefilledFromLanding, setPrefilledFromLanding] = useState(false);
+  const lastPrefilledRef = useRef<Record<string, { employeeId: string; username: string }>>({});
+  const [activeJobs, setActiveJobs] = useState<JobPosting[]>([]);
+  const entryHandledRef = useRef(false);
+  const headingRef = useRef<HTMLHeadingElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
+  const alertRef = useRef<HTMLDivElement>(null);
+  const tabRefs = useRef<Record<string, HTMLButtonElement | null>>({});
+  const focusInvalidRef = useRef(false);
 
-  // Persist the wizard state whenever the user advances or edits.
+  /** The application keys in tab order. A general application has exactly one. */
+  const keys = useMemo(() => (choices.length > 0 ? choices.map((c) => c.key) : [GENERAL_KEY]), [choices]);
+  const choiceByKey = useMemo(() => new Map(choices.map((c) => [c.key, c])), [choices]);
+  const currentKey = keys.includes(activeKey) ? activeKey : keys[0];
+  const active: AppState | undefined = apps[currentKey];
+  const isPostingFlow = Boolean(posting) && choices.length > 0;
+
+  // ── Persist drafts (answers only; File objects can't be serialized) ───────
   useEffect(() => {
-    saveWizardState({
+    if (completed) return;
+    saveDrafts({
+      version: 2,
       entryMode,
-      applicationType,
-      currentStep,
-      formData,
+      step,
+      posting,
+      choices,
+      drafts: Object.fromEntries(Object.entries(apps).map(([key, app]) => [key, app.formData])),
+      activeKey: currentKey,
       authenticatedEmployeeAccount,
+      lockedPosition,
     });
-  }, [entryMode, applicationType, currentStep, formData, authenticatedEmployeeAccount]);
+  }, [entryMode, step, posting, choices, apps, currentKey, authenticatedEmployeeAccount, lockedPosition, completed]);
 
+  const hasUnsavedWork = useMemo(
+    () => entryMode === 'wizard' && !completed && Object.values(apps).some((app) => draftHasData(app.formData) || app.files.length > 0),
+    [entryMode, completed, apps],
+  );
+
+  // Warn before the tab closes or reloads with unsubmitted answers (uploads
+  // in particular can't survive a reload).
   useEffect(() => {
+    if (!hasUnsavedWork) return;
+    const onBeforeUnload = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      event.returnValue = '';
+    };
+    window.addEventListener('beforeunload', onBeforeUnload);
+    return () => window.removeEventListener('beforeunload', onBeforeUnload);
+  }, [hasUnsavedWork]);
+
+  // ── Entry: from Step 1, from an old deep link, or from query params ───────
+  useEffect(() => {
+    if (entryHandledRef.current) return;
     const state = location.state as {
       landingJob?: {
         title: string;
         itemNumber: string;
         department: string;
         jobPostingId?: string;
-        plantillaSlots?: PlantillaSlot[];
+        selectedChoices?: PlantillaChoice[];
       };
     } | null;
     const landingJob = state?.landingJob;
@@ -210,144 +273,157 @@ export const ApplicantWizard: React.FC = () => {
     const itemNumberFromQuery = searchParams.get('itemNumber') || undefined;
     const officeFromQuery = searchParams.get('office') || undefined;
 
-    // If the applicant has already started filling the wizard in this tab
-    // (sessionStorage has formData with any user input), we must NOT reset
-    // their work just because location.state.landingJob or the URL params
-    // are still present after a page refresh. Lock the position fields and
-    // keep their existing input.
-    const hasInProgressFormData = Boolean(
-      formData.first_name ||
-      formData.last_name ||
-      formData.middle_name ||
-      formData.email ||
-      formData.contact_number ||
-      formData.address ||
-      formData.work_experience_years ||
-      formData.relevant_experience_position ||
-      formData.relevant_experience_company ||
-      formData.relevant_experience_duties ||
-      formData.education_attainment
-    );
+    if (landingJob) {
+      entryHandledRef.current = true;
+      const selected = landingJob.selectedChoices ?? [];
 
-    if (landingJob && !landingJobAppliedRef.current) {
-      landingJobAppliedRef.current = true;
-      setPrefilledFromLanding(true);
-      setEntryMode('wizard');
-      setIsLockedPosition(true);
-      setSubmitError('');
-
-      // Job Details hands us the posting's plantilla items so the picker can
-      // render without a second fetch. Falling back to the loaded postings
-      // covers a refresh, where router state survives but the array may not.
-      applyPostingSlots(
-        landingJob.plantillaSlots
-          ?? getAuthoritativeJobPostings().find(
-            (job) => job.id === landingJob.jobPostingId || job.jobCode === landingJob.itemNumber,
-          )?.plantillaSlots,
-      );
-
-      if (hasInProgressFormData) {
-        // Preserve everything the applicant has already filled in; only make
-        // sure the position/office/item match the landing job they clicked.
-        setFormData((prev) => ({
-          ...prev,
-          application_type: 'job',
-          position: landingJob.title,
-          office: landingJob.department,
-        }));
+      // Vacancy cards used to jump straight into the form. Opening a posting
+      // now always starts at Step 1, so send those arrivals there.
+      if (selected.length === 0) {
+        const target = landingJob.jobPostingId || landingJob.itemNumber;
+        navigate(target ? `/job-details/${encodeURIComponent(target)}` : '/job-portal', {
+          replace: true,
+          state: { landingJob },
+        });
         return;
       }
 
-      setApplicationType('job');
-      setCurrentStep(1);
-      setAuthenticatedEmployeeAccount(null);
-      setFormData({
-        ...INITIAL_FORM_DATA,
-        application_type: 'job',
-        position: landingJob.title,
-        office: landingJob.department,
+      const postingId = landingJob.jobPostingId || landingJob.itemNumber;
+      const sameSelection =
+        persisted.posting?.id === postingId &&
+        persisted.entryMode === 'wizard' &&
+        persisted.choices.map((c) => c.key).join('|') === selected.map((c) => c.key).join('|');
+      if (sameSelection) return; // A refresh: keep the restored step and tab.
+
+      // Keep answers already typed for items that are still selected; every
+      // newly selected item starts from a blank copy.
+      const previous = persisted.posting?.id === postingId ? persisted.drafts : {};
+      const nextApps: Record<string, AppState> = {};
+      selected.forEach((choice) => {
+        const base = previous[choice.key] ?? { ...INITIAL_FORM_DATA, application_type: 'job' as const };
+        nextApps[choice.key] = blankApp({
+          ...base,
+          position: landingJob.title,
+          office: landingJob.department,
+          item_number: choice.itemNumber,
+        });
       });
-      setFiles([]);
+
+      setPosting({ id: postingId, title: landingJob.title, department: landingJob.department });
+      setChoices(selected);
+      setApps(nextApps);
+      setActiveKey(selected[0].key);
+      setLockedPosition(true);
+      setAuthenticatedEmployeeAccount(null);
+      setEntryMode('wizard');
+      setStep('fill');
+      setOutcomes({});
       return;
     }
 
-    if ((positionFromQuery || itemNumberFromQuery) && !landingJobAppliedRef.current) {
-      landingJobAppliedRef.current = true;
-      setPrefilledFromLanding(true);
-      setEntryMode('wizard');
-      setIsLockedPosition(true);
-      setSubmitError('');
-
-      // Query-param entry carries no slot data, so resolve the posting from
-      // the loaded list by item number first and title second.
+    if (positionFromQuery || itemNumberFromQuery) {
+      entryHandledRef.current = true;
+      // Query-param entry carries no slot data; resolve the posting by item
+      // number first and title second, then start at Step 1 for it.
       const postings = getAuthoritativeJobPostings();
       const matched = itemNumberFromQuery
         ? postings.find((job) =>
             job.jobCode === itemNumberFromQuery ||
             (job.plantillaSlots ?? []).some((slot) => slot.itemNumber === itemNumberFromQuery))
         : postings.find((job) => job.title === positionFromQuery);
-      applyPostingSlots(matched?.plantillaSlots);
-
-      if (hasInProgressFormData) {
-        setFormData((prev) => ({
-          ...prev,
-          application_type: 'job',
-          position: positionFromQuery || prev.position,
-          office: officeFromQuery || POSITION_TO_DEPARTMENT_MAP[positionFromQuery || ''] || prev.office,
-        }));
+      if (matched) {
+        navigate(`/job-details/${encodeURIComponent(matched.id)}`, { replace: true });
         return;
       }
 
-      setApplicationType('job');
-      setCurrentStep(1);
-      setAuthenticatedEmployeeAccount(null);
-      setFormData({
-        ...INITIAL_FORM_DATA,
-        application_type: 'job',
-        position: positionFromQuery || '',
-        office: officeFromQuery || POSITION_TO_DEPARTMENT_MAP[positionFromQuery || ''] || '',
+      // No posting to choose from: a general application for that position.
+      const existing = persisted.posting === null ? persisted.drafts[GENERAL_KEY] : undefined;
+      setPosting(null);
+      setChoices([]);
+      setApps({
+        [GENERAL_KEY]: blankApp({
+          ...(existing ?? INITIAL_FORM_DATA),
+          application_type: 'job',
+          position: positionFromQuery || existing?.position || '',
+          office: officeFromQuery || POSITION_TO_DEPARTMENT_MAP[positionFromQuery || ''] || existing?.office || '',
+        }),
       });
-      setFiles([]);
+      setActiveKey(GENERAL_KEY);
+      setLockedPosition(true);
+      setEntryMode('wizard');
+      setStep('fill');
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [location.state, location.search]);
 
+  // ── Per-application state helpers ─────────────────────────────────────────
+  const updateApp = useCallback((key: string, updater: (app: AppState) => AppState) => {
+    setApps((prev) => {
+      const current = prev[key] ?? blankApp({ ...INITIAL_FORM_DATA });
+      return { ...prev, [key]: updater(current) };
+    });
+  }, []);
+
+  const changeHandlers = useRef<Record<string, (field: keyof ApplicantFormData, value: string | boolean) => void>>({});
+  /** A stable onChange per application, so child effects keyed on it don't loop. */
+  const handleFormChangeFor = (key: string) => {
+    if (!changeHandlers.current[key]) {
+      changeHandlers.current[key] = (field, value) =>
+        updateApp(key, (app) => ({
+          ...app,
+          formData: { ...app.formData, [field]: value },
+          errors: app.errors[field as keyof ValidationErrors] ? { ...app.errors, [field]: undefined } : app.errors,
+        }));
+    }
+    return changeHandlers.current[key];
+  };
+
+  const fileHandlers = useRef<Record<string, (files: UploadedFile[]) => void>>({});
+  const handleFilesChangeFor = (key: string) => {
+    if (!fileHandlers.current[key]) {
+      fileHandlers.current[key] = (files) => updateApp(key, (app) => ({ ...app, files, fileError: '' }));
+    }
+    return fileHandlers.current[key];
+  };
+
+  // ── Promotional prefill: looks up the active form's Employee ID ───────────
+  const activeFormData = active?.formData;
   useEffect(() => {
-    if (applicationType !== 'promotion') {
-      lastPrefilledRef.current = null;
-      setPrefillNotice('');
+    const key = currentKey;
+    if (!activeFormData || activeFormData.application_type !== 'promotion') {
+      delete lastPrefilledRef.current[key];
       setIsLoadingPrefill(false);
       return;
     }
 
-    const enteredId = String(formData.employee_id || '').trim();
-    const enteredUsername = String(formData.employee_username || '').trim();
+    const enteredId = String(activeFormData.employee_id || '').trim();
+    const enteredUsername = String(activeFormData.employee_username || '').trim();
 
     // The Employee ID alone triggers the lookup. The portal username is
     // optional — when supplied it just tightens the account match.
     if (!enteredId) {
-      if (lastPrefilledRef.current) {
-        lastPrefilledRef.current = null;
-      }
+      delete lastPrefilledRef.current[key];
       setIsLoadingPrefill(false);
       return;
     }
 
+    const last = lastPrefilledRef.current[key];
     if (
-      lastPrefilledRef.current &&
-      normalizeAuthValue(lastPrefilledRef.current.employeeId) === normalizeAuthValue(enteredId) &&
-      normalizeAuthValue(lastPrefilledRef.current.username) === normalizeAuthValue(enteredUsername)
+      last &&
+      normalizeAuthValue(last.employeeId) === normalizeAuthValue(enteredId) &&
+      normalizeAuthValue(last.username) === normalizeAuthValue(enteredUsername)
     ) {
       return;
     }
 
+    const setNotice = (text: string) => setPrefillNotice((prev) => ({ ...prev, [key]: text }));
+
     const performPrefill = async () => {
       setIsLoadingPrefill(true);
-      setPrefillNotice('Loading your employee records...');
+      setNotice('Loading your employee records...');
       try {
         // Match the portal account by Employee ID alone. The username field is
-        // an OUTPUT we auto-fill from the matched account — never a filter — so
-        // a stale value typed there can't block the correct account (and its
-        // real username) from resolving.
+        // an OUTPUT we auto-fill from the matched account — never a filter.
         let matchedAccount = getEmployeePortalAccounts().find(
           (account) =>
             normalizeAuthValue(String(account?.employee?.employeeId ?? '')) === normalizeAuthValue(enteredId),
@@ -357,12 +433,8 @@ export const ApplicantWizard: React.FC = () => {
           matchedAccount = await findEmployeePortalAccountFromSupabaseByEmployeeIdOrEmail(enteredId);
         }
 
-        // The employees table is the authoritative source. Look it up by the
-        // entered Employee ID directly so the auto-fill works even when there's
-        // no portal-account row yet. Pass the matched account's email so a
-        // person whose hire record is filed under a different generated ID
-        // (a leftover of the old duplication bug) still resolves by email.
-        const lookupEmail = matchedAccount?.employee?.email || formData.email;
+        // The employees table is the authoritative source.
+        const lookupEmail = matchedAccount?.employee?.email || activeFormData.email;
         const profile = await fetchEmployeeApplicationProfile(enteredId, lookupEmail);
 
         if (profile || matchedAccount) {
@@ -377,45 +449,43 @@ export const ApplicantWizard: React.FC = () => {
           const currentPosition = profile?.currentPosition || matchedAccount?.employee?.currentPosition || '';
 
           if (matchedAccount) setAuthenticatedEmployeeAccount(matchedAccount);
-          setFormData((prev) => ({
-            ...prev,
-            // Portal username is derived from the matched account. Clear it when
-            // no account matches this Employee ID so a value left over from a
-            // previous lookup can't linger and look like this employee's.
-            employee_username: matchedAccount?.username || '',
-            first_name: profile?.firstName || accountFirstName || prev.first_name,
-            middle_name: profile?.middleName || accountMiddleName || prev.middle_name,
-            last_name: profile?.lastName || accountLastName || prev.last_name,
-            gender:
-              profile?.sex ||
-              (matchedAccount?.employee?.gender === 'Prefer not to say'
-                ? ''
-                : String(matchedAccount?.employee?.gender ?? '')) ||
-              prev.gender,
-            address: profile?.address || matchedAccount?.employee?.homeAddress || prev.address,
-            contact_number: profile?.contactNumber || matchedAccount?.employee?.mobileNumber || prev.contact_number,
-            email: profile?.email || matchedAccount?.employee?.email || prev.email,
+          updateApp(key, (app) => {
+            const prev = app.formData;
+            return {
+              ...app,
+              formData: {
+                ...prev,
+                employee_username: matchedAccount?.username || '',
+                first_name: profile?.firstName || accountFirstName || prev.first_name,
+                middle_name: profile?.middleName || accountMiddleName || prev.middle_name,
+                last_name: profile?.lastName || accountLastName || prev.last_name,
+                gender:
+                  profile?.sex ||
+                  (matchedAccount?.employee?.gender === 'Prefer not to say'
+                    ? ''
+                    : String(matchedAccount?.employee?.gender ?? '')) ||
+                  prev.gender,
+                address: profile?.address || matchedAccount?.employee?.homeAddress || prev.address,
+                contact_number: profile?.contactNumber || matchedAccount?.employee?.mobileNumber || prev.contact_number,
+                email: profile?.email || matchedAccount?.employee?.email || prev.email,
+                current_position: currentPosition || prev.current_position,
+                current_department: currentDepartment || prev.current_department,
+                current_division: currentDivision || prev.current_division,
+                // A posting fixes the department; only a general application takes the employee's own.
+                office: lockedPosition ? prev.office : currentDepartment || prev.office,
+                education_attainment: profile?.educationAttainment || prev.education_attainment,
+                education_degree: profile?.educationDegree || prev.education_degree,
+                education_school: profile?.educationSchool || prev.education_school,
+                work_experience_years: profile?.workExperienceYears || prev.work_experience_years,
+                work_experience_months: profile?.workExperienceMonths || prev.work_experience_months,
+                relevant_experience_position: profile?.relevantExperiencePosition || prev.relevant_experience_position,
+                relevant_experience_company: profile?.relevantExperienceCompany || prev.relevant_experience_company,
+                relevant_experience_duties: profile?.relevantExperienceDuties || prev.relevant_experience_duties,
+              },
+            };
+          });
 
-            current_position: currentPosition || prev.current_position,
-            current_department: currentDepartment || prev.current_department,
-            current_division: currentDivision || prev.current_division,
-            office: currentDepartment || prev.office,
-
-            education_attainment: profile?.educationAttainment || prev.education_attainment,
-            education_degree: profile?.educationDegree || prev.education_degree,
-            education_school: profile?.educationSchool || prev.education_school,
-
-            work_experience_years: profile?.workExperienceYears || prev.work_experience_years,
-            work_experience_months: profile?.workExperienceMonths || prev.work_experience_months,
-            relevant_experience_position: profile?.relevantExperiencePosition || prev.relevant_experience_position,
-            relevant_experience_company: profile?.relevantExperienceCompany || prev.relevant_experience_company,
-            relevant_experience_duties: profile?.relevantExperienceDuties || prev.relevant_experience_duties,
-          }));
-
-          // List the fields our record didn't have a value for, so the applicant
-          // knows exactly what to complete by hand instead of wondering why some
-          // fields stayed blank. We only ever fill from stored data — nothing is
-          // guessed — so anything absent from the record is flagged here.
+          // List what the record didn't have, so the applicant knows what to complete by hand.
           const resolvedGender =
             profile?.sex ||
             (matchedAccount?.employee?.gender === 'Prefer not to say'
@@ -437,21 +507,15 @@ export const ApplicantWizard: React.FC = () => {
             notOnFile.length > 0
               ? ` These weren't on file in your record, so please fill them in manually: ${notOnFile.join(', ')}.`
               : '';
-          setPrefillNotice(baseNotice + blanksNotice);
-
-          // Record the resolved username (what we just wrote into the field) so
-          // the effect that re-fires on that change matches and returns early
-          // instead of looking the same employee up again.
-          lastPrefilledRef.current = { employeeId: enteredId, username: matchedAccount?.username || '' };
+          setNotice(baseNotice + blanksNotice);
+          lastPrefilledRef.current[key] = { employeeId: enteredId, username: matchedAccount?.username || '' };
         } else {
-          // No employee record or portal account for the entered ID. Keep every
-          // field empty but fully editable and show the manual-entry warning.
-          setPrefillNotice("We couldn't find your employee record, so please fill in your details manually.");
-          lastPrefilledRef.current = { employeeId: enteredId, username: enteredUsername };
+          setNotice("We couldn't find your employee record, so please fill in your details manually.");
+          lastPrefilledRef.current[key] = { employeeId: enteredId, username: enteredUsername };
         }
       } catch (err) {
         console.error('Error prefilling employee record:', err);
-        setPrefillNotice('Failed to load employee records. Please try entering details manually.');
+        setNotice('Failed to load employee records. Please try entering details manually.');
       } finally {
         setIsLoadingPrefill(false);
       }
@@ -460,84 +524,153 @@ export const ApplicantWizard: React.FC = () => {
     // Debounce: wait 700ms after the last keystroke before firing the lookup
     const timerId = setTimeout(performPrefill, 700);
     return () => clearTimeout(timerId);
-  }, [applicationType, formData.employee_id, formData.employee_username]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentKey, activeFormData?.application_type, activeFormData?.employee_id, activeFormData?.employee_username]);
 
-  const handleFormChange = (field: keyof ApplicantFormData, value: string | boolean) => {
-    setFormData((prev) => ({ ...prev, [field]: value }));
-    if (errors[field as keyof ValidationErrors]) {
-      setErrors((prev) => ({ ...prev, [field]: undefined }));
+  const handleApplicationTypeChange = (key: string, next: 'job' | 'promotion') => {
+    updateApp(key, (app) => ({
+      ...app,
+      formData:
+        next === 'job'
+          ? {
+              ...app.formData,
+              application_type: next,
+              // Clear promotional-specific fields when switching to Original
+              employee_id: '',
+              employee_username: '',
+              current_position: '',
+              current_department: '',
+              current_division: '',
+            }
+          : { ...app.formData, application_type: next },
+    }));
+    if (next === 'job') {
+      setPrefillNotice((prev) => ({ ...prev, [key]: '' }));
+      setAuthenticatedEmployeeAccount(null);
+      delete lastPrefilledRef.current[key];
     }
   };
 
-  const handleFilesChange = (newFiles: UploadedFile[]) => {
-    setFiles(newFiles);
-    setFileError('');
+  // ── Tab status (text + icon, never colour alone) ──────────────────────────
+  const tabStatus = (key: string): TabStatus => {
+    const app = apps[key];
+    if (!app) return 'new';
+    const { count } = validateApp(app);
+    if (count === 0) return 'complete';
+    if (reviewAttempted && validationSummary.some((entry) => entry.key === key)) return 'attention';
+    return draftHasData(app.formData) || app.files.length > 0 ? 'progress' : 'new';
   };
 
-  /**
-   * Seed the plantilla picker for a posting. A posting with a single open slot
-   * has nothing to choose, so it is selected silently and no picker is shown.
-   */
-  const applyPostingSlots = (slots: PlantillaSlot[] | undefined) => {
-    const list = slots ?? [];
-    setPostingSlots(list);
-    const open = list.filter((slot) => slot.status === 'open');
-    setSelectedSlotIds(open.length === 1 ? [open[0].id] : []);
-    setSlotSelectionError('');
+  const labelFor = (key: string): string => {
+    const choice = choiceByKey.get(key);
+    return choice ? `Plantilla ${choice.slotNumber}` : 'Your application';
   };
 
-  const toggleSlot = (slotId: string) => {
-    setSlotSelectionError('');
-    setSelectedSlotIds((prev) =>
-      prev.includes(slotId) ? prev.filter((id) => id !== slotId) : [...prev, slotId],
-    );
+  // Move focus to the form heading when Step 2 (or a jumped-to tab) opens.
+  const focusHeading = () => window.requestAnimationFrame(() => headingRef.current?.focus());
+  useEffect(() => {
+    if (entryMode === 'wizard' && !completed) focusHeading();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [entryMode, step]);
+
+  // After validation switches to a failing tab, focus its first invalid field.
+  useEffect(() => {
+    if (!focusInvalidRef.current) return;
+    focusInvalidRef.current = false;
+    window.requestAnimationFrame(() => {
+      const panel = panelRef.current;
+      const target =
+        panel?.querySelector<HTMLElement>('[aria-invalid="true"]') ??
+        panel?.querySelector<HTMLElement>('.af-doc[data-state="empty"] button') ??
+        panel?.querySelector<HTMLElement>('.af-error');
+      if (target) {
+        target.focus({ preventScroll: true });
+        target.scrollIntoView({ block: 'center', behavior: 'smooth' });
+      }
+    });
+  }, [currentKey, apps]);
+
+  const selectTab = (key: string) => {
+    setActiveKey(key);
+    setCopyMenuOpen(false);
   };
 
-  /** Only shown when there is a real choice to make. */
-  const showSlotPicker = postingSlots.filter((slot) => slot.status === 'open').length > 1;
+  const onTabKeyDown = (event: React.KeyboardEvent<HTMLButtonElement>, index: number) => {
+    let next = -1;
+    if (event.key === 'ArrowRight') next = (index + 1) % keys.length;
+    else if (event.key === 'ArrowLeft') next = (index - 1 + keys.length) % keys.length;
+    else if (event.key === 'Home') next = 0;
+    else if (event.key === 'End') next = keys.length - 1;
+    if (next < 0) return;
+    event.preventDefault();
+    selectTab(keys[next]);
+    tabRefs.current[keys[next]]?.focus();
+  };
 
-  const handleNext = () => {
-    const validationErrors = validateApplicantForm(formData, 1);
+  // ── Copy answers between plantilla forms ──────────────────────────────────
+  const copyAnswers = (from: string, to: string) => {
+    const source = apps[from];
+    if (!source) return;
+    updateApp(to, (target) => ({
+      ...target,
+      formData: {
+        ...source.formData,
+        // Each copy keeps its own plantilla identity.
+        item_number: target.formData.item_number,
+        position: target.formData.position,
+        office: target.formData.office,
+      },
+      // Same File contents, separate entries: each application uploads its own copy.
+      files: source.files.map((file) => ({
+        ...file,
+        id: `${Date.now()}-${Math.random().toString(36).slice(2, 11)}`,
+      })),
+      errors: {},
+      fileError: '',
+    }));
+    setCopyNotice(`Copied answers from ${labelFor(from)}. You can still edit this copy on its own.`);
+    setPendingCopy(null);
+    setCopyMenuOpen(false);
+  };
 
-    if (Object.keys(validationErrors).length > 0) {
-      setErrors(validationErrors);
-      setSubmitError('Please complete all required fields before proceeding.');
-      logErrorForAdmin('Validation error on step 1 of Applicant Wizard', validationErrors, 'Form Validation');
+  const requestCopy = (from: string) => {
+    const target = apps[currentKey];
+    if (target && (draftHasData(target.formData) || target.files.length > 0)) {
+      setPendingCopy({ from, to: currentKey });
+      setCopyMenuOpen(false);
       return;
     }
-
-    if (showSlotPicker && selectedSlotIds.length === 0) {
-      setSlotSelectionError('Select at least one plantilla item you are applying for.');
-      setSubmitError('Please complete all required fields before proceeding.');
-      return;
-    }
-
-    setErrors({});
-    setSubmitError('');
-    setCurrentStep(2);
+    copyAnswers(from, currentKey);
   };
 
-const handleNextToReview = () => {
-    const fileValidationError = validateFiles(files.map((f) => f.file), files, applicationType);
-    if (fileValidationError) {
-      setFileError(fileValidationError);
+  // ── Step 2 → Step 3 ───────────────────────────────────────────────────────
+  const handleReview = () => {
+    const summary: Array<{ key: string; count: number }> = [];
+    const nextApps = { ...apps };
+    keys.forEach((key) => {
+      const app = nextApps[key] ?? blankApp({ ...INITIAL_FORM_DATA });
+      const result = validateApp(app);
+      nextApps[key] = { ...app, errors: result.errors, fileError: result.fileError };
+      if (result.count > 0) summary.push({ key, count: result.count });
+    });
+    setApps(nextApps);
+    setReviewAttempted(true);
+    setValidationSummary(summary);
+    setCopyNotice('');
+
+    if (summary.length > 0) {
+      logErrorForAdmin('Validation error in Applicant Wizard', summary, 'Form Validation');
+      focusInvalidRef.current = true;
+      setActiveKey(summary[0].key);
       return;
     }
-    setFileError('');
-    setCurrentStep(3);
+    setStep('review');
+    window.scrollTo({ top: 0 });
   };
 
-  const handleBack = () => {
-    if (currentStep === 3) {
-      setCurrentStep(2);
-      return;
-    }
-
-    setCurrentStep(1);
-  };
-
-  const uploadFiles = async (client: any, applicantId: string): Promise<SyncedAttachment[]> => {
-    const persisted: SyncedAttachment[] = [];
+  // ── Submission: one application per plantilla ─────────────────────────────
+  const uploadFiles = async (client: any, applicantId: string, files: UploadedFile[]): Promise<SyncedAttachment[]> => {
+    const persistedFiles: SyncedAttachment[] = [];
 
     for (const uploadedFile of files) {
       const generatedPath = `${applicantId}/${Date.now()}-${uploadedFile.file.name}`;
@@ -550,7 +683,7 @@ const handleNextToReview = () => {
         throw new Error('File upload failed. Please check your internet connection and try again.');
       }
 
-      let filePath = generatedPath;
+      const filePath = generatedPath;
       try {
         const uploadResult = await storageBucket.upload(generatedPath, uploadedFile.file);
         const uploadError = (uploadResult as any).error;
@@ -585,7 +718,7 @@ const handleNextToReview = () => {
         throw new Error('File upload failed. Please check your internet connection and try again.');
       }
 
-      persisted.push({
+      persistedFiles.push({
         name: uploadedFile.file.name,
         type: uploadedFile.file.type,
         size: uploadedFile.file.size,
@@ -594,7 +727,7 @@ const handleNextToReview = () => {
       });
     }
 
-    return persisted;
+    return persistedFiles;
   };
 
   const toDataUrl = (file: File): Promise<string> =>
@@ -605,7 +738,7 @@ const handleNextToReview = () => {
       reader.readAsDataURL(file);
     });
 
-  const cachePreviewableFiles = async (applicantId: string) => {
+  const cachePreviewableFiles = async (applicantId: string, files: UploadedFile[]) => {
     const previewable = files.filter((entry) => entry.file.size <= MAX_PREVIEWABLE_FILE_BYTES);
     if (previewable.length === 0) return;
 
@@ -640,14 +773,41 @@ const handleNextToReview = () => {
     }
   };
 
-  const submitWithClient = async (): Promise<string> => {
-    // The Plantilla Item No. of the position being applied for. Prefer the
-    // first slot actually ticked — on a multi-slot post that is the specific
-    // plantilla this application leads with. The applicant's own tracking code
-    // is NOT this: the database issues `reference_no` on insert.
-    const selectedSlot = postingSlots.find((slot) => selectedSlotIds.includes(slot.id));
-    const plantillaItemNo = selectedSlot?.itemNumber || formData.item_number || '';
+  /**
+   * Has this email already applied for this Plantilla Item No.? The public
+   * portal has no applicant account, so this is the only authoritative check,
+   * and it can only run once the email is known (i.e. at submit time).
+   */
+  const findExistingApplication = async (email: string, itemNumber: string): Promise<{ referenceNo?: string } | null> => {
+    if (!email || !itemNumber || itemNumber === 'UNASSIGNED') return null;
+    try {
+      const { data, error } = await (supabase as any)
+        .from('applicants')
+        .select('id, reference_no')
+        .eq('email', email.trim().toLowerCase())
+        .eq('item_number', itemNumber)
+        .limit(1);
+      if (error || !Array.isArray(data) || data.length === 0) return null;
+      return { referenceNo: String(data[0].reference_no ?? '').trim() || undefined };
+    } catch {
+      return null; // Never block a submission on this check.
+    }
+  };
+
+  const submitOne = async (key: string): Promise<SubmitOutcome> => {
+    const app = apps[key];
+    const formData = app.formData;
+    const files = app.files;
+    const choice = choiceByKey.get(key);
+    const applicationType: 'job' | 'promotion' = formData.application_type === 'promotion' ? 'promotion' : 'job';
+
+    // The Plantilla Item No. of THIS application. The applicant's own tracking
+    // code is not this: the database issues `reference_no` on insert.
+    const plantillaItemNo = choice?.itemNumber || formData.item_number || '';
     const safe = (val: string | null | undefined) => (val == null ? '' : String(val));
+
+    const existing = await findExistingApplication(formData.email, plantillaItemNo);
+    if (existing) return { status: 'already', referenceNo: existing.referenceNo };
 
     const experienceYears = parseInt(formData.work_experience_years || '0', 10) || 0;
     const experienceMonths = parseInt(formData.work_experience_months || '0', 10) || 0;
@@ -671,9 +831,8 @@ const handleNextToReview = () => {
       status: 'New Application',
       years_of_experience: totalExperienceYears > 0 ? totalExperienceYears : null,
       education_level: formData.education_attainment || null,
-      // Persist the degree/course + school so a later promotional appointment can
-      // prefill them (migration 20260812). Stripped automatically on the retry
-      // below if that migration hasn't been run yet, so submission never breaks.
+      // Persist degree/course + school (migration 20260812). Stripped on the
+      // retry below if that migration hasn't run, so submission never breaks.
       education_degree: safe(formData.education_degree).trim() || null,
       education_school: safe(formData.education_school).trim() || null,
     };
@@ -712,9 +871,6 @@ const handleNextToReview = () => {
         ({ data, error } = await insertWith('id, item_number'));
       }
 
-      // If the education_degree / education_school columns aren't there yet
-      // (migration 20260812 not run), drop them and retry so a submission never
-      // fails just because the schema hasn't caught up to the form.
       if (isMissingColumn(error, 'education_degree', 'education_school')) {
         delete applicantPayload.education_degree;
         delete applicantPayload.education_school;
@@ -731,9 +887,7 @@ const handleNextToReview = () => {
     } catch (dbErr: any) {
       logErrorForAdmin('Database insertion error during applicant record creation', dbErr, 'Database Submission');
 
-      // Classify the failure so the applicant sees a useful message rather
-      // than the generic "server unavailable" string — and so HR can tell at
-      // a glance what to fix.
+      // Classify the failure so the applicant sees a useful message.
       const rawMessage = String(dbErr?.message ?? dbErr ?? '');
       const code = String(dbErr?.code ?? '');
       const lower = rawMessage.toLowerCase();
@@ -755,7 +909,7 @@ const handleNextToReview = () => {
       } else if (lower.includes('failed to fetch') || lower.includes('networkerror')) {
         userMessage = 'Network connection lost. Please check your internet and try again.';
       } else {
-        userMessage = `Submission failed: ${rawMessage.slice(0, 200)} — please try again, or contact HR if this keeps happening.`;
+        userMessage = `Submission failed: ${rawMessage.slice(0, 200)}. Please try again, or contact HR if this keeps happening.`;
       }
 
       throw new Error(userMessage);
@@ -763,25 +917,23 @@ const handleNextToReview = () => {
 
     saveApplicantAppointmentType(applicantData.id, applicationType);
 
-    // One application, linked to every plantilla item the applicant ticked.
-    // `legacy:` ids belong to the synthetic single slot invented for postings
-    // that have no rows yet — there is nothing real to link them to.
-    const slotIdsToLink = selectedSlotIds.filter((id) => id && !id.startsWith('legacy:') && !id.startsWith('pending:'));
-    if (slotIdsToLink.length > 0) {
-      const linkResult = await linkApplicationToSlots(applicantData.id, slotIdsToLink);
+    // This application links to exactly one plantilla item: its own.
+    if (choice?.slotId) {
+      const linkResult = await linkApplicationToSlots(applicantData.id, [choice.slotId]);
       if (!linkResult.ok) {
-        // The application itself is already saved; a failed link is an HR
-        // follow-up, not a reason to tell the applicant they failed.
+        // The application itself is saved; a failed link is an HR follow-up,
+        // not a reason to tell the applicant they failed.
         logErrorForAdmin(
-          'Applicant saved but plantilla slot links failed',
-          { applicantId: applicantData.id, slotIdsToLink, error: linkResult.error },
+          'Applicant saved but plantilla slot link failed',
+          { applicantId: applicantData.id, slotId: choice.slotId, error: linkResult.error },
           'Database Submission',
         );
       }
     }
 
-    const syncedAttachments = await uploadFiles(supabase, applicantData.id);
-    await cachePreviewableFiles(applicantData.id);
+    // Each application uploads its own copy of every file.
+    const syncedAttachments = await uploadFiles(supabase, applicantData.id, files);
+    await cachePreviewableFiles(applicantData.id, files);
 
     syncApplicantSubmissionToRecruitment({
       applicantId: applicantData.id,
@@ -809,94 +961,94 @@ const handleNextToReview = () => {
       educationAttainment: formData.education_attainment || undefined,
       educationDegree: formData.education_degree || undefined,
       educationSchool: formData.education_school || undefined,
-      workExperienceYears: (() => {
-        const years = parseInt(formData.work_experience_years || '0', 10) || 0;
-        const months = parseInt(formData.work_experience_months || '0', 10) || 0;
-        const total = years + months / 12;
-        return total > 0 ? Math.round(total * 100) / 100 : undefined;
-      })(),
+      workExperienceYears: totalExperienceYears > 0 ? Math.round(totalExperienceYears * 100) / 100 : undefined,
     });
 
-    // What the applicant walks away with: their Reference No. Before migration
-    // 20260923 there is none, so fall back to the row id — still unique, still
-    // lets them find themselves, and never a plantilla code.
-    return String(applicantData.reference_no ?? '').trim() || String(applicantData.id ?? '');
+    // Before migration 20260923 there is no reference_no; fall back to the row
+    // id — still unique, still lets them find themselves.
+    const referenceNo = String(applicantData.reference_no ?? '').trim() || String(applicantData.id ?? '');
+    return { status: 'ok', referenceNo };
   };
 
-  const completeSuccess = (referenceNo: string) => {
-    setSubmissionReference(referenceNo);
-    setShowSuccessDialog(true);
-    setFormData(INITIAL_FORM_DATA);
-    setFiles([]);
-    setCurrentStep(1);
-    setEntryMode('landing');
-    setApplicationType('job');
-    setPostingSlots([]);
-    setSelectedSlotIds([]);
-    setSlotSelectionError('');
-    setAuthenticatedEmployeeAccount(null);
-    setEmployeeNumber('');
-    setEmployeePassword('');
-    setShowEmployeePassword(false);
-    setEmployeeAuthError('');
-    // Wipe the per-tab wizard cache so a brand-new application starts fresh
-    // (refresh after submit should not resume the just-submitted form).
-    clearWizardState();
-  };
+  /** Keys still to send: everything not yet submitted or already on file. */
+  const pendingKeys = keys.filter((key) => {
+    const outcome = outcomes[key];
+    return !outcome || outcome.status === 'failed';
+  });
+  const failedKeys = keys.filter((key) => outcomes[key]?.status === 'failed');
+  const isRetry = failedKeys.length > 0;
 
-  const handleSubmit = async () => {
-    const fileValidationError = validateFiles(files.map((f) => f.file), files, applicationType);
-    if (fileValidationError) {
-      setFileError(fileValidationError);
+  const handleSubmitAll = async () => {
+    const targets = pendingKeys;
+    if (targets.length === 0) return;
+    setIsSubmitting(true);
+    setOutcomes((prev) => ({ ...prev, ...Object.fromEntries(targets.map((key) => [key, { status: 'submitting' } as SubmitOutcome])) }));
+
+    // Sequential, so one bad network moment fails as few items as possible and
+    // uploads don't compete for bandwidth.
+    const results: Record<string, SubmitOutcome> = {};
+    for (const key of targets) {
+      try {
+        const outcome = await submitOne(key);
+        results[key] = outcome;
+        if (outcome.status === 'ok') markApplied(key, outcome.referenceNo);
+        if (outcome.status === 'already') markApplied(key, outcome.referenceNo ?? '');
+      } catch (error) {
+        console.error('Submission error:', error);
+        results[key] = {
+          status: 'failed',
+          error: error instanceof Error ? error.message : 'An error occurred while submitting this application. Please try again.',
+        };
+      }
+      setOutcomes((prev) => ({ ...prev, [key]: results[key] }));
+    }
+
+    setIsSubmitting(false);
+    setConfirmSubmit(false);
+
+    const merged = { ...outcomes, ...results };
+    const anyFailed = keys.some((key) => merged[key]?.status === 'failed');
+    if (anyFailed) {
+      // After the confirm modal has closed and handed focus back to its opener,
+      // so the failure alert is what the applicant (and screen reader) lands on.
+      window.setTimeout(() => {
+        alertRef.current?.focus();
+        alertRef.current?.scrollIntoView({ block: 'center' });
+      }, 80);
       return;
     }
 
-    setIsSubmitting(true);
-    setSubmitError('');
-
-    try {
-      const referenceNo = await submitWithClient();
-      completeSuccess(referenceNo);
-    } catch (error) {
-      console.error('Submission error:', error);
-
-      setSubmitError(
-        error instanceof Error
-          ? error.message
-          : 'An error occurred while submitting your application. Please try again.'
-      );
-    } finally {
-      setIsSubmitting(false);
-    }
+    setCompleted(keys.map((key) => ({ key, label: choiceByKey.get(key) ? choiceLabel(choiceByKey.get(key)!) : 'Your application', outcome: merged[key] })));
+    clearDrafts();
+    window.scrollTo({ top: 0 });
   };
 
-  const handleCloseSuccessDialog = () => {
-    setShowSuccessDialog(false);
-    navigate('/');
-  };
-
-  const handleStartJobApplication = (job?: JobPosting) => {
-    setApplicationType('job');
+  // ── Landing actions ───────────────────────────────────────────────────────
+  const startGeneralApplication = () => {
+    // Resume an unfinished general application instead of wiping it.
+    const existing = posting === null ? apps[GENERAL_KEY] : undefined;
+    setPosting(null);
+    setChoices([]);
+    setApps({ [GENERAL_KEY]: existing ?? blankApp({ ...INITIAL_FORM_DATA, application_type: 'job' }) });
+    setActiveKey(GENERAL_KEY);
+    setLockedPosition(false);
     setAuthenticatedEmployeeAccount(null);
-    if (job) {
-      setFormData({
-        ...INITIAL_FORM_DATA,
-        application_type: 'job',
-        position: job.title,
-        office: job.department || job.division || '',
-        item_number: job.jobCode || '',
-      });
-      setIsLockedPosition(true);
-      applyPostingSlots(job.plantillaSlots);
-    } else {
-      setFormData({ ...INITIAL_FORM_DATA, application_type: 'job' });
-      setIsLockedPosition(false);
-      applyPostingSlots([]);
-    }
-    setFiles([]);
     setEntryMode('wizard');
-    setCurrentStep(1);
-    setSubmitError('');
+    setStep('fill');
+    setOutcomes({});
+    setCompleted(null);
+  };
+
+  /** Every vacancy goes through Step 1 (choose plantilla) on its Job Details page. */
+  const openPosting = (job: JobPosting) => navigate(`/job-details/${encodeURIComponent(job.id)}`);
+
+  const handleBackFromFill = () => {
+    if (posting) {
+      // Answers are kept in the draft store; Step 1 restores the selection.
+      navigate(`/job-details/${encodeURIComponent(posting.id)}`);
+      return;
+    }
+    setEntryMode('landing');
   };
 
   const handleOpenEmployeeAuth = () => {
@@ -942,13 +1094,10 @@ const handleNextToReview = () => {
 
     const matchedEmployeeNumber = String(matchedAccount?.employee?.employeeId ?? '').trim();
 
-    // The applicant is an existing employee, so their education, work history,
-    // contact details and current post are already on file. Pull the whole
-    // profile and prefill the form instead of making them retype it.
+    // The applicant is an existing employee, so pull the whole profile and
+    // prefill the form instead of making them retype it.
     const profile = await fetchEmployeeApplicationProfile(matchedEmployeeNumber);
 
-    // Fallbacks for when there's no employees row yet: derive what we can from
-    // the portal account, and leave the rest blank for them to fill in.
     const [accountFirstName, ...remainingParts] = String(matchedAccount?.employee?.fullName ?? '')
       .trim()
       .split(/\s+/);
@@ -960,95 +1109,66 @@ const handleNextToReview = () => {
     const currentPosition = profile?.currentPosition || matchedAccount?.employee?.currentPosition || '';
 
     setAuthenticatedEmployeeAccount(matchedAccount);
-    setApplicationType('promotion');
+    setPosting(null);
+    setChoices([]);
+    setLockedPosition(false);
+    setActiveKey(GENERAL_KEY);
     setEntryMode('wizard');
-    setCurrentStep(1);
-    setFiles([]);
-    setFormData({
-      ...INITIAL_FORM_DATA,
-      application_type: 'promotion',
+    setStep('fill');
+    setOutcomes({});
+    setCompleted(null);
+    // Mark the lookup as done so the debounced prefill doesn't redo it.
+    lastPrefilledRef.current[GENERAL_KEY] = { employeeId: matchedEmployeeNumber, username: matchedAccount?.username || '' };
+    setApps({
+      [GENERAL_KEY]: blankApp({
+        ...INITIAL_FORM_DATA,
+        application_type: 'promotion',
 
-      // Identity & contact
-      first_name: profile?.firstName || accountFirstName || '',
-      middle_name: profile?.middleName || accountMiddleName,
-      last_name: profile?.lastName || accountLastName,
-      gender:
-        profile?.sex ||
-        (matchedAccount?.employee?.gender === 'Prefer not to say'
-          ? ''
-          : String(matchedAccount?.employee?.gender ?? '')),
-      address: profile?.address || matchedAccount?.employee?.homeAddress || '',
-      contact_number: profile?.contactNumber || matchedAccount?.employee?.mobileNumber || '',
-      email: profile?.email || matchedAccount?.employee?.email || '',
+        // Identity & contact
+        first_name: profile?.firstName || accountFirstName || '',
+        middle_name: profile?.middleName || accountMiddleName,
+        last_name: profile?.lastName || accountLastName,
+        gender:
+          profile?.sex ||
+          (matchedAccount?.employee?.gender === 'Prefer not to say'
+            ? ''
+            : String(matchedAccount?.employee?.gender ?? '')),
+        address: profile?.address || matchedAccount?.employee?.homeAddress || '',
+        contact_number: profile?.contactNumber || matchedAccount?.employee?.mobileNumber || '',
+        email: profile?.email || matchedAccount?.employee?.email || '',
 
-      // Employment
-      employee_id: matchedEmployeeNumber,
-      current_position: currentPosition,
-      current_department: currentDepartment,
-      current_division: currentDivision,
-      employee_username: matchedAccount?.username || '',
-      office: currentDepartment,
+        // Employment
+        employee_id: matchedEmployeeNumber,
+        current_position: currentPosition,
+        current_department: currentDepartment,
+        current_division: currentDivision,
+        employee_username: matchedAccount?.username || '',
+        office: currentDepartment,
 
-      // Educational background — from employee_education
-      education_attainment: profile?.educationAttainment || '',
-      education_degree: profile?.educationDegree || '',
-      education_school: profile?.educationSchool || '',
+        // Educational background — from employee_education
+        education_attainment: profile?.educationAttainment || '',
+        education_degree: profile?.educationDegree || '',
+        education_school: profile?.educationSchool || '',
 
-      // Work experience — from employee_work_experience
-      work_experience_years: profile?.workExperienceYears || '',
-      work_experience_months: profile?.workExperienceMonths || '',
-      relevant_experience_position: profile?.relevantExperiencePosition || '',
-      relevant_experience_company: profile?.relevantExperienceCompany || '',
-      relevant_experience_duties: profile?.relevantExperienceDuties || '',
+        // Work experience — from employee_work_experience
+        work_experience_years: profile?.workExperienceYears || '',
+        work_experience_months: profile?.workExperienceMonths || '',
+        relevant_experience_position: profile?.relevantExperiencePosition || '',
+        relevant_experience_company: profile?.relevantExperienceCompany || '',
+        relevant_experience_duties: profile?.relevantExperienceDuties || '',
+      }),
     });
 
     // Tell them what happened. Silence here reads as "the form is just blank".
-    setPrefillNotice(
-      profile
+    setPrefillNotice({
+      [GENERAL_KEY]: profile
         ? 'We filled in your details from your employee record. Review each field and update anything that has changed.'
         : "We couldn't find your employee record, so please fill in your details manually.",
-    );
+    });
 
-    setSubmitError('');
     setShowEmployeeAuth(false);
     setEmployeeAuthError('');
   };
-
-  const reviewedFiles = useMemo(() => {
-    if (applicationType === 'promotion') {
-      return files.map((entry) => ({
-        key: entry.id,
-        fileName: entry.file.name,
-        fileSize: entry.file.size,
-      }));
-    }
-
-    return REQUIRED_DOCUMENTS.map((doc) => {
-      const uploaded = (files as Array<UploadedFile & { documentType?: string }>).find(
-        (entry) => entry.documentType === doc.type
-      );
-
-      return {
-        key: doc.type,
-        fileName: uploaded?.file.name,
-        fileSize: uploaded?.file.size,
-      };
-    }).filter((entry) => Boolean(entry.fileName));
-  }, [applicationType, files]);
-
-  const formatFileSize = (bytes?: number) => {
-    if (!bytes) return '';
-    if (bytes < 1024) return `${bytes} B`;
-    const kb = bytes / 1024;
-    if (kb < 1024) return `${kb.toFixed(1)} KB`;
-    return `${(kb / 1024).toFixed(1)} MB`;
-  };
-
-  // The wizard used to mint a tracking code here and write it into
-  // item_number, which is what conflated the applicant's reference with the
-  // position's plantilla code. Reference numbers are now issued by the
-  // database on insert (migration 20260923), so there is nothing to generate
-  // client-side and item_number holds only the Plantilla Item No. applied for.
 
   useEffect(() => {
     if (entryMode === 'landing') {
@@ -1059,19 +1179,37 @@ const handleNextToReview = () => {
     }
   }, [entryMode]);
 
-  return (
-    <div className="applicant-shell">
-      <header className="applicant-topbar">
-          <div className="applicant-brand">
-            <img src={abyanLogo} alt="ABYAN logo" className="applicant-brand-logo" />
-          <div>
-            <h1>Abyan HRIS Applicant Portal</h1>
-            <p>Human Resource Information System</p>
-          </div>
-        </div>
-      </header>
+  // ── Render helpers ────────────────────────────────────────────────────────
+  const stepDefs = isPostingFlow ? APPLY_STEPS : GENERAL_APPLY_STEPS;
+  const stepIndex = (isPostingFlow ? 1 : 0) + (step === 'review' ? 1 : 0);
+  const stripTitle = posting?.title
+    || (active?.formData.application_type === 'promotion' ? 'Promotional application' : 'General application');
 
-      {entryMode === 'landing' ? (
+  const captionFor = (key: string) => {
+    const choice = choiceByKey.get(key);
+    const formData = apps[key]?.formData;
+    const parts = [formData?.position || posting?.title];
+    const itemNo = choice?.itemNumber || formData?.item_number;
+    if (itemNo) parts.push(`Plantilla Item No. ${itemNo}`);
+    if (choice?.salaryGrade != null) parts.push(`SG ${choice.salaryGrade}`);
+    return parts.filter(Boolean).join(' · ');
+  };
+
+  const filesFor = (app: AppState) => {
+    if (app.formData.application_type === 'promotion') {
+      return app.files.map((entry) => ({ key: entry.id, label: entry.file.name, fileName: entry.file.name, fileSize: entry.file.size }));
+    }
+    return REQUIRED_DOCUMENTS.map((doc) => {
+      const uploaded = (app.files as Array<UploadedFile & { documentType?: string }>).find((entry) => entry.documentType === doc.type);
+      return { key: doc.type, label: doc.label, fileName: uploaded?.file.name, fileSize: uploaded?.file.size };
+    }).filter((entry) => Boolean(entry.fileName));
+  };
+
+  // ── Landing view (unchanged behaviour; vacancies now open Step 1) ─────────
+  if (entryMode === 'landing' && !completed) {
+    return (
+      <div className="applicant-shell">
+        <PublicTopBar />
         <main className="portal-landing">
           <div className="portal-landing-header">
             <h2>Welcome to Abyan HRIS Applicant Portal</h2>
@@ -1084,7 +1222,7 @@ const handleNextToReview = () => {
             </div>
             <h3>Job Application</h3>
             <p>Apply for a general position or select from the vacancies below</p>
-            <Button className="entry-primary-button" onClick={() => handleStartJobApplication()}>
+            <Button className="entry-primary-button" onClick={startGeneralApplication}>
               Start General Application
             </Button>
           </div>
@@ -1099,8 +1237,8 @@ const handleNextToReview = () => {
                     <p className="text-sm text-slate-600 flex-1">{job.division || job.department}</p>
                     <div className="mt-4 pt-4 border-t border-slate-200">
                       <p className="text-xs font-mono text-slate-500 mb-3">Item No: {job.jobCode}</p>
-                      <button 
-                        onClick={() => handleStartJobApplication(job)} 
+                      <button
+                        onClick={() => openPosting(job)}
                         className="w-full flex items-center justify-center gap-2 rounded-full bg-white py-2.5 px-4 font-bold text-blue-600 border-[1.5px] border-blue-600 hover:bg-blue-50 transition-colors shadow-sm"
                       >
                         <Briefcase size={18} />
@@ -1129,501 +1267,541 @@ const handleNextToReview = () => {
             <FileText size={16} />
             <span>Track your existing application</span>
           </a>
-
-
         </main>
-      ) : (
-        <main className="wizard-layout">
-          <aside className="wizard-sidebar">
-            <h3>Application Progress</h3>
 
-            <div className="progress-item">
-              <div className={`progress-badge ${currentStep > 1 ? 'completed' : 'active'}`}>
-                {currentStep > 1 ? <CheckCircle2 size={18} /> : '1'}
-              </div>
-              <div>
-                <p className="progress-title">Personal &amp; Application Info</p>
-                <p className="progress-status">{currentStep > 1 ? 'Completed' : 'In Progress'}</p>
-              </div>
+        <Dialog open={showEmployeeAuth} onClose={handleCloseEmployeeAuth}>
+          <div className="employee-auth-dialog">
+            <div className="employee-auth-icon" aria-hidden="true">
+              <ShieldCheck size={34} />
             </div>
+            <h3>Employee Authentication</h3>
+            <p>Please login with your employee credentials to proceed with your promotional application.</p>
 
-            <div className="progress-item">
-              <div className={`progress-badge ${currentStep > 2 ? 'completed' : currentStep === 2 ? 'active' : ''}`}>
-                {currentStep > 2 ? <CheckCircle2 size={18} /> : '2'}
+            <form onSubmit={handleEmployeeAuthSubmit} className="employee-auth-form">
+              <label htmlFor="employee-number">Employee Number</label>
+              <input
+                id="employee-number"
+                value={employeeNumber}
+                onChange={(event) => setEmployeeNumber(event.target.value)}
+                placeholder="e.g., EMP-2024-001"
+              />
+
+              <label htmlFor="employee-password">Password</label>
+              <div className="relative">
+                <input
+                  id="employee-password"
+                  type={showEmployeePassword ? 'text' : 'password'}
+                  value={employeePassword}
+                  onChange={(event) => setEmployeePassword(event.target.value)}
+                  placeholder="Enter your employee password"
+                  style={{ paddingRight: '2.5rem' }}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowEmployeePassword((prev) => !prev)}
+                  aria-label={showEmployeePassword ? 'Hide password' : 'Show password'}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                >
+                  {showEmployeePassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                </button>
               </div>
-              <div>
-                <p className="progress-title">Upload Requirements</p>
-                <p className="progress-status">
-                  {currentStep > 2 ? 'Completed' : currentStep === 2 ? 'In Progress' : 'Pending'}
+
+              <div className="employee-auth-hint">
+                <p>
+                  <strong>Use your Employee Portal credentials:</strong>
                 </p>
+                <p>Enter your Employee Number (or username) and your Employee Portal password.</p>
               </div>
-            </div>
 
-            <div className="progress-item">
-              <div className={`progress-badge ${currentStep === 3 ? 'active' : ''}`}>3</div>
-              <div>
-                <p className="progress-title">Review &amp; Submit</p>
-                <p className="progress-status">{currentStep === 3 ? 'In Progress' : 'Pending'}</p>
+              {employeeAuthError && <p className="employee-auth-error">{employeeAuthError}</p>}
+
+              <div className="employee-auth-actions">
+                <Button type="button" variant="outline" onClick={handleCloseEmployeeAuth}>
+                  Cancel
+                </Button>
+                <Button type="submit">Login</Button>
               </div>
-            </div>
+            </form>
+          </div>
+        </Dialog>
+      </div>
+    );
+  }
 
-            <div className="progress-reminder">
-              <p>
-                <strong>Important:</strong> Please complete all steps to submit your application. Ensure all
-                information is accurate and all required documents are uploaded.
+  // ── Success screen ────────────────────────────────────────────────────────
+  if (completed) {
+    const firstRef = completed
+      .map((entry) => ('referenceNo' in entry.outcome ? entry.outcome.referenceNo : undefined))
+      .find(Boolean);
+    const submittedCount = completed.filter((entry) => entry.outcome.status === 'ok').length;
+    return (
+      <div className="abyan-ds af">
+        <PublicTopBar />
+        <main className="af-main">
+          <div className="af-container">
+            <section className="af-card af-success" aria-labelledby="af-success-title">
+              <span className="af-success-icon" aria-hidden="true"><CheckCircle2 size={36} strokeWidth={1.75} /></span>
+              <h1 className="af-title-m" id="af-success-title" tabIndex={-1} ref={(el) => el?.focus()}>
+                {submittedCount === 0
+                  ? "You've already applied"
+                  : submittedCount === 1
+                    ? 'Application submitted'
+                    : `${submittedCount} applications submitted`}
+              </h1>
+              <p className="af-text" style={{ marginTop: 8, color: 'var(--neutral-600)' }}>
+                Each plantilla item has its own Reference No. Keep them; you can track each application with it or with
+                your email address.
               </p>
-            </div>
-          </aside>
 
-          <section className="wizard-main">
-            {currentStep === 1 && (
-              <>
-                <div className="wizard-heading">
-                  <h2>Personal &amp; Application Information</h2>
-                  <p>Please provide your complete details for evaluation.</p>
-                </div>
-
-                {prefillNotice && applicationType === 'promotion' && (
-                  <div
-                    role="status"
-                    style={{
-                      margin: '0 0 16px',
-                      padding: '12px 16px',
-                      borderRadius: 10,
-                      border: '1px solid #bfdbfe',
-                      background: '#eff6ff',
-                      color: '#1e3a8a',
-                      fontSize: 14,
-                      lineHeight: 1.5,
-                    }}
-                  >
-                    {prefillNotice}
-                  </div>
-                )}
-
-                {/* Plantilla picker. Only rendered when the posting has more
-                    than one open vacancy — otherwise there is no choice and
-                    the single slot is selected behind the scenes. */}
-                {showSlotPicker && (
-                  <div
-                    className="mb-4 rounded-xl border border-slate-200 bg-white p-4"
-                    style={{ borderColor: slotSelectionError ? '#fca5a5' : undefined }}
-                  >
-                    <h3 className="text-base font-bold text-slate-900">
-                      Select Plantilla(s) you&apos;re applying for <span className="text-red-500">*</span>
-                    </h3>
-                    <p className="mt-1 text-sm text-slate-600">
-                      This position has {postingSlots.length} plantilla items. Tick every one you want
-                      to be considered for — you only submit this application once.
-                    </p>
-
-                    <div className="mt-3 space-y-2">
-                      {postingSlots.map((slot) => {
-                        const available = slot.status === 'open';
-                        const checked = selectedSlotIds.includes(slot.id);
-                        return (
-                          <label
-                            key={slot.id}
-                            className={`flex items-center gap-3 rounded-lg border p-3 ${
-                              available
-                                ? 'cursor-pointer border-slate-200 hover:border-blue-300 hover:bg-blue-50/40'
-                                : 'cursor-not-allowed border-slate-100 bg-slate-50 opacity-70'
-                            }`}
-                          >
-                            <input
-                              type="checkbox"
-                              className="h-4 w-4"
-                              checked={checked}
-                              disabled={!available}
-                              onChange={() => toggleSlot(slot.id)}
-                            />
-                            <span className="flex-1">
-                              <span className="font-semibold text-slate-900">Plantilla {slot.slotNumber}</span>
-                              <span className="ml-2 text-sm text-slate-500">({slot.itemNumber})</span>
-                            </span>
-                            {!available && (
-                              <span className="rounded-full bg-slate-200 px-2 py-0.5 text-xs font-semibold text-slate-600">
-                                {slot.status === 'filled' ? 'Filled' : 'Closed'}
-                              </span>
-                            )}
-                          </label>
-                        );
-                      })}
+              <ul className="af-refs">
+                {completed.map((entry) => (
+                  <li key={entry.key} className="af-card af-ref" style={{ padding: 16 }}>
+                    <div style={{ minWidth: 0 }}>
+                      <p className="af-headline">{entry.label}</p>
+                      <p className="af-body-s" style={{ marginTop: 4 }}>
+                        {entry.outcome.status === 'already' ? 'Reference No. from your earlier application' : 'Reference No.'}
+                      </p>
+                      <p className="af-ref-no">
+                        {'referenceNo' in entry.outcome && entry.outcome.referenceNo ? entry.outcome.referenceNo : 'On file'}
+                      </p>
                     </div>
+                    {/* §10: Submitted / Received = Info */}
+                    <span className="badge badge-info">
+                      <span className="badge-dot" aria-hidden="true" />
+                      {entry.outcome.status === 'already' ? 'Already applied' : 'Submitted'}
+                    </span>
+                  </li>
+                ))}
+              </ul>
 
-                    {slotSelectionError && (
-                      <p className="mt-2 text-sm font-medium text-red-600">{slotSelectionError}</p>
-                    )}
+              <div className="af-modal-actions" style={{ justifyContent: 'center' }}>
+                <button type="button" className="btn btn-md btn-secondary" onClick={() => navigate('/')}>
+                  Back to Home
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-md btn-primary"
+                  onClick={() => navigate('/track', { state: { referenceNo: firstRef } })}
+                >
+                  <Search size={18} strokeWidth={1.75} aria-hidden="true" />
+                  Track Application
+                </button>
+              </div>
+            </section>
+          </div>
+        </main>
+      </div>
+    );
+  }
+
+  // ── Steps 2 and 3 ─────────────────────────────────────────────────────────
+  const activeApp = active ?? blankApp({ ...INITIAL_FORM_DATA });
+  const activeType: 'job' | 'promotion' = activeApp.formData.application_type === 'promotion' ? 'promotion' : 'job';
+  const otherKeys = keys.filter((key) => key !== currentKey);
+  const failedList = failedKeys.map((key) => ({ key, error: (outcomes[key] as { error: string }).error }));
+  // Live counts: an item drops off the alert as soon as its answers are fixed.
+  const liveSummary = validationSummary
+    .map((entry) => ({ key: entry.key, count: apps[entry.key] ? validateApp(apps[entry.key]).count : 0 }))
+    .filter((entry) => entry.count > 0);
+
+  return (
+    <div className="abyan-ds af">
+      <PublicTopBar />
+
+      <div className="af-strip">
+        <div className="af-container">
+          <div className="af-strip-top">
+            <p className="af-strip-title">{stripTitle}</p>
+            <Stepper steps={stepDefs} current={stepIndex} />
+          </div>
+
+          {step === 'fill' && isPostingFlow && (
+            <div role="tablist" aria-label="Plantilla applications" className="af-tabs">
+              {keys.map((key, index) => {
+                const choice = choiceByKey.get(key)!;
+                const status = tabStatus(key);
+                const { label, Icon } = TAB_STATUS[status];
+                const selected = key === currentKey;
+                return (
+                  <button
+                    key={key}
+                    ref={(el) => { tabRefs.current[key] = el; }}
+                    type="button"
+                    role="tab"
+                    id={`af-tab-${index}`}
+                    aria-selected={selected}
+                    aria-controls="af-tabpanel"
+                    tabIndex={selected ? 0 : -1}
+                    className="af-tab"
+                    onClick={() => selectTab(key)}
+                    onKeyDown={(event) => onTabKeyDown(event, index)}
+                  >
+                    <span>{choiceLabel(choice)}</span>
+                    <span className="af-tab-status" data-status={status}>
+                      <Icon size={14} strokeWidth={1.75} aria-hidden="true" />
+                      {label}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      </div>
+
+      <main className="af-main">
+        <div className="af-container">
+          {step === 'fill' ? (
+            <>
+              {liveSummary.length > 0 && (
+                <div className="af-alert af-alert-error" role="alert" style={{ marginBottom: 24 }}>
+                  <AlertCircle size={20} strokeWidth={1.75} aria-hidden="true" />
+                  <div>
+                    <p className="af-alert-title">Some answers need your attention</p>
+                    <div className="af-alert-body">
+                      Fix these before you can review your application{keys.length > 1 ? 's' : ''}:
+                      <ul>
+                        {liveSummary.map((entry) => (
+                          <li key={entry.key}>
+                            <button type="button" className="af-textbtn" style={{ minHeight: 28, padding: 0 }} onClick={() => { focusInvalidRef.current = true; selectTab(entry.key); }}>
+                              {choiceByKey.get(entry.key) ? choiceLabel(choiceByKey.get(entry.key)!) : 'Your application'}
+                            </button>
+                            {': '}
+                            {entry.count} {entry.count === 1 ? 'issue' : 'issues'}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
                   </div>
-                )}
+                </div>
+              )}
 
-                <div className="wizard-content">
+              <div
+                role={isPostingFlow ? 'tabpanel' : undefined}
+                id="af-tabpanel"
+                aria-labelledby={isPostingFlow ? `af-tab-${keys.indexOf(currentKey)}` : undefined}
+                ref={panelRef}
+              >
+                <div className="af-form-head">
+                  <div style={{ minWidth: 0 }}>
+                    <h2 className="af-title-m" tabIndex={-1} ref={headingRef}>
+                      {isPostingFlow ? `Application for ${labelFor(currentKey)}` : 'Your application'}
+                    </h2>
+                    <p className="af-caption">{captionFor(currentKey)}</p>
+                  </div>
+
+                  {otherKeys.length > 0 && (
+                    <div className="af-menu-wrap">
+                      <button
+                        type="button"
+                        className="btn btn-sm btn-secondary"
+                        aria-haspopup="menu"
+                        aria-expanded={copyMenuOpen}
+                        onClick={() => setCopyMenuOpen((open) => !open)}
+                      >
+                        <Copy size={16} strokeWidth={1.75} aria-hidden="true" />
+                        Copy Answers From…
+                      </button>
+                      {copyMenuOpen && (
+                        <ul className="af-menu" role="menu" onKeyDown={(event) => { if (event.key === 'Escape') setCopyMenuOpen(false); }}>
+                          {otherKeys.map((key) => (
+                            <li key={key} role="none">
+                              <button type="button" role="menuitem" onClick={() => requestCopy(key)} autoFocus={key === otherKeys[0]}>
+                                {choiceLabel(choiceByKey.get(key)!)}
+                              </button>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                <div aria-live="polite">
+                  {copyNotice && (
+                    <div className="af-alert af-alert-success" style={{ marginBottom: 24 }}>
+                      <CheckCircle2 size={20} strokeWidth={1.75} aria-hidden="true" />
+                      <p className="af-alert-body">{copyNotice}</p>
+                    </div>
+                  )}
+                  {prefillNotice[currentKey] && activeType === 'promotion' && (
+                    <div className="af-alert af-alert-info" role="status" style={{ marginBottom: 24 }}>
+                      <Info size={20} strokeWidth={1.75} aria-hidden="true" />
+                      <p className="af-alert-body">{prefillNotice[currentKey]}</p>
+                    </div>
+                  )}
+                </div>
+
+                {/* One independent form per plantilla. `key` remounts the
+                    sections on tab switch; the answers live in `apps`, so
+                    switching tabs never loses data. */}
+                <div className="af-form-grid" key={currentKey}>
                   <ApplicantAssessmentForm
-                      formData={formData}
-                      errors={errors}
-                      onChange={handleFormChange}
-                      applicationType={applicationType}
-                      isEmployee={Boolean(authenticatedEmployeeAccount?.employee?.employeeId)}
-                      isLoadingPrefill={isLoadingPrefill}
-                      onApplicationTypeChange={(next) => {
-                        setApplicationType(next);
-                        handleFormChange('application_type', next);
-                        if (next === 'job') {
-                          // Clear promotional-specific fields when switching to Original
-                          setFormData((prev) => ({
-                            ...prev,
-                            employee_id: '',
-                            employee_username: '',
-                            current_position: '',
-                            current_department: '',
-                            current_division: '',
-                          }));
-                          setPrefillNotice('');
-                          setAuthenticatedEmployeeAccount(null);
-                          lastPrefilledRef.current = null;
-                        }
-                      }}
-                      lockedPosition={isLockedPosition}
-                    />
-                </div>
-              </>
-            )}
-
-            {currentStep === 2 && (
-              <>
-                <div className="wizard-heading">
-                  <h2>Upload Requirements</h2>
-                  <p>Upload all required documents before proceeding to review.</p>
-                </div>
-                <div className="wizard-content">
+                    idPrefix={`af-${keys.indexOf(currentKey)}`}
+                    formData={activeApp.formData}
+                    errors={activeApp.errors}
+                    onChange={handleFormChangeFor(currentKey)}
+                    applicationType={activeType}
+                    isEmployee={Boolean(authenticatedEmployeeAccount?.employee?.employeeId)}
+                    isLoadingPrefill={isLoadingPrefill}
+                    onApplicationTypeChange={(next) => handleApplicationTypeChange(currentKey, next)}
+                    lockedPosition={lockedPosition}
+                    afterEducation={
+                      <AttachmentsUploadForm
+                        part="govId"
+                        idPrefix={`af-${keys.indexOf(currentKey)}`}
+                        files={activeApp.files}
+                        onFilesChange={handleFilesChangeFor(currentKey)}
+                        applicationType={activeType}
+                        formData={activeApp.formData}
+                        onChange={handleFormChangeFor(currentKey)}
+                        errors={activeApp.errors}
+                      />
+                    }
+                  />
                   <AttachmentsUploadForm
-                    files={files}
-                    onFilesChange={handleFilesChange}
-                    error={fileError}
-                    plantillaItemNo={formData.item_number}
-                    applicationType={applicationType}
-                    formData={formData}
-                    onChange={handleFormChange}
-                    errors={errors}
+                    part="documents"
+                    idPrefix={`af-${keys.indexOf(currentKey)}`}
+                    files={activeApp.files}
+                    onFilesChange={handleFilesChangeFor(currentKey)}
+                    error={activeApp.fileError}
+                    plantillaItemNo={activeApp.formData.item_number}
+                    applicationType={activeType}
+                    formData={activeApp.formData}
+                    onChange={handleFormChangeFor(currentKey)}
+                    errors={activeApp.errors}
                   />
                 </div>
-              </>
-            )}
+              </div>
 
-            {currentStep === 3 && (
-              <>
-                <div className="wizard-heading">
-                  <h2>Review &amp; Submit Application</h2>
-                  <p>Please review your information carefully before submitting your application.</p>
-                </div>
-
-                <div className="review-panel">
-                  <h4>
-                    <BadgeCheck size={20} /> Personal &amp; Application Information
-                  </h4>
-                  <div className="review-grid">
-                    {applicationType === 'promotion' && (
-                      <>
-                        <div>
-                          <label>Employee ID</label>
-                          <p>{formData.employee_id || '-'}</p>
-                        </div>
-                        <div>
-                          <label>Current Position</label>
-                          <p>{formData.current_position || '-'}</p>
-                        </div>
-                        <div>
-                          <label>Current Department</label>
-                          <p>{formData.current_department || '-'}</p>
-                        </div>
-                      </>
-                    )}
-                    <div>
-                      <label>First Name</label>
-                      <p>{formData.first_name || '-'}</p>
-                    </div>
-                    <div>
-                      <label>Middle Name</label>
-                      <p>{formData.middle_name || '-'}</p>
-                    </div>
-                    <div>
-                      <label>Last Name</label>
-                      <p>{formData.last_name || '-'}</p>
-                    </div>
-                    <div>
-                      <label>Email Address</label>
-                      <p>{formData.email || '-'}</p>
-                    </div>
-                    <div>
-                      <label>Gender</label>
-                      <p>{formData.gender || '-'}</p>
-                    </div>
-                    <div>
-                      <label>Position Applying For</label>
-                      <p>{formData.position || '-'}</p>
-                    </div>
-                    {showSlotPicker && (
-                      <div>
-                        <label>Plantilla Item(s) Applied For</label>
-                        <p>
-                          {postingSlots
-                            .filter((slot) => selectedSlotIds.includes(slot.id))
-                            .map((slot) => `Plantilla ${slot.slotNumber} (${slot.itemNumber})`)
-                            .join(', ') || '-'}
-                        </p>
-                      </div>
-                    )}
-                    <div>
-                      <label>Address</label>
-                      <p>{formData.address || '-'}</p>
-                    </div>
-                    <div>
-                      <label>Office</label>
-                      <p>{formData.office || '-'}</p>
-                    </div>
-                    <div>
-                      <label>Plantilla Item No.</label>
-                      <p className="font-semibold text-slate-700 bg-slate-100 px-2 py-1 rounded inline-block cursor-not-allowed select-none">{formData.item_number || 'Not tied to a plantilla item'}</p>
-                    </div>
-                    <div>
-                      <label>Reference No.</label>
-                      {/* Issued by the system on submission, so there is nothing
-                          truthful to show here yet. */}
-                      <p className="italic text-slate-500">Assigned when you submit</p>
-                    </div>
-                    <div>
-                      <label>Contact Number</label>
-                      <p>{formData.contact_number || '-'}</p>
-                    </div>
-                    <div>
-                      <label>PWD Status</label>
-                      <p>{formData.is_pwd ? 'Yes' : 'No'}</p>
-                    </div>
-                    {formData.gov_id_type && (
-                      <div>
-                        <label>Government Issued ID Type</label>
-                        <p>{formData.gov_id_type} {formData.gov_id_expiration ? `(Expires: ${formData.gov_id_expiration})` : '(No Expiration)'}</p>
-                      </div>
-                    )}
-                    {(formData.education_degree || formData.education_school) && (
-                      <div>
-                        <label>Educational Background</label>
-                        <p>{[formData.education_degree, formData.education_school].filter(Boolean).join(', ') || '-'}</p>
-                      </div>
-                    )}
-                    {(formData.work_experience_years || formData.work_experience_months || formData.relevant_experience_position) && (
-                      <div className="sm:col-span-2 border-t border-slate-100 pt-3 mt-1">
-                        <label className="font-semibold text-slate-700">Relevant Work Experience</label>
-                        <div className="bg-slate-50 p-3 rounded-lg mt-1 space-y-1">
-                          <p><strong>Duration:</strong> {formData.work_experience_years ? `${formData.work_experience_years} years` : '0 years'} {formData.work_experience_months ? `${formData.work_experience_months} months` : ''}</p>
-                          {formData.relevant_experience_position && <p><strong>Position:</strong> {formData.relevant_experience_position}</p>}
-                          {formData.relevant_experience_company && <p><strong>Company:</strong> {formData.relevant_experience_company}</p>}
-                          {formData.relevant_experience_duties && <p className="text-xs text-slate-600 mt-2"><strong>Duties:</strong> {formData.relevant_experience_duties}</p>}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                <div className="review-panel">
-                  <h4>
-                    <FileText size={20} /> Uploaded Documents ({reviewedFiles.length})
-                  </h4>
-                  <div className="review-documents-list">
-                    {reviewedFiles.length > 0 ? (
-                      reviewedFiles.map((doc) => (
-                        <div key={doc.key} className="review-document-item">
-                          <div>
-                            <p className="doc-name">{doc.fileName}</p>
-                            <p className="doc-meta">{formatFileSize(doc.fileSize)}</p>
-                          </div>
-                          <CircleCheck size={20} className="doc-valid-icon" />
-                        </div>
-                      ))
-                    ) : (
-                      <p className="review-empty">No documents uploaded yet.</p>
-                    )}
-                  </div>
-                </div>
-
-                <div className="declaration-box">
-                  <h4>Declaration</h4>
-                  <p>
-                    I hereby certify that all information provided in this application is true and correct to the best
-                    of my knowledge. I understand that any false statement may result in the rejection of my
-                    application or termination of employment if discovered after hiring.
+              <div className="af-actionbar">
+                <button type="button" className="btn btn-md btn-secondary" onClick={handleBackFromFill}>
+                  <ArrowLeft size={18} strokeWidth={1.75} aria-hidden="true" />
+                  Back
+                </button>
+                <button type="button" className="btn btn-md btn-primary" onClick={handleReview}>
+                  Review Application{keys.length > 1 ? 's' : ''}
+                  <ArrowRight size={18} strokeWidth={1.75} aria-hidden="true" />
+                </button>
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="af-form-head">
+                <div>
+                  <h2 className="af-title-m" tabIndex={-1} ref={headingRef}>
+                    Review your application{keys.length > 1 ? 's' : ''}
+                  </h2>
+                  <p className="af-caption">
+                    Check each application before you submit. Use Edit to change anything.
                   </p>
                 </div>
+              </div>
 
-                {applicationType === 'promotion' && authenticatedEmployeeAccount && (
-                  <div className="review-panel">
-                    <h4>
-                      <ShieldCheck size={20} /> Internal Employee Link
-                    </h4>
-                    <div className="review-grid">
-                      <div>
-                        <label>Employee Portal Username</label>
-                        <p>{authenticatedEmployeeAccount.username}</p>
-                      </div>
-                      <div>
-                        <label>Linked Account</label>
-                        <p>{authenticatedEmployeeAccount.employee.fullName}</p>
-                      </div>
+              {failedList.length > 0 && !isSubmitting && (
+                <div className="af-alert af-alert-error" role="alert" tabIndex={-1} ref={alertRef} style={{ marginBottom: 24 }}>
+                  <AlertCircle size={20} strokeWidth={1.75} aria-hidden="true" />
+                  <div>
+                    <p className="af-alert-title">
+                      {failedList.length === 1 ? '1 application was not submitted' : `${failedList.length} applications were not submitted`}
+                    </p>
+                    <div className="af-alert-body">
+                      The others went through. Retry only the ones below:
+                      <ul>
+                        {failedList.map((entry) => (
+                          <li key={entry.key}><strong>{labelFor(entry.key)}:</strong> {entry.error}</li>
+                        ))}
+                      </ul>
                     </div>
                   </div>
-                )}
-              </>
-            )}
+                </div>
+              )}
 
-            {submitError && (
-              <div className="submit-error">
-                <p>{submitError}</p>
+              <div className="af-review">
+                {keys.map((key) => {
+                  const app = apps[key] ?? blankApp({ ...INITIAL_FORM_DATA });
+                  const fd = app.formData;
+                  const outcome = outcomes[key];
+                  const docs = filesFor(app);
+                  const choice = choiceByKey.get(key);
+                  return (
+                    <details key={key} className="af-card af-review-card" open>
+                      <summary>
+                        <div style={{ minWidth: 0 }}>
+                          <p className="af-title-s">
+                            {isPostingFlow ? `Application for ${labelFor(key)}` : 'Your application'}
+                          </p>
+                          <p className="af-caption">{captionFor(key)}</p>
+                        </div>
+                        <span style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+                          {outcome?.status === 'submitting' && (
+                            <span className="badge badge-warning"><span className="badge-dot" aria-hidden="true" />Submitting</span>
+                          )}
+                          {outcome?.status === 'ok' && (
+                            <span className="badge badge-info"><span className="badge-dot" aria-hidden="true" />Submitted · {outcome.referenceNo}</span>
+                          )}
+                          {outcome?.status === 'already' && (
+                            <span className="badge badge-info"><span className="badge-dot" aria-hidden="true" />Already applied</span>
+                          )}
+                          {outcome?.status === 'failed' && (
+                            <span className="badge badge-error"><span className="badge-dot" aria-hidden="true" />Not submitted</span>
+                          )}
+                          {(!outcome || outcome.status === 'failed') && (
+                            <button
+                              type="button"
+                              className="btn btn-sm btn-secondary"
+                              disabled={isSubmitting}
+                              onClick={(event) => {
+                                event.preventDefault();
+                                setActiveKey(key);
+                                setStep('fill');
+                                window.scrollTo({ top: 0 });
+                              }}
+                              aria-label={`Edit ${isPostingFlow ? labelFor(key) : 'your application'}`}
+                            >
+                              <Pencil size={16} strokeWidth={1.75} aria-hidden="true" />
+                              Edit
+                            </button>
+                          )}
+                        </span>
+                      </summary>
+                      <div className="af-review-body">
+                        <dl className="af-kv">
+                          {fd.application_type === 'promotion' && (
+                            <>
+                              <div><dt>Employee ID</dt><dd>{fd.employee_id || '-'}</dd></div>
+                              <div><dt>Current Position</dt><dd>{fd.current_position || '-'}</dd></div>
+                              <div><dt>Current Department</dt><dd>{fd.current_department || '-'}</dd></div>
+                            </>
+                          )}
+                          <div><dt>Application Type</dt><dd>{fd.application_type === 'promotion' ? 'Promotional' : 'Original'}</dd></div>
+                          <div><dt>Name</dt><dd>{[fd.first_name, fd.middle_name, fd.last_name].filter(Boolean).join(' ') || '-'}</dd></div>
+                          <div><dt>Gender</dt><dd>{fd.gender || '-'}</dd></div>
+                          <div><dt>Email Address</dt><dd>{fd.email || '-'}</dd></div>
+                          <div><dt>Contact Number</dt><dd>{fd.contact_number || '-'}</dd></div>
+                          <div><dt>Address</dt><dd>{fd.address || '-'}</dd></div>
+                          <div><dt>Position Applied For</dt><dd>{fd.position || '-'}</dd></div>
+                          <div><dt>Department</dt><dd>{fd.office || '-'}</dd></div>
+                          <div><dt>Plantilla Item No.</dt><dd>{choice?.itemNumber || fd.item_number || 'Not tied to a plantilla item'}</dd></div>
+                          <div><dt>PWD Status</dt><dd>{fd.is_pwd ? 'Yes' : 'No'}</dd></div>
+                          <div>
+                            <dt>Educational Background</dt>
+                            <dd>{[fd.education_attainment, fd.education_degree].filter(Boolean).join(', ') || '-'}</dd>
+                          </div>
+                          <div>
+                            <dt>Relevant Work Experience</dt>
+                            <dd>
+                              {fd.work_experience_years || fd.work_experience_months || fd.relevant_experience_position
+                                ? `${fd.work_experience_years || 0} yr ${fd.work_experience_months || 0} mo${fd.relevant_experience_position ? ` · ${fd.relevant_experience_position}` : ''}${fd.relevant_experience_company ? `, ${fd.relevant_experience_company}` : ''}`
+                                : '-'}
+                            </dd>
+                          </div>
+                          {fd.gov_id_type && (
+                            <div>
+                              <dt>Government Issued ID Type</dt>
+                              <dd>{fd.gov_id_type}{fd.gov_id_expiration ? ` (expires ${new Date(fd.gov_id_expiration).toLocaleDateString('en-US', { month: 'short', day: '2-digit', year: 'numeric' })})` : ''}</dd>
+                            </div>
+                          )}
+                          <div><dt>Reference No.</dt><dd>{outcome?.status === 'ok' ? outcome.referenceNo : 'Assigned when you submit'}</dd></div>
+                          {fd.application_type === 'promotion' && authenticatedEmployeeAccount && (
+                            <div><dt>Linked Employee Account</dt><dd>{authenticatedEmployeeAccount.employee.fullName} ({authenticatedEmployeeAccount.username})</dd></div>
+                          )}
+                        </dl>
+
+                        <p className="af-caps" style={{ marginTop: 20 }}>Attached files ({docs.length})</p>
+                        {docs.length > 0 ? (
+                          <ul className="af-list">
+                            {docs.map((doc) => (
+                              <li key={doc.key}>
+                                <CircleCheck size={16} strokeWidth={1.75} aria-hidden="true" />
+                                <span style={{ minWidth: 0, overflowWrap: 'anywhere' }}>
+                                  {doc.label !== doc.fileName ? `${doc.label}: ` : ''}{doc.fileName}
+                                  <span className="af-body-s" style={{ display: 'inline', marginLeft: 6 }}>{formatFileSize(doc.fileSize)}</span>
+                                </span>
+                              </li>
+                            ))}
+                          </ul>
+                        ) : (
+                          <p className="af-body-m">No documents uploaded yet.</p>
+                        )}
+                      </div>
+                    </details>
+                  );
+                })}
+
+                <section className="af-card" aria-labelledby="af-declaration-title">
+                  <h3 className="af-title-s" id="af-declaration-title" style={{ marginBottom: 12 }}>Declaration</h3>
+                  <label className="af-declaration">
+                    <input
+                      type="checkbox"
+                      checked={declared}
+                      onChange={(event) => setDeclared(event.target.checked)}
+                      disabled={isSubmitting}
+                    />
+                    <span className="af-text">
+                      I hereby certify that all information provided in {keys.length > 1 ? 'these applications' : 'this application'} is
+                      true and correct to the best of my knowledge. I understand that any false statement may result in the
+                      rejection of my application or termination of employment if discovered after hiring.
+                    </span>
+                  </label>
+                </section>
               </div>
-            )}
 
-            <div className="wizard-actions">
-              {currentStep > 1 && (
-                <Button variant="outline" onClick={handleBack} disabled={isSubmitting}>
-                  ← Back
-                </Button>
-              )}
-
-              {currentStep === 1 && (
-                <Button onClick={handleNext}>
-                  Next: Upload Documents →
-                </Button>
-              )}
-
-              {currentStep === 2 && (
-                <Button onClick={handleNextToReview}>
-                  Next: Review &amp; Submit →
-                </Button>
-              )}
-
-              {currentStep === 3 && (
-                <Button onClick={handleSubmit} loading={isSubmitting} disabled={isSubmitting}>
-                  {isSubmitting ? 'Submitting...' : 'Submit Application'}
-                </Button>
-              )}
-            </div>
-          </section>
-        </main>
-      )}
-
-      <Dialog open={showEmployeeAuth} onClose={handleCloseEmployeeAuth}>
-        <div className="employee-auth-dialog">
-          <div className="employee-auth-icon" aria-hidden="true">
-            <ShieldCheck size={34} />
-          </div>
-          <h3>Employee Authentication</h3>
-          <p>Please login with your employee credentials to proceed with your promotional application.</p>
-
-          <form onSubmit={handleEmployeeAuthSubmit} className="employee-auth-form">
-            <label htmlFor="employee-number">Employee Number</label>
-            <input
-              id="employee-number"
-              value={employeeNumber}
-              onChange={(event) => setEmployeeNumber(event.target.value)}
-              placeholder="e.g., EMP-2024-001"
-            />
-
-            <label htmlFor="employee-password">Password</label>
-            <div className="relative">
-              <input
-                id="employee-password"
-                type={showEmployeePassword ? 'text' : 'password'}
-                value={employeePassword}
-                onChange={(event) => setEmployeePassword(event.target.value)}
-                placeholder="Enter your employee password"
-                style={{ paddingRight: '2.5rem' }}
-              />
-              <button
-                type="button"
-                onClick={() => setShowEmployeePassword((prev) => !prev)}
-                aria-label={showEmployeePassword ? 'Hide password' : 'Show password'}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
-              >
-                {showEmployeePassword ? <EyeOff size={18} /> : <Eye size={18} />}
-              </button>
-            </div>
-
-            <div className="employee-auth-hint">
-              <p>
-                <strong>Use your Employee Portal credentials:</strong>
-              </p>
-              <p>Enter your Employee Number (or username) and your Employee Portal password.</p>
-            </div>
-
-            {employeeAuthError && <p className="employee-auth-error">{employeeAuthError}</p>}
-
-            <div className="employee-auth-actions">
-              <Button type="button" variant="outline" onClick={handleCloseEmployeeAuth}>
-                Cancel
-              </Button>
-              <Button type="submit">Login</Button>
-            </div>
-          </form>
-        </div>
-      </Dialog>
-
-      <Dialog open={showSuccessDialog} onClose={handleCloseSuccessDialog}>
-        <div className="submission-success-card">
-          <div className="success-icon-wrap" aria-hidden="true">
-            <CheckCircle2 size={42} />
-          </div>
-          <h3>Application Submitted Successfully</h3>
-          <p>
-            Your application has been received and is now under review.
-          </p>
-          <div className="submission-reference-box">
-            <p className="submission-reference-label">Your Reference No.</p>
-            <p className="submission-reference">{submissionReference}</p>
-            <p className="submission-reference-hint">
-              Keep this number. You can track your application status anytime using it or your email address.
-            </p>
-          </div>
-          <div className="flex gap-3 mt-6">
-            <Button
-              variant="outline"
-              onClick={handleCloseSuccessDialog}
-              style={{ flex: 1 }}
-            >
-              Back to Home
-            </Button>
-            <Button
-              onClick={() => {
-                // Carry the Reference No. over so the tracker looks it up on
-                // arrival — the applicant has just been shown it and should
-                // not have to copy it across by hand.
-                navigate('/track', { state: { referenceNo: submissionReference } });
-                setShowSuccessDialog(false);
-              }}
-              style={{ flex: 1 }}
-            >
-              Track Application
-            </Button>
-          </div>
-        </div>
-      </Dialog>
-
-      <Dialog open={isSubmitting} onClose={() => {}}>
-        <div className="flex flex-col items-center justify-center p-6 text-center" style={{ minWidth: '320px' }}>
-          <div className="h-10 w-10 animate-spin rounded-full border-4 border-t-[#363EE8] border-slate-200 mb-4" />
-          <h3 className="text-lg font-bold text-[#050D65] mb-1">Submitting Application</h3>
-          <p className="text-xs text-slate-500 mb-6">Uploading files and finalizing records...</p>
-          
-          <div className="w-full space-y-2 text-left">
-            {files.map((f) => (
-              <div key={f.id} className="flex items-center justify-between text-xs border border-slate-100 bg-slate-50 p-2 rounded-lg">
-                <span className="font-medium text-slate-700 truncate max-w-[220px]">
-                  📄 {REQUIRED_DOCUMENTS.find(d => d.type === (f as any).documentType)?.label || f.file.name}
-                </span>
-                <span className="text-[#363EE8] font-bold animate-pulse">Uploading...</span>
+              <div className="af-actionbar">
+                <button type="button" className="btn btn-md btn-secondary" onClick={() => setStep('fill')} disabled={isSubmitting}>
+                  <ArrowLeft size={18} strokeWidth={1.75} aria-hidden="true" />
+                  Back
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-md btn-primary"
+                  onClick={() => setConfirmSubmit(true)}
+                  disabled={!declared || isSubmitting || pendingKeys.length === 0}
+                  aria-describedby={!declared ? 'af-declaration-title' : undefined}
+                >
+                  <Send size={18} strokeWidth={1.75} aria-hidden="true" />
+                  {isRetry
+                    ? `Retry ${failedKeys.length} Failed`
+                    : pendingKeys.length === 1
+                      ? 'Submit Application'
+                      : `Submit ${pendingKeys.length} Applications`}
+                </button>
               </div>
-            ))}
-          </div>
+            </>
+          )}
         </div>
-      </Dialog>
+      </main>
+
+      <ConfirmModal
+        open={confirmSubmit}
+        title={
+          isRetry
+            ? `Retry ${failedKeys.length} application${failedKeys.length === 1 ? '' : 's'}?`
+            : pendingKeys.length === 1
+              ? 'Submit application?'
+              : `Submit ${pendingKeys.length} applications?`
+        }
+        confirmLabel={isRetry ? 'Retry' : 'Submit'}
+        busy={isSubmitting}
+        onConfirm={() => void handleSubmitAll()}
+        onCancel={() => setConfirmSubmit(false)}
+      >
+        {pendingKeys.length === 1
+          ? 'Your application will be sent to HR. You can’t edit it after submitting.'
+          : `Each plantilla item is filed as its own application with its own Reference No. You can’t edit them after submitting.`}
+      </ConfirmModal>
+
+      <ConfirmModal
+        open={Boolean(pendingCopy)}
+        title={pendingCopy ? `Replace your answers for ${labelFor(pendingCopy.to)}?` : ''}
+        confirmLabel="Replace Answers"
+        onConfirm={() => pendingCopy && copyAnswers(pendingCopy.from, pendingCopy.to)}
+        onCancel={() => setPendingCopy(null)}
+      >
+        {pendingCopy
+          ? `This copies every answer and uploaded file from ${labelFor(pendingCopy.from)} into ${labelFor(pendingCopy.to)}, overwriting what you've entered there. The two applications stay separate afterwards.`
+          : null}
+      </ConfirmModal>
     </div>
   );
 };

@@ -1,7 +1,7 @@
 import React, { useRef, useState } from 'react';
-import { Button, Card } from '../../components';
-import '../../styles/fileUpload.css';
+import { CircleCheck, FileText, FolderUp, IdCard, Paperclip, Trash2 } from 'lucide-react';
 import type { UploadedFile, ApplicantFormData, ValidationErrors } from '../../types/applicant.types';
+import { FormSection } from './flow/FlowUi';
 
 interface AttachmentsUploadFormProps {
   files: UploadedFile[];
@@ -13,7 +13,18 @@ interface AttachmentsUploadFormProps {
   formData?: ApplicantFormData;
   onChange?: (field: keyof ApplicantFormData, value: string | boolean) => void;
   errors?: ValidationErrors;
+  /**
+   * Which card to render. The wizard places the short Government ID card
+   * beside Educational background and the wide Documents card last, so it
+   * renders this component twice with different parts.
+   */
+  part?: 'all' | 'govId' | 'documents';
+  /** Makes element ids unique per plantilla form (one form per tab). */
+  idPrefix?: string;
 }
+
+/** IDs that carry an expiration date. */
+const EXPIRING_IDS = ['Passport', "Driver's License", 'PRC ID', 'Postal ID'];
 
 export type DocumentType =
   | 'application_letter'
@@ -114,6 +125,8 @@ export const AttachmentsUploadForm: React.FC<AttachmentsUploadFormProps> = ({
   formData,
   onChange,
   errors = {},
+  part = 'all',
+  idPrefix = 'af',
 }) => {
   const inputRefs = useRef<Record<string, HTMLInputElement | null>>({});
   const categorizedFiles = files as CategorizedFile[];
@@ -219,287 +232,266 @@ export const AttachmentsUploadForm: React.FC<AttachmentsUploadFormProps> = ({
     e.target.value = '';
   };
 
+  const fileIcon = <FileText size={18} strokeWidth={1.75} aria-hidden="true" />;
+
   if (isPromotion) {
+    // Promotional applications have no Government ID step — only the batch upload.
+    if (part === 'govId') return null;
     return (
-      <Card title="Upload Supporting Documents">
-        <div className="info-notice">
-          <p className="notice-title">Internal Promotional Application</p>
-          {plantillaItemNo && <p className="notice-number">Plantilla Item No. {plantillaItemNo}</p>}
-          <p className="notice-subtitle">Upload all files that support your promotional application in one batch.</p>
-        </div>
+      <FormSection
+        icon={<FolderUp size={20} strokeWidth={1.75} />}
+        title="Supporting documents"
+        description="Internal promotional application"
+        headingId={`${idPrefix}-docs`}
+        wide
+      >
+        {plantillaItemNo && <p className="af-body-m" style={{ marginBottom: 12 }}>Plantilla Item No. {plantillaItemNo}</p>}
+        <p className="af-notice" style={{ marginBottom: 16 }}>
+          Upload certificates, performance records, updated PDS, training proofs, and any other supporting files in one
+          batch. If possible, name files clearly, for example: <strong>Training-Certificate-Leadership.pdf</strong>.
+        </p>
 
-        <div className="upload-section">
-          <div className="promotion-upload-callout">
-            <p>
-              Upload certificates, performance records, updated PDS, training proofs, and any other supporting files.
-              If possible, name files clearly, for example: <strong>Training-Certificate-Leadership.pdf</strong>.
-            </p>
-          </div>
+        <label htmlFor={`${idPrefix}-promotion-files`} className="af-dropzone">
+          <input
+            type="file"
+            id={`${idPrefix}-promotion-files`}
+            ref={(el) => {
+              inputRefs.current.promotion = el;
+            }}
+            className="af-sr-only"
+            accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
+            multiple
+            onChange={handlePromotionFilesUpload}
+          />
+          <FolderUp size={24} strokeWidth={1.75} aria-hidden="true" style={{ color: 'var(--color-primary)' }} />
+          <span className="af-headline">Select one or more supporting documents</span>
+          <span className="af-body-s">Accepted formats: PDF, DOC, DOCX, JPG, PNG. Maximum 10MB per file.</span>
+        </label>
 
-          <div className="drop-zone">
-            <input
-              type="file"
-              id="promotion-files"
-              ref={(el) => {
-                inputRefs.current.promotion = el;
-              }}
-              className="file-input"
-              accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
-              multiple
-              onChange={handlePromotionFilesUpload}
-            />
-            <label htmlFor="promotion-files" className="file-label">
-              <div className="upload-icon" aria-hidden="true">📁</div>
-              <div className="upload-text">
-                <p className="upload-text-primary">Select one or more supporting documents</p>
-                <p className="upload-text-secondary">Accepted formats: PDF, DOC, DOCX, JPG, PNG. Maximum 10MB per file.</p>
-              </div>
-            </label>
-          </div>
-
-          {categorizedFiles.length > 0 && (
-            <div className="files-list">
-              <p className="files-list-title">Uploaded Files</p>
-              {categorizedFiles.map((uploadedFile) => (
-                <div key={uploadedFile.id} className="file-item">
-                  <div className="file-info">
-                    <div className="file-icon" aria-hidden="true">
-                      {uploadedFile.file.type.includes('pdf') ? '📄' : uploadedFile.file.type.includes('image') ? '🖼️' : '📝'}
-                    </div>
-                    <div className="file-details">
-                      <p className="file-name">{uploadedFile.file.name}</p>
-                      <p className="file-size">{formatFileSize(uploadedFile.file.size)}</p>
-                    </div>
-                  </div>
-                  <Button
+        {categorizedFiles.length > 0 && (
+          <ul className="af-docs">
+            {categorizedFiles.map((uploadedFile) => (
+              <li key={uploadedFile.id} className="af-doc" data-state="done">
+                <div className="af-file">
+                  <span style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
+                    {fileIcon}
+                    <span style={{ minWidth: 0 }}>
+                      <span className="af-file-name">{uploadedFile.file.name}</span>
+                      <span className="af-body-s">{formatFileSize(uploadedFile.file.size)}</span>
+                    </span>
+                  </span>
+                  <button
                     type="button"
-                    variant="ghost"
-                    size="sm"
+                    className="btn btn-sm btn-secondary"
                     onClick={() => removeFile(uploadedFile.id, uploadedFile.documentType)}
-                    className="file-remove"
+                    aria-label={`Remove ${uploadedFile.file.name}`}
                   >
+                    <Trash2 size={16} strokeWidth={1.75} aria-hidden="true" />
                     Remove
-                  </Button>
+                  </button>
                 </div>
-              ))}
-            </div>
-          )}
+              </li>
+            ))}
+          </ul>
+        )}
 
-          {error && <p className="upload-error">{error}</p>}
-        </div>
-      </Card>
+        {error && <p className="af-error" role="alert" style={{ marginTop: 12 }}>{error}</p>}
+      </FormSection>
     );
   }
 
-  return (
-    <Card title="Upload Required Documents">
-      <div className="info-notice">
-        <p className="notice-title">📋 {plantillaItemNo ? 'Plantilla Item No. You Are Applying For' : 'General Application'}</p>
-        {plantillaItemNo && <p className="notice-number">{plantillaItemNo}</p>}
-        <p className="notice-subtitle">
-          Your Reference No. for tracking this application is issued once you submit.
-        </p>
+  const needsExpiration = EXPIRING_IDS.includes(formData?.gov_id_type ?? '');
+
+  const govIdCard = formData && onChange ? (
+    <FormSection
+      icon={<IdCard size={20} strokeWidth={1.75} />}
+      title="Government ID verification"
+      description="Select your government-issued ID type and enter the expiration date (if applicable)."
+      headingId={`${idPrefix}-govid`}
+    >
+      <div className="af-fields">
+        <div className="af-field">
+          <label htmlFor={`${idPrefix}-gov-id-type`} className="af-label">
+            Government Issued ID Type <span className="af-required" aria-hidden="true">*</span>
+          </label>
+          <select
+            id={`${idPrefix}-gov-id-type`}
+            value={formData.gov_id_type || ''}
+            onChange={(e) => onChange('gov_id_type', e.target.value)}
+            className="af-control"
+            required
+            aria-invalid={errors.gov_id_type ? true : undefined}
+            aria-describedby={errors.gov_id_type ? `${idPrefix}-gov-id-type-msg` : undefined}
+          >
+            <option value="">Select ID Type...</option>
+            <option value="Passport">Passport</option>
+            <option value="Driver's License">Driver's License</option>
+            <option value="National ID">National ID</option>
+            <option value="UMID">UMID</option>
+            <option value="PhilHealth ID">PhilHealth ID</option>
+            <option value="PRC ID">PRC ID</option>
+            <option value="Postal ID">Postal ID</option>
+          </select>
+          {errors.gov_id_type && (
+            <span id={`${idPrefix}-gov-id-type-msg`} className="af-error" role="alert">{errors.gov_id_type}</span>
+          )}
+        </div>
+
+        <div className="af-field">
+          <label htmlFor={`${idPrefix}-gov-id-expiration`} className="af-label">
+            Expiration Date {needsExpiration && <span className="af-required" aria-hidden="true">*</span>}
+          </label>
+          <input
+            type="date"
+            id={`${idPrefix}-gov-id-expiration`}
+            value={formData.gov_id_expiration || ''}
+            onChange={(e) => onChange('gov_id_expiration', e.target.value)}
+            disabled={!needsExpiration}
+            required={needsExpiration}
+            className="af-control"
+            aria-invalid={errors.gov_id_expiration ? true : undefined}
+            aria-describedby={`${idPrefix}-gov-id-expiration-msg`}
+          />
+          {errors.gov_id_expiration ? (
+            <span id={`${idPrefix}-gov-id-expiration-msg`} className="af-error" role="alert">{errors.gov_id_expiration}</span>
+          ) : !needsExpiration && formData.gov_id_type ? (
+            <span id={`${idPrefix}-gov-id-expiration-msg`} className="af-helper">
+              Expiration date not applicable for {formData.gov_id_type}.
+            </span>
+          ) : null}
+        </div>
       </div>
+    </FormSection>
+  ) : null;
 
-      <div className="upload-section">
-        {/* Government ID Configuration */}
-        {!isPromotion && formData && onChange && (
-          <div className="mb-6 rounded-xl border border-blue-200 bg-blue-50/50 p-6 shadow-sm">
-            <h4 className="text-base font-bold text-[#050D65] mb-2 flex items-center gap-1.5">
-              💳 Government ID Verification
-            </h4>
-            <p className="text-xs text-slate-500 mb-4">
-              Select your government-issued ID type and enter the expiration date (if applicable).
-            </p>
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div>
-                <label htmlFor="gov-id-type" className="mb-1.5 block text-sm font-medium text-slate-700">
-                  Government Issued ID Type <span className="text-red-500">*</span>
-                </label>
-                <select
-                  id="gov-id-type"
-                  value={formData.gov_id_type || ''}
-                  onChange={(e) => onChange('gov_id_type', e.target.value)}
-                  className={`w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 ${
-                    errors.gov_id_type ? 'border-red-500 ring-1 ring-red-500' : ''
-                  }`}
-                >
-                  <option value="">Select ID Type...</option>
-                  <option value="Passport">Passport</option>
-                  <option value="Driver's License">Driver's License</option>
-                  <option value="National ID">National ID</option>
-                  <option value="UMID">UMID</option>
-                  <option value="PhilHealth ID">PhilHealth ID</option>
-                  <option value="PRC ID">PRC ID</option>
-                  <option value="Postal ID">Postal ID</option>
-                </select>
-                {errors.gov_id_type && (
-                  <span className="text-xs font-semibold text-red-500 mt-1 block">
-                    {errors.gov_id_type}
-                  </span>
-                )}
+  if (part === 'govId') return govIdCard;
+
+  const requiredCount = REQUIRED_DOCUMENTS.filter((d) => d.required).length;
+  const requiredDone = REQUIRED_DOCUMENTS.filter((d) => d.required && getFileForDocType(d.type)).length;
+
+  const documentsCard = (
+    <FormSection
+      icon={<FileText size={20} strokeWidth={1.75} />}
+      title="Documents"
+      description={
+        plantillaItemNo
+          ? `Plantilla Item No. ${plantillaItemNo}. Your Reference No. for tracking is issued once you submit.`
+          : 'General application. Your Reference No. for tracking is issued once you submit.'
+      }
+      headingId={`${idPrefix}-docs`}
+      wide
+    >
+      <p className="af-body-m">
+        <strong>Required documents checklist:</strong> upload the documents below. Accepted formats: PDF, JPG, JPEG, PNG,
+        DOC, DOCX. Maximum file size: 10MB per file.
+      </p>
+      <p className="af-notice" style={{ marginTop: 12 }}>
+        <strong>File naming format:</strong> name your files like this for easier tracking:{' '}
+        <code>[DocumentType]-[LastName]-[FirstName].pdf</code>, for example <em>ApplicationLetter-DelaCruz-Juan.pdf</em>{' '}
+        or <em>CurriculumVitae-Santos-Maria.pdf</em>.
+      </p>
+
+      <ul className="af-docs">
+        {REQUIRED_DOCUMENTS.map((doc, index) => {
+          const uploadedFile = getFileForDocType(doc.type);
+          const inputId = `${idPrefix}-file-${doc.type}`;
+          const status = localStatus[doc.type];
+          const progress = localProgress[doc.type] || 0;
+          const docError = localError[doc.type];
+          const state = docError ? 'error' : uploadedFile ? 'done' : 'empty';
+
+          return (
+            <li key={doc.type} className="af-doc" data-state={state}>
+              <div className="af-doc-head">
+                <span className="af-doc-num" aria-hidden="true">{index + 1}</span>
+                <div style={{ minWidth: 0 }}>
+                  <p className="af-doc-title">
+                    {doc.label}
+                    <span className={`badge ${doc.required ? 'badge-tint' : 'badge-neutral'}`}>
+                      {doc.required ? 'Required' : 'Optional'}
+                    </span>
+                  </p>
+                  <p className="af-body-s" style={{ marginTop: 4 }}>{doc.description}</p>
+                </div>
               </div>
 
-              <div>
-                <label htmlFor="gov-id-expiration" className="mb-1.5 block text-sm font-medium text-slate-700">
-                  Expiration Date {['Passport', "Driver's License", 'PRC ID', 'Postal ID'].includes(formData.gov_id_type) && <span className="text-red-500">*</span>}
-                </label>
-                <input
-                  type="date"
-                  id="gov-id-expiration"
-                  value={formData.gov_id_expiration || ''}
-                  onChange={(e) => onChange('gov_id_expiration', e.target.value)}
-                  disabled={!['Passport', "Driver's License", 'PRC ID', 'Postal ID'].includes(formData.gov_id_type)}
-                  className={`w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 disabled:bg-slate-100 disabled:cursor-not-allowed ${
-                    errors.gov_id_expiration ? 'border-red-500 ring-1 ring-red-500' : ''
-                  }`}
-                />
-                {errors.gov_id_expiration && (
-                  <span className="text-xs font-semibold text-red-500 mt-1 block">
-                    {errors.gov_id_expiration}
-                  </span>
-                )}
-                {!['Passport', "Driver's License", 'PRC ID', 'Postal ID'].includes(formData.gov_id_type) && formData.gov_id_type && (
-                  <span className="text-xs text-slate-500 mt-1 block">
-                    Expiration date not applicable for {formData.gov_id_type}.
-                  </span>
-                )}
-              </div>
-            </div>
-          </div>
-        )}
-
-        <div className="upload-instructions mb-4">
-          <p className="text-sm font-medium text-slate-700">
-            <strong>Required Documents Checklist:</strong> Please upload the documents below.
-          </p>
-          <p className="text-xs text-slate-500 mt-1">
-            Accepted formats: <strong>PDF, JPG, JPEG, PNG, DOC, DOCX</strong>. Maximum file size: <strong>10MB</strong> per file.
-          </p>
-        </div>
-
-        <div style={{ marginBottom: '1rem', padding: '0.75rem 1rem', borderRadius: '0.5rem', background: '#eff6ff', border: '1px solid #bfdbfe', fontSize: '0.85rem', color: '#1e40af' }}>
-          <strong>📁 File Naming Format:</strong> Please name your files using this format for easier tracking:<br />
-          <code style={{ background: '#dbeafe', padding: '0.1rem 0.4rem', borderRadius: '0.25rem', fontSize: '0.8rem' }}>
-            [DocumentType]-[LastName]-[FirstName].pdf
-          </code>
-          <br />
-          <span style={{ color: '#3b82f6', fontSize: '0.78rem' }}>
-            Example: <em>ApplicationLetter-DelaCruz-Juan.pdf</em> &nbsp;|&nbsp; <em>CurriculumVitae-Santos-Maria.pdf</em>
-          </span>
-        </div>
-
-        <div className="required-documents-list">
-          {REQUIRED_DOCUMENTS.map((doc, index) => {
-            const uploadedFile = getFileForDocType(doc.type);
-            const inputId = `file-${doc.type}`;
-            const status = localStatus[doc.type];
-            const progress = localProgress[doc.type] || 0;
-            const docError = localError[doc.type];
-
-            return (
-              <div key={doc.type} className="document-item border border-slate-200 rounded-xl p-4 mb-4 bg-white hover:border-slate-300 transition-colors">
-                <div className="document-header flex gap-4">
-                  <div className="document-number bg-slate-100 text-slate-600 font-bold rounded-lg h-8 w-8 flex items-center justify-center flex-shrink-0">{index + 1}</div>
-                  <div className="document-info flex-grow min-w-0">
-                    <div className="document-title font-semibold text-[#050D65] flex items-center gap-2">
-                      {doc.label}
-                      {doc.required && <span className="required-badge bg-rose-50 text-rose-600 border border-rose-200 text-xs px-2 py-0.5 rounded-full font-bold">Required</span>}
-                    </div>
-                    <p className="document-description text-xs text-slate-500 mt-1">{doc.description}</p>
-                    
-                    {/* Format list helper */}
-                    <p className="text-[11px] text-slate-400 mt-1">
-                      Formats accepted: PDF, JPG, JPEG, PNG, DOC, DOCX (Max 10MB)
-                    </p>
+              {!uploadedFile && status !== 'uploading' ? (
+                <div>
+                  <input
+                    type="file"
+                    id={inputId}
+                    ref={(el) => {
+                      inputRefs.current[doc.type] = el;
+                    }}
+                    className="af-sr-only"
+                    tabIndex={-1}
+                    accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
+                    onChange={(e) => handleFileUpload(e, doc.type)}
+                  />
+                  <button
+                    type="button"
+                    className="btn btn-sm btn-secondary"
+                    onClick={() => inputRefs.current[doc.type]?.click()}
+                    aria-label={`Choose file for ${doc.label}`}
+                    data-doc-type={doc.type}
+                  >
+                    <Paperclip size={16} strokeWidth={1.75} aria-hidden="true" />
+                    Choose File
+                  </button>
+                </div>
+              ) : status === 'uploading' ? (
+                /* Progress indicator */
+                <div aria-live="polite">
+                  <div className="af-body-s" style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                    <span>Uploading…</span>
+                    <span>{progress}%</span>
+                  </div>
+                  <div className="af-progress" role="progressbar" aria-valuenow={progress} aria-valuemin={0} aria-valuemax={100} aria-label={`${doc.label} upload`}>
+                    <span style={{ width: `${progress}%` }} />
                   </div>
                 </div>
-
-                <div className="document-upload-area mt-4">
-                  {!uploadedFile && status !== 'uploading' ? (
-                    <div className="upload-button-label">
-                      <input
-                        type="file"
-                        id={inputId}
-                        ref={(el) => {
-                          inputRefs.current[doc.type] = el;
-                        }}
-                        className="file-input-hidden hidden"
-                        accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
-                        onChange={(e) => handleFileUpload(e, doc.type)}
-                      />
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        className="upload-trigger"
-                        onClick={() => inputRefs.current[doc.type]?.click()}
-                      >
-                        📎 Choose File
-                      </Button>
-                    </div>
-                  ) : status === 'uploading' ? (
-                    /* Progress Bar indicator */
-                    <div className="w-full max-w-xs mt-2">
-                      <div className="flex justify-between text-xs text-slate-500 mb-1">
-                        <span>Uploading...</span>
-                        <span>{progress}%</span>
-                      </div>
-                      <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
-                        <div
-                          className="bg-blue-600 h-1.5 rounded-full transition-all duration-100"
-                          style={{ width: `${progress}%` }}
-                        />
-                      </div>
-                    </div>
-                  ) : (
-                    /* Success / Failure displays */
-                    <div className="uploaded-file-display flex items-center justify-between border border-emerald-100 bg-emerald-50/50 p-3 rounded-lg">
-                      <div className="uploaded-file-info flex items-center gap-3 min-w-0">
-                        <div className="file-icon-small text-lg">
-                          {uploadedFile.file.type.includes('pdf') ? '📄' : 
-                           uploadedFile.file.type.includes('image') ? '🖼️' : '📝'}
-                        </div>
-                        <div className="file-details-compact min-w-0">
-                          <p className="file-name-small font-semibold text-slate-700 truncate text-xs">{uploadedFile.file.name}</p>
-                          <p className="file-size-small text-[10px] text-slate-500">{formatFileSize(uploadedFile.file.size)}</p>
-                          <span className="inline-flex items-center text-[10px] font-bold text-emerald-600 mt-0.5">
-                            ✓ Uploaded successfully
-                          </span>
-                        </div>
-                      </div>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => removeFile(uploadedFile.id, doc.type)}
-                        className="file-remove-btn text-rose-500 hover:text-rose-700"
-                      >
-                        ✕ Remove
-                      </Button>
-                    </div>
-                  )}
-
-                  {docError && (
-                    <div className="mt-2 text-xs font-semibold text-rose-600 border border-rose-100 bg-rose-50 p-2 rounded-lg">
-                      ✗ {docError}
-                    </div>
-                  )}
+              ) : uploadedFile ? (
+                <div className="af-file">
+                  <span style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
+                    <CircleCheck size={18} strokeWidth={1.75} aria-hidden="true" style={{ color: 'var(--success-500)', flexShrink: 0 }} />
+                    <span style={{ minWidth: 0 }}>
+                      <span className="af-file-name">{uploadedFile.file.name}</span>
+                      <span className="af-body-s">{formatFileSize(uploadedFile.file.size)} · Attached</span>
+                    </span>
+                  </span>
+                  <button
+                    type="button"
+                    className="btn btn-sm btn-secondary"
+                    onClick={() => removeFile(uploadedFile.id, doc.type)}
+                    aria-label={`Remove ${uploadedFile.file.name}`}
+                  >
+                    <Trash2 size={16} strokeWidth={1.75} aria-hidden="true" />
+                    Remove
+                  </button>
                 </div>
-              </div>
-            );
-          })}
-        </div>
+              ) : null}
 
-        {error && <p className="upload-error text-sm font-semibold text-rose-600 mt-4">{error}</p>}
+              {docError && <p className="af-error" role="alert">{docError}</p>}
+            </li>
+          );
+        })}
+      </ul>
 
-        <div className="upload-summary mt-6 pt-4 border-t border-slate-100">
-          <p className="summary-text text-sm font-medium text-[#050D65]">
-            📊 <strong>{categorizedFiles.length}</strong> of <strong>{REQUIRED_DOCUMENTS.length}</strong> documents uploaded
-            ({REQUIRED_DOCUMENTS.filter(d => d.required && getFileForDocType(d.type)).length} of {REQUIRED_DOCUMENTS.filter(d => d.required).length} required)
-          </p>
-        </div>
-      </div>
-    </Card>
+      {error && <p className="af-error" role="alert" style={{ marginTop: 16 }}>{error}</p>}
+
+      <p className="af-body-m" style={{ marginTop: 16 }} aria-live="polite">
+        <strong>{categorizedFiles.length}</strong> of <strong>{REQUIRED_DOCUMENTS.length}</strong> documents uploaded (
+        {requiredDone} of {requiredCount} required)
+      </p>
+    </FormSection>
+  );
+
+  if (part === 'documents') return documentsCard;
+
+  return (
+    <>
+      {govIdCard}
+      {documentsCard}
+    </>
   );
 };

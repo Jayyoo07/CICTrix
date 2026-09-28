@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useId } from 'react';
 import '../styles/components.css';
 
 interface SelectProps extends React.SelectHTMLAttributes<HTMLSelectElement> {
@@ -7,18 +7,32 @@ interface SelectProps extends React.SelectHTMLAttributes<HTMLSelectElement> {
   options: { value: string; label: string }[];
 }
 
-export const Select: React.FC<SelectProps> = ({ 
-  label, 
-  error, 
+export const Select: React.FC<SelectProps> = ({
+  label,
+  error,
   options,
   className = '',
-  ...props 
+  id,
+  ...props
 }) => {
+  // Label and error are tied to the control for screen readers (§13).
+  const autoId = useId();
+  const selectId = id ?? autoId;
+  const errorId = `${selectId}-msg`;
+
   return (
     <div className="select-wrapper">
-      {label && <label className="select-label">{label}</label>}
-      <select 
+      {label && (
+        <label className="select-label" htmlFor={selectId}>
+          {label}
+          {props.required && <span className="input-required" aria-hidden="true"> *</span>}
+        </label>
+      )}
+      <select
         className={`select ${error ? 'select-error' : ''} ${className}`}
+        aria-invalid={error ? true : undefined}
+        aria-describedby={error ? errorId : undefined}
+        id={selectId}
         {...props}
       >
         <option value="">Select an option...</option>
@@ -28,7 +42,7 @@ export const Select: React.FC<SelectProps> = ({
           </option>
         ))}
       </select>
-      {error && <span className="select-error-text">{error}</span>}
+      {error && <span id={errorId} className="select-error-text" role="alert">{error}</span>}
     </div>
   );
 };

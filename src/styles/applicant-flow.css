@@ -1,0 +1,591 @@
+/* ============================================================================
+   Applicant apply flow — Job Details (Step 1) and the application wizard
+   (Steps 2–3). DESIGN_IDENTITY.md is the spec; every value below is a token
+   from abyan-tokens.css (the root carries `.abyan-ds`) or a spec value quoted
+   with its section number.
+   ============================================================================ */
+
+.af {
+  min-height: 100vh;
+  background: var(--bg-page);
+  color: var(--neutral-800);
+  font-family: var(--font-sans);
+}
+.af *, .af *::before, .af *::after { box-sizing: border-box; }
+
+/* Container: 1280px, 24px gutters, 16px on mobile (§5.1) */
+.abyan-ds .af-container {
+  width: 100%;
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 0 24px;
+}
+@media (max-width: 639px) { .abyan-ds .af-container { padding: 0 16px; } }
+
+.abyan-ds .af-sr-only {
+  position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+  overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0;
+}
+
+/* ── Public header (§8.1) ───────────────────────────────────────────────── */
+.abyan-ds.af-topbar {
+  position: sticky; top: 0; z-index: 40;
+  background: var(--color-primary);
+  color: var(--color-white);
+}
+.abyan-ds.af-topbar .af-container {
+  display: flex; align-items: center; justify-content: space-between; gap: 16px;
+  min-height: 72px;
+}
+.abyan-ds .af-lockup {
+  display: inline-flex; align-items: center; gap: 12px; min-width: 0;
+  color: var(--color-white); text-decoration: none; border-radius: var(--radius-md);
+}
+.abyan-ds .af-lockup:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--on-blue-border); }
+.abyan-ds .af-lockup img { height: 40px; width: auto; flex-shrink: 0; mix-blend-mode: screen; }
+/* Colour set on the spans themselves: globals.css colours every <span>
+   directly, so they would not inherit the bar's white (guide §9.1, §17 #8). */
+.abyan-ds.af-topbar .af-lockup-name { color: var(--color-white); font: 700 22px/1 var(--font-sans); }
+.abyan-ds.af-topbar .af-lockup-sub { color: var(--color-white); font: 400 16px/1 var(--font-sans); white-space: nowrap; }
+@media (max-width: 1023px) { .abyan-ds .af-lockup-sub { display: none; } }
+@media (max-width: 639px) { .abyan-ds .af-lockup img { height: 32px; } .abyan-ds .af-lockup-name { font-size: 20px; } }
+
+.abyan-ds .af-nav { display: flex; align-items: center; gap: 4px; }
+.abyan-ds .af-nav a {
+  display: inline-flex; align-items: center; min-height: 40px; padding: 8px 16px;
+  border-radius: var(--radius-lg); color: var(--on-blue-muted);
+  font: 500 16px/20px var(--font-sans); text-decoration: none;
+  transition: background var(--duration-fast) var(--ease-out), color var(--duration-fast) var(--ease-out);
+}
+.abyan-ds .af-nav a:hover { background: var(--on-blue-hover); color: var(--color-white); }
+.abyan-ds .af-nav a[aria-current='page'] { background: var(--on-blue-active); color: var(--color-white); }
+.abyan-ds .af-nav a:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--on-blue-border); }
+@media (max-width: 639px) { .abyan-ds .af-nav a { padding: 8px 12px; font-size: 14px; } }
+
+/* ── Hero (§3.5, §7.1: gradient, straight edges, no shapes) ─────────────── */
+.abyan-ds .af-hero {
+  background: var(--gradient-hero);
+  color: var(--color-white);
+  border-radius: 0;
+  overflow: hidden;
+  padding: 32px 0 40px;
+}
+.abyan-ds .af-hero-back { margin-bottom: 20px; }
+.abyan-ds .af-hero h1 {
+  margin: 0 0 8px;
+  color: var(--color-white);
+  font: 700 36px/40px var(--font-sans);
+}
+@media (max-width: 639px) { .abyan-ds .af-hero h1 { font-size: 28px; line-height: 34px; } }
+/* Fix #1: white at 90% on the navy gradient (Body L) — passes AA everywhere. */
+.abyan-ds .af-hero-sub {
+  display: flex; align-items: center; gap: 8px; margin: 0;
+  color: var(--on-blue-text);
+  font: 400 16px/24px var(--font-sans);
+}
+.abyan-ds .af-hero-sub svg { flex-shrink: 0; }
+
+/* ── Stepper (NEW COMPONENT — no spec in the guide; built from tokens) ──── */
+.abyan-ds .af-stepper-wrap {
+  background: var(--bg-surface);
+  border-bottom: 1px solid var(--neutral-200);
+}
+.abyan-ds .af-stepper {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 0; padding: 14px 0; list-style: none;
+  min-width: 0;
+}
+.abyan-ds .af-step {
+  /* relative: anchors the .af-sr-only status text, which otherwise escapes
+     to the page and widens it on mobile. */
+  position: relative;
+  display: inline-flex; align-items: center; gap: 8px; flex-shrink: 0;
+  color: var(--neutral-400);
+  font: 500 14px/16px var(--font-sans);
+}
+.abyan-ds .af-step-dot {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 28px; height: 28px; border-radius: 50%;
+  border: 1.5px solid currentColor;
+  font: 600 13px/1 var(--font-sans);
+}
+.abyan-ds .af-step[data-state='current'] { color: var(--color-primary); font-weight: 600; }
+.abyan-ds .af-step[data-state='current'] .af-step-dot { background: var(--color-primary); border-color: var(--color-primary); color: var(--color-white); }
+.abyan-ds .af-step[data-state='done'] { color: var(--color-primary-700); }
+.abyan-ds .af-step[data-state='done'] .af-step-dot { background: var(--color-primary-50); border-color: var(--color-primary-200); }
+.abyan-ds .af-step-sep { color: var(--neutral-400); flex-shrink: 0; }
+@media (max-width: 639px) {
+  /* Mobile keeps every label (never colour alone) but tightens spacing. */
+  .abyan-ds .af-step { font-size: 13px; }
+  .abyan-ds .af-step-dot { width: 24px; height: 24px; }
+}
+
+/* ── Page body ──────────────────────────────────────────────────────────── */
+.abyan-ds .af-main { padding: 32px 0 48px; }
+@media (max-width: 1023px) { .abyan-ds .af-main { padding-bottom: 112px; } } /* room for the sticky bar */
+
+.abyan-ds .af-two-col {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 24px;
+  align-items: start;
+}
+@media (min-width: 1024px) {
+  .abyan-ds .af-two-col { grid-template-columns: minmax(0, 7fr) minmax(0, 5fr); }
+  .abyan-ds .af-sticky-col { position: sticky; top: 96px; }
+}
+.abyan-ds .af-stack { display: grid; gap: 24px; min-width: 0; }
+
+/* Step 1: summary + more on the left, chooser on the right (sticky).
+   Mobile reading order is summary → chooser → more, which is also the DOM
+   order, so keyboard order matches what the applicant sees. */
+.abyan-ds .af-step1 {
+  display: grid;
+  gap: 24px;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-areas: 'summary' 'chooser' 'more';
+  align-items: start;
+}
+@media (min-width: 1024px) {
+  .abyan-ds .af-step1 {
+    grid-template-columns: minmax(0, 7fr) minmax(0, 5fr);
+    grid-template-areas: 'summary chooser' 'more chooser';
+    grid-template-rows: auto 1fr;
+  }
+}
+
+/* Cards (§5.3 level 0: border, no shadow) */
+.abyan-ds .af-card {
+  background: var(--bg-surface);
+  border: 1px solid var(--neutral-200);
+  border-radius: var(--radius-lg);
+  padding: 24px;
+  min-width: 0;
+}
+.abyan-ds .af-card-head { display: flex; align-items: center; gap: 12px; margin-bottom: 20px; }
+.abyan-ds .af-card-head-text { min-width: 0; flex: 1; }
+.abyan-ds .af-chip {
+  display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0;
+  width: 36px; height: 36px; border-radius: var(--radius-chip);
+  background: var(--color-primary-50); color: var(--color-primary);
+}
+.abyan-ds .af-title-s { margin: 0; color: var(--color-primary-900); font: 600 18px/24px var(--font-sans); }
+.abyan-ds .af-title-m { margin: 0; color: var(--color-primary-900); font: 600 24px/32px var(--font-sans); }
+.abyan-ds .af-caption { margin: 4px 0 0; color: var(--neutral-600); font: 500 14px/16px var(--font-sans); }
+.abyan-ds .af-body-m { margin: 0; color: var(--neutral-600); font: 500 14px/18px var(--font-sans); }
+.abyan-ds .af-body-s { margin: 0; color: var(--neutral-600); font: 500 12px/16px var(--font-sans); letter-spacing: .1px; }
+.abyan-ds .af-text { margin: 0; color: var(--neutral-800); font: 400 16px/24px var(--font-sans); }
+
+/* Details grid (2×2 with icons) */
+.abyan-ds .af-details { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px 24px; margin: 0; }
+@media (max-width: 639px) { .abyan-ds .af-details { grid-template-columns: minmax(0, 1fr); } }
+.abyan-ds .af-detail dt {
+  display: flex; align-items: center; gap: 8px; margin-bottom: 4px;
+  color: var(--neutral-600); font: 500 14px/16px var(--font-sans);
+}
+.abyan-ds .af-detail dt svg { color: var(--color-primary); flex-shrink: 0; }
+.abyan-ds .af-detail dd { margin: 0; color: var(--color-primary-900); font: 600 16px/20px var(--font-sans); }
+
+/* Collapsible posting summary (mobile) */
+.abyan-ds .af-collapse > summary {
+  list-style: none; cursor: pointer; display: flex; align-items: center; gap: 12px;
+  border-radius: var(--radius-md);
+}
+.abyan-ds .af-collapse > summary::-webkit-details-marker { display: none; }
+.abyan-ds .af-collapse > summary:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--color-primary); }
+.abyan-ds .af-collapse-icon { transition: transform var(--duration) var(--ease-out); color: var(--neutral-600); }
+.abyan-ds .af-collapse[open] .af-collapse-icon { transform: rotate(180deg); }
+.abyan-ds .af-collapse[open] > summary { margin-bottom: 20px; }
+@media (min-width: 1024px) {
+  .abyan-ds .af-collapse > summary { cursor: default; pointer-events: none; }
+  .abyan-ds .af-collapse-icon { display: none; }
+}
+
+/* Requirement tiles + lists inside the summary */
+.abyan-ds .af-req-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; margin: 0; }
+@media (max-width: 639px) { .abyan-ds .af-req-grid { grid-template-columns: minmax(0, 1fr); } }
+.abyan-ds .af-req {
+  border: 1px solid var(--neutral-200); border-radius: var(--radius-lg); padding: 16px;
+}
+.abyan-ds .af-req dt { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; color: var(--color-primary-900); font: 600 16px/20px var(--font-sans); }
+.abyan-ds .af-req dt svg { color: var(--color-primary); }
+.abyan-ds .af-req dd { margin: 0; color: var(--neutral-800); font: 500 14px/18px var(--font-sans); }
+.abyan-ds .af-req dd.is-empty { color: var(--neutral-400); font-style: italic; }
+.abyan-ds .af-caps { margin: 0 0 8px; color: var(--neutral-600); font: 600 12px/16px var(--font-sans); letter-spacing: .4px; text-transform: uppercase; }
+.abyan-ds .af-tags { display: flex; flex-wrap: wrap; gap: 8px; }
+.abyan-ds .af-list { margin: 0; padding: 0; list-style: none; display: grid; gap: 8px; }
+.abyan-ds .af-list li { display: flex; gap: 10px; align-items: flex-start; color: var(--neutral-800); font: 500 14px/20px var(--font-sans); }
+.abyan-ds .af-list li svg { color: var(--color-primary); flex-shrink: 0; margin-top: 2px; }
+.abyan-ds .af-divider { height: 1px; background: var(--neutral-200); border: 0; margin: 20px 0; }
+
+/* ── Plantilla chooser (Step 1) ─────────────────────────────────────────── */
+.abyan-ds .af-chooser-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.abyan-ds .af-choices { display: grid; gap: 12px; margin: 16px 0 20px; padding: 0; list-style: none; }
+.abyan-ds .af-choice {
+  position: relative;
+  display: flex; align-items: flex-start; gap: 12px;
+  padding: 16px;
+  background: var(--bg-surface);
+  border: 1px solid var(--neutral-200);
+  border-radius: var(--radius-lg);
+  cursor: pointer;
+  transition: border-color var(--duration-fast) var(--ease-out), background var(--duration-fast) var(--ease-out);
+}
+.abyan-ds .af-choice:hover { border-color: var(--color-primary-200); }
+.abyan-ds .af-choice[data-selected='true'] { border-color: var(--color-primary); background: var(--color-primary-50); }
+.abyan-ds .af-choice:focus-within { box-shadow: 0 0 0 2px var(--color-primary); }
+.abyan-ds .af-choice input[type='checkbox'] {
+  width: 18px; height: 18px; margin: 3px 0 0; flex-shrink: 0;
+  accent-color: var(--color-primary); cursor: pointer;
+}
+.abyan-ds .af-choice input[type='checkbox']:focus-visible { outline: none; }
+.abyan-ds .af-choice[aria-disabled='true'] { cursor: not-allowed; background: var(--neutral-100); }
+.abyan-ds .af-choice[aria-disabled='true']:hover { border-color: var(--neutral-200); }
+.abyan-ds .af-choice[aria-disabled='true']:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--color-primary); }
+.abyan-ds .af-choice-lock { width: 18px; height: 18px; margin-top: 3px; flex-shrink: 0; color: var(--neutral-400); }
+.abyan-ds .af-choice-body { flex: 1; min-width: 0; }
+.abyan-ds .af-choice-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+.abyan-ds .af-choice-name { color: var(--color-primary-900); font: 600 16px/20px var(--font-sans); }
+.abyan-ds .af-choice-sg { color: var(--neutral-800); font: 600 14px/18px var(--font-sans); }
+.abyan-ds .af-choice-meta { margin-top: 6px; color: var(--neutral-600); font: 500 14px/18px var(--font-sans); }
+.abyan-ds .af-choice[aria-disabled='true'] .af-choice-name { color: var(--neutral-600); }
+
+/* Tooltip for disabled items (hover + keyboard focus) */
+.abyan-ds .af-choice[data-tooltip]:hover::after,
+.abyan-ds .af-choice[data-tooltip]:focus-visible::after {
+  content: attr(data-tooltip);
+  position: absolute; left: 16px; right: 16px; bottom: calc(100% + 8px); z-index: 5;
+  padding: 8px 12px; border-radius: var(--radius-md);
+  background: var(--neutral-900); color: var(--color-white);
+  font: 500 12px/16px var(--font-sans);
+  pointer-events: none;
+}
+
+.abyan-ds .af-counter { color: var(--color-primary-700); }
+
+/* Text button (§9.1 link style) */
+.abyan-ds .af-textbtn {
+  display: inline-flex; align-items: center; gap: 6px; min-height: 36px; padding: 0 4px;
+  border: 0; background: none; cursor: pointer; border-radius: var(--radius-md);
+  color: var(--color-primary); font: 600 14px/18px var(--font-sans);
+}
+.abyan-ds .af-textbtn:hover { color: var(--color-primary-700); text-decoration: underline; }
+.abyan-ds .af-textbtn:disabled { color: var(--neutral-400); cursor: not-allowed; text-decoration: none; }
+.abyan-ds .af-textbtn:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--color-primary); }
+
+/* ── Buttons: shared .btn from abyan-tokens.css; loading + full width ─────── */
+.af .btn { min-width: 0; }
+.af .btn-block { width: 100%; }
+.af .btn[aria-busy='true'] { cursor: progress; }
+/* Loading (§9.1): the label is replaced by a 16px spinner, width is kept. */
+.af .btn.af-loading { position: relative; color: transparent !important; }
+.af .btn.af-loading > * { visibility: hidden; }
+.af .btn.af-loading::after {
+  content: ''; position: absolute; top: 50%; left: 50%;
+  width: 16px; height: 16px; margin: -8px 0 0 -8px; border-radius: 50%;
+  border: 2px solid var(--color-white); border-right-color: transparent;
+  animation: af-spin .75s linear infinite;
+}
+.af .btn-secondary.af-loading::after { border-color: var(--color-primary); border-right-color: transparent; }
+/* Destructive (§9.1) */
+.af .af-btn-destructive { background: var(--error-500); color: var(--color-white); }
+.af .af-btn-destructive:hover { background: var(--error-700); }
+.af .af-btn-destructive:focus-visible { box-shadow: 0 0 0 3px var(--error-300); }
+.abyan-ds .af-spinner {
+  width: 16px; height: 16px; border-radius: 50%;
+  border: 2px solid currentColor; border-right-color: transparent;
+  animation: af-spin .75s linear infinite;
+}
+@keyframes af-spin { to { transform: rotate(360deg); } }
+
+/* ── Alerts (§9.9) ──────────────────────────────────────────────────────── */
+.abyan-ds .af-alert {
+  display: flex; gap: 12px; align-items: flex-start;
+  padding: 16px; border-radius: var(--radius-lg);
+  border-left: 4px solid;
+}
+.abyan-ds .af-alert svg { flex-shrink: 0; margin-top: 1px; }
+.abyan-ds .af-alert-title { margin: 0 0 4px; color: var(--color-primary-900); font: 600 16px/20px var(--font-sans); }
+.abyan-ds .af-alert-body { margin: 0; color: var(--neutral-800); font: 500 14px/18px var(--font-sans); }
+.abyan-ds .af-alert-body ul { margin: 8px 0 0; padding-left: 18px; }
+.abyan-ds .af-alert-error { background: var(--error-100); border-color: var(--error-500); }
+.abyan-ds .af-alert-error > svg { color: var(--error-500); }
+.abyan-ds .af-alert-info { background: var(--info-100); border-color: var(--info-500); }
+.abyan-ds .af-alert-info > svg { color: var(--info-500); }
+.abyan-ds .af-alert-success { background: var(--success-100); border-color: var(--success-500); }
+.abyan-ds .af-alert-success > svg { color: var(--success-500); }
+.abyan-ds .af-alert-warning { background: var(--warning-100); border-color: var(--warning-500); }
+.abyan-ds .af-alert-warning > svg { color: var(--warning-500); }
+.abyan-ds .af-alert:focus { outline: none; box-shadow: 0 0 0 2px var(--color-primary); }
+
+/* ── Step 2: sticky strip with the per-plantilla tabs ───────────────────── */
+.abyan-ds .af-strip {
+  position: sticky; top: 72px; z-index: 30;
+  background: var(--bg-surface);
+  border-bottom: 1px solid var(--neutral-200);
+}
+.abyan-ds .af-strip-top { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; padding-top: 12px; }
+.abyan-ds .af-strip-title { margin: 0; color: var(--color-primary-900); font: 600 18px/24px var(--font-sans); min-width: 0; }
+.abyan-ds .af-strip .af-stepper { padding: 8px 0; }
+
+/* Tabs on white pages (§9.2) */
+.abyan-ds .af-tabs { display: flex; gap: 4px; overflow-x: auto; margin: 0; scrollbar-width: thin; }
+.abyan-ds .af-tab {
+  display: inline-flex; flex-direction: column; align-items: flex-start; gap: 2px; flex-shrink: 0;
+  min-height: 44px; padding: 10px 16px 8px;
+  border: 0; border-bottom: 2px solid transparent; background: none; cursor: pointer;
+  color: var(--neutral-600); font: 600 14px/18px var(--font-sans); text-align: left;
+  transition: color var(--duration-fast) var(--ease-out), border-color var(--duration-fast) var(--ease-out);
+}
+.abyan-ds .af-tab:hover { color: var(--color-primary-900); }
+.abyan-ds .af-tab[aria-selected='true'] { color: var(--color-primary); border-bottom-color: var(--color-primary); }
+.abyan-ds .af-tab:focus-visible { outline: none; box-shadow: inset 0 0 0 2px var(--color-primary); border-radius: var(--radius-md) var(--radius-md) 0 0; }
+.abyan-ds .af-tab-status { display: inline-flex; align-items: center; gap: 4px; font: 500 12px/16px var(--font-sans); }
+.abyan-ds .af-tab-status[data-status='complete'] { color: var(--success-700); }
+.abyan-ds .af-tab-status[data-status='attention'] { color: var(--error-700); }
+.abyan-ds .af-tab-status[data-status='progress'] { color: var(--warning-700); }
+.abyan-ds .af-tab-status[data-status='new'] { color: var(--neutral-600); }
+
+/* Form heading row */
+.abyan-ds .af-form-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; flex-wrap: wrap; margin-bottom: 24px; }
+.abyan-ds .af-form-head h2:focus { outline: none; }
+.abyan-ds .af-form-head h2:focus-visible { box-shadow: 0 0 0 2px var(--color-primary); border-radius: var(--radius-sm); }
+
+/* Copy-answers dropdown */
+.abyan-ds .af-menu-wrap { position: relative; }
+.abyan-ds .af-menu {
+  position: absolute; right: 0; top: calc(100% + 6px); z-index: 20;
+  min-width: 260px; margin: 0; padding: 6px; list-style: none;
+  background: var(--bg-surface); border: 1px solid var(--neutral-200);
+  border-radius: var(--radius-md); box-shadow: var(--shadow-2);
+}
+.abyan-ds .af-menu button {
+  display: block; width: 100%; min-height: 40px; padding: 8px 12px; text-align: left;
+  border: 0; border-radius: var(--radius-md); background: none; cursor: pointer;
+  color: var(--neutral-800); font: 500 14px/18px var(--font-sans);
+}
+.abyan-ds .af-menu button:hover, .abyan-ds .af-menu button:focus-visible { outline: none; background: var(--color-primary-50); color: var(--color-primary); }
+
+/* ── Form section grid (Step 2) ─────────────────────────────────────────── */
+.abyan-ds .af-form-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 24px;
+  align-items: start;             /* no forced equal heights */
+}
+@media (min-width: 1024px) {
+  .abyan-ds .af-form-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .abyan-ds .af-span-2 { grid-column: 1 / -1; }
+}
+
+/* Fields inside a section: 2 columns, single below 640px (§9.3 spacing) */
+.abyan-ds .af-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px 16px; }
+.abyan-ds .af-field-full { grid-column: 1 / -1; }
+@media (max-width: 639px) { .abyan-ds .af-fields { grid-template-columns: minmax(0, 1fr); } }
+
+/* Existing Input/Select components restyled to §9.3 inside the flow */
+.af .input-wrapper, .af .select-wrapper { display: flex; flex-direction: column; gap: 6px; margin: 0; }
+.af .input-label, .af .select-label, .af .af-label {
+  display: block; margin: 0;
+  color: var(--neutral-800); font: 500 14px/16px var(--font-sans);
+}
+.af .input, .af .select, .af .af-control, .af select.af-control, .af textarea.af-control {
+  width: 100%; min-height: 44px; padding: 10px 14px;
+  background: var(--bg-surface);
+  border: 1px solid var(--neutral-200); border-radius: var(--radius-md);
+  color: var(--neutral-800); font: 500 14px/18px var(--font-sans);
+  transition: border-color var(--duration-fast) var(--ease-out), box-shadow var(--duration-fast) var(--ease-out);
+}
+.af .input.pl-10 { padding-left: 40px; }
+.af textarea.af-control { min-height: 96px; resize: vertical; line-height: 20px; }
+.af .input::placeholder, .af .af-control::placeholder { color: var(--neutral-400); }
+.af .input:hover:not(:disabled):not([readonly]),
+.af .select:hover:not(:disabled),
+.af .af-control:hover:not(:disabled) { border-color: var(--color-primary-200); }
+.af .input:focus, .af .select:focus, .af .af-control:focus {
+  outline: none; border-color: var(--color-primary);
+  box-shadow: var(--ring-input);
+}
+.af .input:disabled, .af .select:disabled, .af .af-control:disabled {
+  background: var(--neutral-100); color: var(--neutral-400); cursor: not-allowed;
+}
+.af .input[readonly] { background: var(--neutral-100) !important; color: var(--neutral-600) !important; border-color: var(--neutral-200) !important; }
+.af .input-error, .af .select-error, .af .af-control[aria-invalid='true'] { border-color: var(--error-500); }
+.af .input-error:focus, .af .select-error:focus, .af .af-control[aria-invalid='true']:focus { box-shadow: 0 0 0 3px rgba(224, 82, 82, .15); }
+
+/* Error message: Body S, error-700, with an alert-circle icon (§9.3) */
+.af .input-error-text, .af .select-error-text, .af .af-error {
+  display: flex; align-items: flex-start; gap: 6px; margin: 0;
+  color: var(--error-700); font: 500 12px/16px var(--font-sans); letter-spacing: .1px;
+}
+.af .input-error-text::before, .af .select-error-text::before, .af .af-error::before {
+  content: ''; flex-shrink: 0; width: 14px; height: 14px; margin-top: 1px;
+  background: currentColor;
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='10'/%3E%3Cline x1='12' y1='8' x2='12' y2='12'/%3E%3Cline x1='12' y1='16' x2='12.01' y2='16'/%3E%3C/svg%3E") center / contain no-repeat;
+          mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='10'/%3E%3Cline x1='12' y1='8' x2='12' y2='12'/%3E%3Cline x1='12' y1='16' x2='12.01' y2='16'/%3E%3C/svg%3E") center / contain no-repeat;
+}
+.af .input-helper-text, .af .af-helper { margin: 0; color: var(--neutral-600); font: 500 12px/16px var(--font-sans); letter-spacing: .1px; }
+.af .af-required { color: var(--error-500); font-weight: 600; }
+
+/* Radio / checkbox (§9.3: 18px, primary when checked) */
+.af input[type='radio'], .af input[type='checkbox'] { width: 18px; height: 18px; accent-color: var(--color-primary); }
+
+/* Option tiles (application type) */
+.abyan-ds .af-options { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+@media (max-width: 639px) { .abyan-ds .af-options { grid-template-columns: minmax(0, 1fr); } }
+.abyan-ds .af-option {
+  display: flex; align-items: flex-start; gap: 12px; padding: 14px;
+  border: 1px solid var(--neutral-200); border-radius: var(--radius-lg);
+  background: var(--bg-surface); cursor: pointer;
+  transition: border-color var(--duration-fast) var(--ease-out), background var(--duration-fast) var(--ease-out);
+}
+.abyan-ds .af-option:hover { border-color: var(--color-primary-200); }
+.abyan-ds .af-option[data-checked='true'] { border-color: var(--color-primary); background: var(--color-primary-50); }
+.abyan-ds .af-option:focus-within { box-shadow: 0 0 0 2px var(--color-primary); }
+.abyan-ds .af-option input { margin-top: 1px; flex-shrink: 0; }
+.abyan-ds .af-option-title { display: block; color: var(--color-primary-900); font: 600 14px/18px var(--font-sans); }
+.abyan-ds .af-option-desc { display: block; margin-top: 2px; color: var(--neutral-600); font: 500 12px/16px var(--font-sans); }
+.abyan-ds .af-inline-radios { display: flex; flex-wrap: wrap; gap: 8px 24px; }
+.abyan-ds .af-inline-radios label { display: inline-flex; align-items: center; gap: 8px; min-height: 36px; cursor: pointer; color: var(--neutral-800); font: 500 14px/18px var(--font-sans); }
+
+/* Notice (info tint panel inside a section) */
+.abyan-ds .af-notice {
+  padding: 12px 14px; border-radius: var(--radius-md);
+  background: var(--info-100); color: var(--info-700);
+  font: 500 14px/20px var(--font-sans);
+}
+.abyan-ds .af-notice-neutral { background: var(--neutral-100); color: var(--neutral-600); }
+.abyan-ds .af-field { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.abyan-ds .af-fieldset { border: 0; margin: 0; padding: 0; }
+.abyan-ds .af-fieldset > legend { padding: 0; margin-bottom: 6px; }
+.abyan-ds .af-headline { margin: 0; color: var(--color-primary-900); font: 600 16px/20px var(--font-sans); }
+.abyan-ds .af-headline-icon { display: flex; align-items: center; gap: 8px; }
+.abyan-ds .af-headline-icon svg { color: var(--color-primary); flex-shrink: 0; }
+.abyan-ds .af-met { display: flex; gap: 6px; align-items: flex-start; color: var(--success-700); }
+.abyan-ds .af-met svg { flex-shrink: 0; margin-top: 1px; }
+.abyan-ds .af-notice code { padding: 1px 6px; border-radius: var(--radius-sm); background: var(--bg-surface); color: var(--color-primary-900); font-size: 13px; }
+
+/* ── Documents (wide section) ───────────────────────────────────────────── */
+.abyan-ds .af-docs { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin: 16px 0 0; padding: 0; list-style: none; }
+@media (max-width: 1023px) { .abyan-ds .af-docs { grid-template-columns: minmax(0, 1fr); } }
+.abyan-ds .af-doc {
+  display: flex; flex-direction: column; gap: 12px; padding: 16px;
+  border: 1px solid var(--neutral-200); border-radius: var(--radius-lg); background: var(--bg-surface);
+  min-width: 0;
+}
+.abyan-ds .af-doc[data-state='done'] { border-color: var(--success-300); }
+.abyan-ds .af-doc[data-state='error'] { border-color: var(--error-300); }
+.abyan-ds .af-doc-head { display: flex; gap: 12px; align-items: flex-start; }
+.abyan-ds .af-doc-num {
+  display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0;
+  width: 28px; height: 28px; border-radius: var(--radius-md);
+  background: var(--neutral-100); color: var(--neutral-600); font: 600 13px/1 var(--font-sans);
+}
+.abyan-ds .af-doc-title { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; color: var(--color-primary-900); font: 600 14px/18px var(--font-sans); }
+.abyan-ds .af-file {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  padding: 10px 12px; border-radius: var(--radius-md); background: var(--success-100);
+  min-width: 0;
+}
+.abyan-ds .af-file .af-body-s { display: block; }
+.abyan-ds .af-file-name { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--neutral-800); font: 600 13px/16px var(--font-sans); }
+.abyan-ds .af-progress { height: 6px; border-radius: 999px; background: var(--neutral-100); overflow: hidden; }
+.abyan-ds .af-progress > span { display: block; height: 100%; background: var(--color-primary); transition: width 100ms linear; }
+.abyan-ds .af-dropzone {
+  display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 24px; text-align: center;
+  border: 1.5px dashed var(--color-primary-200); border-radius: var(--radius-lg); background: var(--color-primary-50);
+  cursor: pointer;
+}
+.abyan-ds .af-dropzone:focus-within { box-shadow: 0 0 0 2px var(--color-primary); }
+
+/* ── Bottom action bar ──────────────────────────────────────────────────── */
+.abyan-ds .af-actionbar {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  margin-top: 32px; padding-top: 24px; border-top: 1px solid var(--neutral-200);
+}
+@media (max-width: 1023px) {
+  .abyan-ds .af-actionbar {
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 35;
+    margin: 0; padding: 12px 16px calc(12px + env(safe-area-inset-bottom));
+    background: var(--bg-surface); border-top: 1px solid var(--neutral-200);
+    box-shadow: 0 -4px 12px rgba(16, 30, 41, .08);
+  }
+  .abyan-ds .af-actionbar .btn { flex: 1; }
+}
+/* Step 1's continue bar only exists on mobile; on desktop the button sits in the chooser card. */
+.abyan-ds .af-mobile-only { display: none; }
+@media (max-width: 1023px) {
+  .abyan-ds .af-mobile-only { display: flex; }
+  .abyan-ds .af-desktop-only { display: none !important; }
+}
+
+/* ── Review (Step 3) ────────────────────────────────────────────────────── */
+.abyan-ds .af-review { display: grid; gap: 16px; }
+.abyan-ds .af-review-card { padding: 0; overflow: hidden; }
+.abyan-ds .af-review-card > summary {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap;
+  padding: 20px 24px; cursor: pointer; list-style: none;
+}
+.abyan-ds .af-review-card > summary::-webkit-details-marker { display: none; }
+.abyan-ds .af-review-card > summary:focus-visible { outline: none; box-shadow: inset 0 0 0 2px var(--color-primary); }
+.abyan-ds .af-review-card[open] > summary { border-bottom: 1px solid var(--neutral-200); }
+.abyan-ds .af-review-body { padding: 20px 24px 24px; }
+.abyan-ds .af-kv { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px 24px; margin: 0; }
+@media (max-width: 1023px) { .abyan-ds .af-kv { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 639px) { .abyan-ds .af-kv { grid-template-columns: minmax(0, 1fr); } }
+.abyan-ds .af-kv dt { color: var(--neutral-600); font: 500 12px/16px var(--font-sans); letter-spacing: .1px; }
+.abyan-ds .af-kv dd { margin: 2px 0 0; color: var(--neutral-800); font: 500 14px/18px var(--font-sans); overflow-wrap: anywhere; }
+.abyan-ds .af-declaration { display: flex; gap: 12px; align-items: flex-start; }
+.abyan-ds .af-declaration input { margin-top: 2px; flex-shrink: 0; }
+
+/* Success screen */
+.abyan-ds .af-success { max-width: 720px; margin: 0 auto; text-align: center; }
+.abyan-ds .af-success-icon {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 64px; height: 64px; border-radius: 50%; margin-bottom: 16px;
+  background: var(--success-100); color: var(--success-500);
+}
+.abyan-ds .af-refs { display: grid; gap: 12px; margin: 24px 0; padding: 0; list-style: none; text-align: left; }
+.abyan-ds .af-ref { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.abyan-ds .af-ref-no { color: var(--color-primary-900); font: 700 18px/24px var(--font-sans); letter-spacing: .3px; }
+
+/* ── Modal (§9.10) ──────────────────────────────────────────────────────── */
+.abyan-ds .af-modal-overlay {
+  position: fixed; inset: 0; z-index: 100;
+  display: flex; align-items: center; justify-content: center; padding: 16px;
+  background: var(--overlay);
+}
+.abyan-ds .af-modal {
+  width: 100%; max-width: 480px; padding: 24px;
+  background: var(--bg-surface); border-radius: var(--radius-xl); box-shadow: var(--shadow-3);
+}
+.abyan-ds .af-modal-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 8px; }
+.abyan-ds .af-modal-close {
+  display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0;
+  width: 36px; height: 36px; border: 0; border-radius: var(--radius-md); background: none; cursor: pointer;
+  color: var(--neutral-600);
+}
+.abyan-ds .af-modal-close:hover { background: var(--neutral-100); }
+.abyan-ds .af-modal-close:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--color-primary); }
+.abyan-ds .af-modal-actions { display: flex; justify-content: flex-end; gap: 12px; margin-top: 24px; flex-wrap: wrap; }
+
+/* ── Skeleton + empty state ─────────────────────────────────────────────── */
+.abyan-ds .af-skel {
+  border-radius: var(--radius-md);
+  background: linear-gradient(90deg, var(--neutral-100) 0%, var(--neutral-200) 50%, var(--neutral-100) 100%);
+  background-size: 200% 100%;
+  animation: af-shimmer 1.2s ease-in-out infinite;
+}
+@keyframes af-shimmer { from { background-position: 200% 0; } to { background-position: -200% 0; } }
+.abyan-ds .af-empty { display: flex; flex-direction: column; align-items: center; gap: 12px; padding: 32px 16px; text-align: center; }
+.abyan-ds .af-empty svg { color: var(--neutral-400); }
+
+@media (prefers-reduced-motion: reduce) {
+  .af *, .af *::before, .af *::after { transition-duration: 0ms !important; animation: none !important; }
+}
+
+/* Phones: the strip (title + wrapped stepper + tabs) would take ~40% of the
+   screen if it stuck under the header, on top of the sticky bottom bar. It
+   scrolls with the page there; the tabs stay one swipe away at the top. */
+@media (max-width: 639px) {
+  .abyan-ds .af-strip { position: static; }
+}

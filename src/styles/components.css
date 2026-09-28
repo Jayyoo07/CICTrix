@@ -514,3 +514,9 @@
   font-size: var(--font-size-sm);
   color: var(--color-text-muted);
 }
+
+/* Required-field marker (DESIGN_IDENTITY.md §9.3: required fields get a red *) */
+.input-required {
+  color: #E05252;
+  font-weight: 600;
+}

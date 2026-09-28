@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { TrendingUp, CheckCircle2, AlertCircle, ArrowUpRight } from 'lucide-react';
+import { TrendingUp, CheckCircle2, AlertTriangle, ArrowUpRight, Info } from 'lucide-react';
 import type { JobPosting } from '../types/recruitment.types';
 import {
   compareQualifications,
@@ -19,67 +19,55 @@ const EDUCATION_OPTIONS = [
   'Doctorate',
 ];
 
+// Styled with the applicant-flow tokens (src/styles/applicant-flow.css); it
+// renders inside the `.abyan-ds .af` Job Details page. Gaps are a caution
+// status (warning), a met requirement is success — never decorative colour.
 const GapList = ({ comparison }: { comparison: QualificationComparison }) => {
   if (comparison.noStatedRequirements) {
     return (
-      <p className="rounded-lg bg-slate-50 p-4 text-sm italic text-slate-500">
-        This position hasn't published its qualification standards yet, so there's nothing to
-        compare against.
+      <p className="af-notice af-notice-neutral">
+        This position hasn't published its qualification standards yet, so there's nothing to compare against.
       </p>
     );
   }
 
   if (comparison.meetsAll) {
     return (
-      <div className="flex items-start gap-3 rounded-lg border border-emerald-200 bg-emerald-50 p-4">
-        <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-emerald-600" />
-        <p className="text-sm font-medium text-emerald-900">
-          You meet every stated requirement for this position.
-        </p>
+      <div className="af-alert af-alert-success">
+        <CheckCircle2 size={20} strokeWidth={1.75} aria-hidden="true" />
+        <p className="af-alert-body">You meet every stated requirement for this position.</p>
       </div>
     );
   }
 
   return (
-    <div className="space-y-3">
+    <div className="af-stack" style={{ gap: 12 }}>
       {comparison.gaps.map((gap: QualificationGap) => (
-        <div
-          key={gap.kind}
-          className="rounded-lg border border-amber-200 bg-amber-50 p-4"
-        >
-          <div className="flex items-start gap-3">
-            <AlertCircle className="mt-0.5 h-5 w-5 shrink-0 text-amber-600" />
-            <div className="min-w-0 flex-1">
-              <p className="text-sm font-bold text-amber-900">{gap.label}</p>
-
-              {gap.kind === 'skills' && gap.missingSkills && gap.missingSkills.length > 0 ? (
-                <>
-                  <p className="mt-1 text-sm text-amber-800">You're missing:</p>
-                  <div className="mt-2 flex flex-wrap gap-1.5">
-                    {gap.missingSkills.map((skill) => (
-                      <span
-                        key={skill}
-                        className="rounded-full border border-amber-300 bg-white px-2.5 py-1 text-xs font-medium text-amber-900"
-                      >
-                        {skill}
-                      </span>
-                    ))}
-                  </div>
-                </>
-              ) : (
-                <p className="mt-1 text-sm text-amber-800">
-                  Requires <strong>{gap.required}</strong> — you have{' '}
-                  <strong>{gap.current}</strong>.
-                </p>
-              )}
-            </div>
+        <div key={gap.kind} className="af-alert af-alert-warning">
+          <AlertTriangle size={20} strokeWidth={1.75} aria-hidden="true" />
+          <div style={{ minWidth: 0, flex: 1 }}>
+            <p className="af-alert-title">{gap.label}</p>
+            {gap.kind === 'skills' && gap.missingSkills && gap.missingSkills.length > 0 ? (
+              <>
+                <p className="af-alert-body">You're missing:</p>
+                <div className="af-tags" style={{ marginTop: 8 }}>
+                  {gap.missingSkills.map((skill) => (
+                    <span key={skill} className="badge badge-neutral">{skill}</span>
+                  ))}
+                </div>
+              </>
+            ) : (
+              <p className="af-alert-body">
+                Requires <strong>{gap.required}</strong>; you have <strong>{gap.current}</strong>.
+              </p>
+            )}
           </div>
         </div>
       ))}
 
       {comparison.met.length > 0 && (
-        <p className="pt-1 text-sm text-emerald-700">
-          <CheckCircle2 className="mr-1 inline h-4 w-4" />
+        <p className="af-body-m af-met">
+          <CheckCircle2 size={16} strokeWidth={1.75} aria-hidden="true" />
           You already meet: {comparison.met.map((m) => m.label.toLowerCase()).join(', ')}.
         </p>
       )}
@@ -140,62 +128,50 @@ export const QualificationGapPanel = ({
   const hasAnswered = Boolean(education || years || skills.trim());
 
   return (
-    <div className="mb-6 overflow-hidden rounded-2xl border-l-4 border-violet-600 bg-white shadow-lg">
-      <button
-        type="button"
-        onClick={() => setOpen((prev) => !prev)}
-        className="flex w-full items-center justify-between gap-3 border-b border-slate-200 bg-violet-50 px-8 py-6 text-left transition hover:bg-violet-100"
-      >
-        <div className="flex items-center gap-3">
-          <TrendingUp className="h-6 w-6 shrink-0 text-violet-600" />
-          <div>
-            <h2 className="text-2xl font-bold text-slate-900">Where do I stand?</h2>
-            <p className="mt-1 text-sm text-slate-600">
-              See what you're missing for this role
-              {topPosition && !isTopPositionThisJob
-                ? ` — and for ${topPosition.title}, the most senior ${department} position.`
-                : '.'}
-            </p>
-          </div>
+    <section className="af-card" aria-labelledby="gap-title">
+      <div className="af-card-head" style={{ marginBottom: open ? 20 : 0 }}>
+        <span className="af-chip" aria-hidden="true"><TrendingUp size={20} strokeWidth={1.75} /></span>
+        <div className="af-card-head-text">
+          <h2 className="af-title-s" id="gap-title">Where do I stand?</h2>
+          <p className="af-caption">
+            See what you're missing for this role
+            {topPosition && !isTopPositionThisJob
+              ? `, and for ${topPosition.title}, the most senior ${department} position.`
+              : '.'}
+          </p>
         </div>
-        <span className="shrink-0 text-sm font-semibold text-violet-700">
-          {open ? 'Hide' : 'Check now'}
-        </span>
-      </button>
+        <button
+          type="button"
+          className="af-textbtn"
+          onClick={() => setOpen((prev) => !prev)}
+          aria-expanded={open}
+          aria-controls="gap-body"
+        >
+          {open ? 'Hide' : 'Check Now'}
+        </button>
+      </div>
 
       {open && (
-        <div className="space-y-6 px-8 py-8">
+        <div id="gap-body" className="af-stack">
           {/* Self-assessment inputs */}
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <div>
-              <label
-                htmlFor="gap-education"
-                className="mb-1.5 block text-sm font-semibold text-slate-700"
-              >
-                Your highest educational attainment
-              </label>
+          <div className="af-fields">
+            <div className="af-field">
+              <label htmlFor="gap-education" className="af-label">Your highest educational attainment</label>
               <select
                 id="gap-education"
                 value={education}
                 onChange={(event) => setEducation(event.target.value)}
-                className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm outline-none focus:border-violet-500 focus:ring-1 focus:ring-violet-500"
+                className="af-control"
               >
                 <option value="">Select…</option>
                 {EDUCATION_OPTIONS.map((option) => (
-                  <option key={option} value={option}>
-                    {option}
-                  </option>
+                  <option key={option} value={option}>{option}</option>
                 ))}
               </select>
             </div>
 
-            <div>
-              <label
-                htmlFor="gap-years"
-                className="mb-1.5 block text-sm font-semibold text-slate-700"
-              >
-                Years of relevant work experience
-              </label>
+            <div className="af-field">
+              <label htmlFor="gap-years" className="af-label">Years of relevant work experience</label>
               <input
                 id="gap-years"
                 type="number"
@@ -204,64 +180,64 @@ export const QualificationGapPanel = ({
                 value={years}
                 onChange={(event) => setYears(event.target.value)}
                 placeholder="0"
-                className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm outline-none focus:border-violet-500 focus:ring-1 focus:ring-violet-500"
+                className="af-control"
               />
             </div>
-          </div>
 
-          <div>
-            <label htmlFor="gap-skills" className="mb-1.5 block text-sm font-semibold text-slate-700">
-              Your skills
-            </label>
-            <textarea
-              id="gap-skills"
-              rows={3}
-              value={skills}
-              onChange={(event) => setSkills(event.target.value)}
-              placeholder="One per line, or comma-separated — e.g. Network administration, SQL, Technical writing"
-              className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm outline-none focus:border-violet-500 focus:ring-1 focus:ring-violet-500"
-            />
-          </div>
-
-          {!hasAnswered ? (
-            <p className="rounded-lg bg-slate-50 p-4 text-sm text-slate-500">
-              Fill in your background above and your gaps will appear here. Nothing you type is saved
-              or submitted.
-            </p>
-          ) : (
-            <div className="space-y-6 border-t border-slate-200 pt-6">
-              {/* This posting */}
-              <div>
-                <h3 className="mb-3 text-base font-bold text-slate-900">
-                  For this role — {posting.title}
-                </h3>
-                <GapList comparison={thisJobComparison} />
-              </div>
-
-              {/* The department's most senior position */}
-              {topPosition && topJobComparison && !isTopPositionThisJob && (
-                <div>
-                  <h3 className="mb-1 flex items-center gap-2 text-base font-bold text-slate-900">
-                    <ArrowUpRight className="h-5 w-5 text-violet-600" />
-                    To reach {topPosition.title}
-                  </h3>
-                  <p className="mb-3 text-sm text-slate-500">
-                    The most senior position in {department}
-                    {topPosition.salaryGrade != null ? ` (SG ${topPosition.salaryGrade})` : ''}.
-                  </p>
-                  <GapList comparison={topJobComparison} />
-                </div>
-              )}
-
-              {topPosition && isTopPositionThisJob && (
-                <p className="rounded-lg border border-violet-200 bg-violet-50 p-4 text-sm text-violet-900">
-                  This is already the most senior {department} position on record.
-                </p>
-              )}
+            <div className="af-field af-field-full">
+              <label htmlFor="gap-skills" className="af-label">Your skills</label>
+              <textarea
+                id="gap-skills"
+                rows={3}
+                value={skills}
+                onChange={(event) => setSkills(event.target.value)}
+                placeholder="One per line, or comma-separated, e.g. Network administration, SQL, Technical writing"
+                className="af-control"
+                aria-describedby="gap-skills-help"
+              />
+              <p id="gap-skills-help" className="af-helper">Nothing you type here is saved or submitted.</p>
             </div>
-          )}
+          </div>
+
+          <div aria-live="polite">
+            {!hasAnswered ? (
+              <p className="af-notice af-notice-neutral">
+                Fill in your background above and your gaps will appear here.
+              </p>
+            ) : (
+              <div className="af-stack">
+                {/* This posting */}
+                <div>
+                  <h3 className="af-headline" style={{ marginBottom: 12 }}>For this role: {posting.title}</h3>
+                  <GapList comparison={thisJobComparison} />
+                </div>
+
+                {/* The department's most senior position */}
+                {topPosition && topJobComparison && !isTopPositionThisJob && (
+                  <div>
+                    <h3 className="af-headline af-headline-icon">
+                      <ArrowUpRight size={18} strokeWidth={1.75} aria-hidden="true" />
+                      To reach {topPosition.title}
+                    </h3>
+                    <p className="af-body-m" style={{ margin: '4px 0 12px' }}>
+                      The most senior position in {department}
+                      {topPosition.salaryGrade != null ? ` (SG ${topPosition.salaryGrade})` : ''}.
+                    </p>
+                    <GapList comparison={topJobComparison} />
+                  </div>
+                )}
+
+                {topPosition && isTopPositionThisJob && (
+                  <div className="af-alert af-alert-info">
+                    <Info size={20} strokeWidth={1.75} aria-hidden="true" />
+                    <p className="af-alert-body">This is already the most senior {department} position on record.</p>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
         </div>
       )}
-    </div>
+    </section>
   );
 };
