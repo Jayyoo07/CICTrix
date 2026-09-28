@@ -2,19 +2,11 @@ import {
   ArrowRight,
   Briefcase,
   Building2,
-  CalendarClock,
-  ChevronDown,
-  ChevronLeft,
-  ChevronRight,
   CircleAlert,
-  CircleCheck,
-  ClipboardList,
   LogOut,
-  Search,
   Trash2,
   UserCircle2,
   X,
-  type LucideIcon,
 } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -23,6 +15,7 @@ import abyanLogo from '../../assets/abyan-logo.png';
 import { Dialog } from '../../components/Dialog';
 import { POSITION_TO_DEPARTMENT_MAP } from '../../constants/positions';
 import { isPositionAssignedToInterviewer, resolveAssignedPositionsForInterviewer } from '../../lib/interviewerAccess';
+import { storeApplicantTypeForEval } from '../../lib/interviewerEvalNavigation';
 import { mockDatabase } from '../../lib/mockDatabase';
 import { ensureRecruitmentSeedData, getAuthoritativeJobPostings, getJobPostingsFromSupabase } from '../../lib/recruitmentData';
 import { supabase } from '../../lib/supabase';
@@ -30,6 +23,39 @@ import '../../styles/interviewer.css';
 import '../../styles/abyan-tokens.css';
 import '../../styles/interviewer-dashboard.css';
 import type { JobPosting as RecruitmentJobPosting } from '../../types/recruitment.types';
+import {
+  CandidateListModal,
+  DateCell,
+  EvalStatusBadge,
+  KPI_ORDER,
+  KpiCard,
+  Pager,
+  SearchField,
+  SelectField,
+  departmentOptions,
+  statusOptions,
+  useDebouncedValue,
+} from './InterviewerDashboardParts';
+import {
+  STATUS_OPTIONS,
+  buildCandidateRows,
+  buildKpiSets,
+  formatDate,
+  matchesSearch,
+  matchesStatus,
+  paginate,
+  resolveInterviewerStamp,
+  toLocalKey,
+  type CandidateRow,
+  type KpiKey,
+  type StatusFilter,
+} from './interviewerDashboardModel';
+
+// Team-provided hero photo (public/assets/hero). If it fails to load, the
+// hero falls back to the plain gradient.
+const HERO_PHOTO_URL = '/assets/hero/iloilo-city-hall.webp';
+const POSTINGS_PAGE_SIZE = 5;
+const HISTORY_PAGE_SIZE = 5;
 
 interface JobPosting {
   id: number;
@@ -67,137 +93,6 @@ const getFullName = (applicant: Applicant): string => {
   }
   parts.push(applicant.last_name);
   return parts.join(' ');
-};
-
-type KpiKey = 'pending' | 'today' | 'completed';
-
-interface KpiItem {
-  id: string;
-  name: string;
-  position: string;
-  department: string;
-  titleKey: string;
-  /** Interview date for pending/today, evaluation timestamp for completed. */
-  date: string;
-}
-
-interface KpiConfig {
-  label: string;
-  tone: 'warning' | 'primary' | 'success';
-  icon: LucideIcon;
-  subtext: (count: number) => string;
-  peopleHeading: string;
-  emptyTitle: string;
-  emptyBody: string;
-}
-
-const plural = (count: number, word: string) => `${count} ${word}${count === 1 ? '' : 's'}`;
-
-const KPI_ORDER: KpiKey[] = ['pending', 'today', 'completed'];
-
-const KPI_CONFIG: Record<KpiKey, KpiConfig> = {
-  pending: {
-    label: 'To evaluate',
-    tone: 'warning',
-    icon: ClipboardList,
-    subtext: (n) => `${plural(n, 'applicant')} waiting`,
-    peopleHeading: 'Next to evaluate',
-    emptyTitle: 'Nothing to evaluate 🎉',
-    emptyBody: 'Every assigned applicant already has a submitted evaluation.',
-  },
-  today: {
-    label: 'Due today',
-    tone: 'primary',
-    icon: CalendarClock,
-    subtext: (n) => `${plural(n, 'interview')} scheduled`,
-    peopleHeading: 'Scheduled today',
-    emptyTitle: 'No interviews today',
-    emptyBody: 'Nothing is scheduled for today. Upcoming dates are listed in the table.',
-  },
-  completed: {
-    label: 'Completed',
-    tone: 'success',
-    icon: CircleCheck,
-    subtext: (n) => `${n} submitted this month`,
-    peopleHeading: 'Recently submitted',
-    emptyTitle: 'No evaluations yet this month',
-    emptyBody: 'Evaluations you submit this month will be listed here.',
-  },
-};
-
-const PAGE_SIZE = 6;
-const QUICK_VIEW_MAX_ROWS = 5;
-const QUICK_VIEW_MAX_PEOPLE = 3;
-
-const pad2 = (n: number) => String(n).padStart(2, '0');
-const toLocalKey = (d: Date) => `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
-
-// Date-only strings ("2026-09-28") are calendar dates, not UTC instants, so
-// they are parsed as local dates to avoid shifting a day in the viewer's zone.
-const parseDate = (raw: unknown): Date | null => {
-  const value = String(raw ?? '').trim();
-  if (!value) return null;
-  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
-    const [y, m, d] = value.split('-').map(Number);
-    return new Date(y, m - 1, d);
-  }
-  const parsed = new Date(value);
-  return Number.isNaN(parsed.getTime()) ? null : parsed;
-};
-
-const dateKey = (raw: unknown) => {
-  const d = parseDate(raw);
-  return d ? toLocalKey(d) : '';
-};
-
-// Design Identity §9.5: dates render as "MMM DD, YYYY".
-const formatDate = (raw: string) => {
-  const d = parseDate(raw);
-  return d ? d.toLocaleDateString('en-US', { month: 'short', day: '2-digit', year: 'numeric' }) : '—';
-};
-
-const formatShortDate = (raw: string) => {
-  const d = parseDate(raw);
-  return d ? d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : 'No date';
-};
-
-type DateStatus = 'today' | 'upcoming' | 'past';
-
-const DATE_BADGE: Record<DateStatus, { label: string; className: string }> = {
-  today: { label: 'Today', className: 'badge-warning' },
-  upcoming: { label: 'Upcoming', className: 'badge-info' },
-  past: { label: 'Past', className: 'badge-neutral' },
-};
-
-const getDateStatus = (raw: string, todayKey: string): DateStatus | null => {
-  const key = dateKey(raw);
-  if (!key) return null;
-  if (key === todayKey) return 'today';
-  return key > todayKey ? 'upcoming' : 'past';
-};
-
-const applicantDisplayName = (applicant: any): string => {
-  const name = [applicant?.first_name, applicant?.last_name]
-    .map((part) => String(part ?? '').trim())
-    .filter(Boolean)
-    .join(' ');
-  return name || String(applicant?.full_name ?? applicant?.email ?? 'Unnamed applicant');
-};
-
-const evaluationTimestamp = (evaluation: any) =>
-  String(evaluation?.created_at ?? evaluation?.submitted_at ?? evaluation?.updated_at ?? '').trim();
-
-// Design Identity §9.6: first, last, current ±1, with ellipses past 7 pages.
-const getPageList = (current: number, total: number): Array<number | 'gap'> => {
-  if (total <= 7) return Array.from({ length: total }, (_, i) => i + 1);
-  const pages = new Set([1, total, current - 1, current, current + 1]);
-  const sorted = [...pages].filter((p) => p >= 1 && p <= total).sort((a, b) => a - b);
-  const out: Array<number | 'gap'> = [];
-  sorted.forEach((p, i) => {
-    if (i > 0 && p - sorted[i - 1] > 1) out.push('gap');
-    out.push(p);
-  });
-  return out;
 };
 
 interface InterviewerSessionInfo {
@@ -339,103 +234,6 @@ const filterJobsByAssignments = (jobRows: RecruitmentJobPosting[], assignedPosit
   return jobRows.filter((job) => isPositionAssignedToInterviewer(String(job?.title ?? ''), assignedPositions));
 };
 
-// Compact, fixed-height summary for one KPI. Content is capped (departments +
-// people) instead of scrolled; anything beyond the cap goes to "View all",
-// which filters the table below.
-function KpiQuickView({
-  kpi,
-  items,
-  onClose,
-  onViewAll,
-  onPickDepartment,
-}: {
-  kpi: KpiKey;
-  items: KpiItem[];
-  onClose: () => void;
-  onViewAll: () => void;
-  onPickDepartment: (department: string) => void;
-}) {
-  const config = KPI_CONFIG[kpi];
-  const headingId = `ivd-qv-${kpi}-title`;
-
-  const departments = useMemo(() => {
-    const counts = new Map<string, number>();
-    items.forEach((item) => counts.set(item.department, (counts.get(item.department) || 0) + 1));
-    return [...counts.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
-  }, [items]);
-
-  // Five rows total: the top applicants first, departments fill the rest.
-  const people = items.slice(0, QUICK_VIEW_MAX_PEOPLE);
-  const shownDepartments = departments.slice(0, QUICK_VIEW_MAX_ROWS - people.length);
-  const hasMore = departments.length > shownDepartments.length || items.length > people.length;
-
-  return (
-    <div id={`ivd-qv-${kpi}`} className="ivd-qv" role="dialog" aria-modal="false" aria-labelledby={headingId}>
-      <div className="ivd-qv-head">
-        <h3 id={headingId}>{config.label}</h3>
-        <button type="button" className="ivd-qv-close" onClick={onClose} aria-label="Close quick view">
-          <X size={18} strokeWidth={1.75} />
-        </button>
-      </div>
-
-      {items.length === 0 ? (
-        <div className="ivd-qv-empty">
-          <p className="text-headline-m">{config.emptyTitle}</p>
-          <p className="text-body-m">{config.emptyBody}</p>
-        </div>
-      ) : (
-        <>
-          <div className="ivd-qv-section">
-            <p className="ivd-qv-overline text-caps">By department</p>
-            <ul className="ivd-qv-list">
-              {shownDepartments.map(([department, count]) => (
-                <li key={department}>
-                  <button
-                    type="button"
-                    className="ivd-qv-dept"
-                    onClick={() => onPickDepartment(department)}
-                    aria-label={`Show ${config.label.toLowerCase()} postings in ${department} (${count})`}
-                  >
-                    <span className="ivd-qv-dept-name">
-                      <Building2 size={16} strokeWidth={1.75} aria-hidden="true" />
-                      <span>{department}</span>
-                    </span>
-                    <span className="badge badge-tint">{count}</span>
-                  </button>
-                </li>
-              ))}
-            </ul>
-          </div>
-
-          <div className="ivd-qv-section">
-            <p className="ivd-qv-overline text-caps">{config.peopleHeading}</p>
-            <ul className="ivd-qv-list">
-              {people.map((person) => (
-                <li key={`${person.id}-${person.titleKey}`} className="ivd-qv-person">
-                  <div>
-                    <span className="ivd-qv-person-name">{person.name}</span>
-                    <span className="ivd-qv-person-pos text-body-s">{person.position}</span>
-                  </div>
-                  <span className="ivd-qv-person-date text-body-s">
-                    {kpi === 'completed' ? `Submitted ${formatShortDate(person.date)}` : formatShortDate(person.date)}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          </div>
-
-          <div className="ivd-qv-foot">
-            <button type="button" className="ivd-link" onClick={onViewAll}>
-              {hasMore ? `View all (${items.length})` : 'Show in table'}
-              <ArrowRight size={16} strokeWidth={1.75} aria-hidden="true" />
-            </button>
-          </div>
-        </>
-      )}
-    </div>
-  );
-}
-
 export function InterviewerDashboard({
   session,
   onLogout,
@@ -445,18 +243,19 @@ export function InterviewerDashboard({
 }) {
   const navigate = useNavigate();
   const [jobs, setJobs] = useState<JobPosting[]>([]);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [departmentFilter, setDepartmentFilter] = useState('all');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [applicants, setApplicants] = useState<any[]>([]);
   const [evaluations, setEvaluations] = useState<any[]>([]);
-  const [kpiFilter, setKpiFilter] = useState<KpiKey | null>(null);
+  const [searchInput, setSearchInput] = useState('');
+  const [departmentFilter, setDepartmentFilter] = useState('all');
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
+  const [postingsPage, setPostingsPage] = useState(1);
+  const [historyPage, setHistoryPage] = useState(1);
   const [openKpi, setOpenKpi] = useState<KpiKey | null>(null);
-  const [page, setPage] = useState(1);
-  const kpiButtonRefs = useRef<Partial<Record<KpiKey, HTMLButtonElement | null>>>({});
-  const kpiCellRefs = useRef<Partial<Record<KpiKey, HTMLDivElement | null>>>({});
-  const tableSectionRef = useRef<HTMLElement | null>(null);
+  const [heroPhotoOk, setHeroPhotoOk] = useState(true);
+  const kpiCardRefs = useRef<Partial<Record<KpiKey, HTMLDivElement | null>>>({});
+  const lastOpenedKpi = useRef<KpiKey | null>(null);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [logoutConfirmOpen, setLogoutConfirmOpen] = useState(false);
   const [applicantToDelete, setApplicantToDelete] = useState<Applicant | null>(null);
@@ -569,125 +368,96 @@ export function InterviewerDashboard({
     }
   };
 
-  const uniqueDepartments = useMemo(() => {
-    return Array.from(new Set(jobs.map(job => job.office))).sort();
-  }, [jobs]);
-
   const todayKey = toLocalKey(new Date());
+  const query = useDebouncedValue(searchInput.trim().toLowerCase());
+  const interviewerStamp = resolveInterviewerStamp(session);
 
-  // Derived KPI lists, all scoped to the applicants this interviewer can see:
-  //   pending   = no evaluation submitted yet
-  //   today     = interview_date is today (local calendar date)
-  //   completed = latest evaluation was submitted this calendar month
-  const kpiItems = useMemo<Record<KpiKey, KpiItem[]>>(() => {
-    const officeByTitle = new Map(jobs.map((job) => [normalizeText(job.title), job.office]));
+  const departments = useMemo(() => Array.from(new Set(jobs.map((job) => job.office))).sort(), [jobs]);
 
-    const latestEvaluationAt = new Map<string, string>();
-    evaluations.forEach((evaluation: any) => {
-      const applicantId = String(evaluation?.applicant_id ?? '').trim();
-      if (!applicantId) return;
-      const at = evaluationTimestamp(evaluation);
-      const previous = latestEvaluationAt.get(applicantId);
-      if (previous === undefined || at > previous) latestEvaluationAt.set(applicantId, at);
-    });
+  const rows = useMemo(
+    () => buildCandidateRows(
+      applicants,
+      evaluations,
+      new Map(jobs.map((job) => [normalizeText(job.title), job.office])),
+      interviewerStamp,
+    ),
+    [applicants, evaluations, jobs, interviewerStamp],
+  );
 
-    const monthKey = todayKey.slice(0, 7);
-    const result: Record<KpiKey, KpiItem[]> = { pending: [], today: [], completed: [] };
+  const kpiSets = useMemo(() => buildKpiSets(rows, todayKey), [rows, todayKey]);
 
-    applicants.forEach((applicant: any) => {
-      const id = String(applicant?.id ?? '').trim();
-      const position = String(applicant?.position || '').trim();
-      const titleKey = normalizeText(position);
-      const base = {
-        id,
-        name: applicantDisplayName(applicant),
-        position,
-        department: officeByTitle.get(titleKey) || String(applicant?.office || '').trim() || 'Unassigned',
-        titleKey,
-      };
-      const interviewDate = String(applicant?.interview_date ?? '').trim();
-      const evaluatedAt = latestEvaluationAt.get(id);
+  const rowsByTitle = useMemo(() => {
+    const map = new Map<string, CandidateRow[]>();
+    rows.forEach((row) => map.set(row.titleKey, [...(map.get(row.titleKey) ?? []), row]));
+    return map;
+  }, [rows]);
 
-      if (evaluatedAt === undefined) result.pending.push({ ...base, date: interviewDate });
-      if (interviewDate && dateKey(interviewDate) === todayKey) result.today.push({ ...base, date: interviewDate });
-      if (evaluatedAt && dateKey(evaluatedAt).startsWith(monthKey)) result.completed.push({ ...base, date: evaluatedAt });
-    });
+  // Postings: search matches the title, office, or any candidate's name. With
+  // no status chosen, finished postings drop out of the queue (as before);
+  // a status keeps any posting with at least one matching candidate.
+  const filteredJobs = useMemo(() => jobs.filter((job) => {
+    const jobRows = rowsByTitle.get(normalizeText(job.title)) ?? [];
+    const matchesQuery = !query ||
+      job.title.toLowerCase().includes(query) ||
+      job.office.toLowerCase().includes(query) ||
+      jobRows.some((row) => row.name.toLowerCase().includes(query));
+    const matchesDept = departmentFilter === 'all' || job.office === departmentFilter;
+    const inScope = statusFilter === 'all'
+      ? !job.is_fully_evaluated
+      : jobRows.some((row) => matchesStatus(row, statusFilter, todayKey));
+    return matchesQuery && matchesDept && inScope;
+  }), [jobs, rowsByTitle, query, departmentFilter, statusFilter, todayKey]);
 
-    // Soonest interview first (undated last); most recent submission first.
-    result.pending.sort((a, b) => (dateKey(a.date) || '9999').localeCompare(dateKey(b.date) || '9999'));
-    result.today.sort((a, b) => a.name.localeCompare(b.name));
-    result.completed.sort((a, b) => b.date.localeCompare(a.date));
-    return result;
-  }, [applicants, evaluations, jobs, todayKey]);
+  // History: evaluations this interviewer submitted, newest first.
+  const historyRows = useMemo(() => rows
+    .filter((row) =>
+      row.evaluatedByMe &&
+      matchesSearch(row, query) &&
+      (departmentFilter === 'all' || row.department === departmentFilter) &&
+      matchesStatus(row, statusFilter, todayKey))
+    .sort((a, b) => b.evaluatedAt.localeCompare(a.evaluatedAt)),
+  [rows, query, departmentFilter, statusFilter, todayKey]);
 
-  const kpiTitleSets = useMemo(() => {
-    const sets = {} as Record<KpiKey, Set<string>>;
-    KPI_ORDER.forEach((key) => { sets[key] = new Set(kpiItems[key].map((item) => item.titleKey)); });
-    return sets;
-  }, [kpiItems]);
-
-  const filteredJobs = useMemo(() => {
-    const query = searchTerm.trim().toLowerCase();
-    return jobs.filter(job => {
-      const matchesSearch = !query ||
-        job.title.toLowerCase().includes(query) ||
-        job.office.toLowerCase().includes(query);
-
-      const matchesDept = departmentFilter === 'all' || job.office === departmentFilter;
-
-      // Default view hides jobs once every applicant has an evaluation — the
-      // interviewer is done with them. A KPI filter replaces that rule, so
-      // "Completed" can still surface finished postings.
-      const inScope = kpiFilter
-        ? kpiTitleSets[kpiFilter].has(normalizeText(job.title))
-        : !job.is_fully_evaluated;
-
-      return matchesSearch && matchesDept && inScope;
-    });
-  }, [jobs, searchTerm, departmentFilter, kpiFilter, kpiTitleSets]);
-
-  const pageCount = Math.max(1, Math.ceil(filteredJobs.length / PAGE_SIZE));
-  const currentPage = Math.min(page, pageCount);
-  const pageStart = (currentPage - 1) * PAGE_SIZE;
-  const pagedJobs = filteredJobs.slice(pageStart, pageStart + PAGE_SIZE);
-
-  useEffect(() => { setPage(1); }, [searchTerm, departmentFilter, kpiFilter]);
-
-  // Quick view: Esc closes and returns focus to its card; a pointer-down
-  // outside the card's cell closes it (the mobile backdrop is outside too).
   useEffect(() => {
-    if (!openKpi) return;
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key !== 'Escape') return;
-      setOpenKpi(null);
-      kpiButtonRefs.current[openKpi]?.focus();
-    };
-    const onPointerDown = (event: PointerEvent) => {
-      const cell = kpiCellRefs.current[openKpi];
-      if (cell && !cell.contains(event.target as Node)) setOpenKpi(null);
-    };
-    document.addEventListener('keydown', onKeyDown);
-    document.addEventListener('pointerdown', onPointerDown);
-    return () => {
-      document.removeEventListener('keydown', onKeyDown);
-      document.removeEventListener('pointerdown', onPointerDown);
-    };
+    setPostingsPage(1);
+    setHistoryPage(1);
+  }, [query, departmentFilter, statusFilter]);
+
+  const postings = paginate(filteredJobs, postingsPage, POSTINGS_PAGE_SIZE);
+  const history = paginate(historyRows, historyPage, HISTORY_PAGE_SIZE);
+
+  const hasActiveFilters = query !== '' || departmentFilter !== 'all' || statusFilter !== 'all';
+  const clearFilters = () => {
+    setSearchInput('');
+    setDepartmentFilter('all');
+    setStatusFilter('all');
+  };
+
+  const openKpiModal = (kpi: KpiKey) => {
+    lastOpenedKpi.current = kpi;
+    setOpenKpi(kpi);
+  };
+  const closeKpiModal = useCallback(() => setOpenKpi(null), []);
+
+  // Return focus to the card that opened the modal.
+  useEffect(() => {
+    if (openKpi === null && lastOpenedKpi.current) {
+      kpiCardRefs.current[lastOpenedKpi.current]?.focus();
+      lastOpenedKpi.current = null;
+    }
   }, [openKpi]);
 
-  const applyKpiFilter = (key: KpiKey, department = 'all') => {
-    setKpiFilter(key);
-    setDepartmentFilter(department);
-    setOpenKpi(null);
-    tableSectionRef.current?.scrollIntoView({ block: 'nearest' });
-  };
+  // Same navigation the applicants list uses for "Evaluate".
+  const openEvaluation = useCallback((row: CandidateRow) => {
+    storeApplicantTypeForEval(row.id, row.appType);
+    navigate(`/interviewer/evaluate/${row.id}`);
+  }, [navigate]);
 
-  const clearFilters = () => {
-    setKpiFilter(null);
-    setDepartmentFilter('all');
-    setSearchTerm('');
-  };
-
-  const hasActiveFilters = Boolean(kpiFilter) || departmentFilter !== 'all' || searchTerm.trim() !== '';
+  // There is no read-only evaluation screen in the interviewer portal, so
+  // "View" opens the existing applicants list for that posting.
+  const openApplicantsList = useCallback((row: CandidateRow) => {
+    navigate(`/interviewer/applicants?position=${encodeURIComponent(row.position)}`);
+  }, [navigate]);
 
   const handleViewJobApplicants = (jobTitle: string) => {
     navigate(`/interviewer/applicants?position=${encodeURIComponent(jobTitle)}`);
@@ -707,7 +477,7 @@ export function InterviewerDashboard({
 
       // Refresh jobs data to update applicant counts
       fetchJobsAndApplicants();
-      
+
       setDeleteConfirmOpen(false);
       setApplicantToDelete(null);
     } catch (err) {
@@ -718,171 +488,11 @@ export function InterviewerDashboard({
     }
   };
 
-  const renderKpiRow = () => {
-    if (loading) {
-      return (
-        <div className="ivd-kpis" aria-busy="true" aria-label="Loading summary">
-          {KPI_ORDER.map((key) => (
-            <div key={key} className="ivd-kpi-cell">
-              <div className="ivd-kpi ivd-kpi--skeleton">
-                <div className="ivd-kpi-head">
-                  <span className="ivd-skel" style={{ width: 40, height: 40, borderRadius: 'var(--radius-chip)' }} />
-                  <span className="ivd-skel" style={{ width: 96, height: 14 }} />
-                </div>
-                <span className="ivd-skel" style={{ width: 56, height: 36 }} />
-                <span className="ivd-skel" style={{ width: '70%', height: 12 }} />
-              </div>
-            </div>
-          ))}
-        </div>
-      );
-    }
-
-    return (
-      <div className="ivd-kpis">
-        {KPI_ORDER.map((key) => {
-          const config = KPI_CONFIG[key];
-          const Icon = config.icon;
-          const count = kpiItems[key].length;
-          const isOpen = openKpi === key;
-          const toneClass = config.tone === 'primary' ? '' : ` ivd-kpi--${config.tone}`;
-          return (
-            <div key={key} className="ivd-kpi-cell" ref={(el) => { kpiCellRefs.current[key] = el; }}>
-              <button
-                type="button"
-                ref={(el) => { kpiButtonRefs.current[key] = el; }}
-                className={`ivd-kpi${toneClass}${kpiFilter === key ? ' is-selected' : ''}`}
-                aria-expanded={isOpen}
-                aria-controls={`ivd-qv-${key}`}
-                aria-haspopup="dialog"
-                onClick={() => setOpenKpi((prev) => (prev === key ? null : key))}
-              >
-                <span className="ivd-kpi-head">
-                  <span className="ivd-kpi-chip" aria-hidden="true">
-                    <Icon size={20} strokeWidth={1.75} />
-                  </span>
-                  <span className="ivd-kpi-label text-caption">{config.label}</span>
-                  <ChevronDown className="ivd-kpi-chevron" size={20} strokeWidth={1.75} aria-hidden="true" />
-                </span>
-                <span className="ivd-kpi-value text-title-l">{count}</span>
-                <span className="ivd-kpi-sub text-body-s">{config.subtext(count)}</span>
-              </button>
-
-              {isOpen && (
-                <KpiQuickView
-                  kpi={key}
-                  items={kpiItems[key]}
-                  onClose={() => { setOpenKpi(null); kpiButtonRefs.current[key]?.focus(); }}
-                  onViewAll={() => applyKpiFilter(key)}
-                  onPickDepartment={(department) => applyKpiFilter(key, department)}
-                />
-              )}
-            </div>
-          );
-        })}
-        {openKpi && <div className="ivd-sheet-backdrop" aria-hidden="true" />}
-      </div>
-    );
-  };
-
-  const renderTableBody = () => {
-    if (loading) {
-      return Array.from({ length: 4 }, (_, i) => (
-        <tr key={`skeleton-${i}`} aria-hidden="true">
-          <td className="ivd-cell-title"><span className="ivd-skel" style={{ width: '60%', height: 14 }} /></td>
-          <td className="ivd-cell-office"><span className="ivd-skel" style={{ width: '70%', height: 14 }} /></td>
-          <td className="ivd-cell-count is-num"><span className="ivd-skel" style={{ width: 32, height: 24, marginLeft: 'auto' }} /></td>
-          <td className="ivd-cell-date"><span className="ivd-skel" style={{ width: 120, height: 14 }} /></td>
-          <td className="is-action"><span className="ivd-skel" style={{ width: 148, height: 36, marginLeft: 'auto', borderRadius: 'var(--radius-pill)' }} /></td>
-        </tr>
-      ));
-    }
-
-    if (pagedJobs.length === 0) {
-      return (
-        <tr>
-          <td colSpan={5} className="ivd-cell-empty">
-            <div className="ivd-empty">
-              <div className="ivd-empty-icon" aria-hidden="true">
-                <Briefcase size={24} strokeWidth={1.75} />
-              </div>
-              {hasActiveFilters ? (
-                <>
-                  <h3 className="text-title-s">No postings match these filters</h3>
-                  <p className="text-body-m">Try another department or clear the filters to see all of your assigned postings.</p>
-                  <button type="button" className="btn btn-sm btn-secondary" onClick={clearFilters}>Clear Filters</button>
-                </>
-              ) : (
-                <>
-                  <h3 className="text-title-s">Nothing to evaluate 🎉</h3>
-                  <p className="text-body-m">You have no postings waiting for an evaluation. New assignments from RSP will appear here.</p>
-                </>
-              )}
-            </div>
-          </td>
-        </tr>
-      );
-    }
-
-    return pagedJobs.map((job) => {
-      const remaining = Math.max(0, job.applicant_count - (job.evaluated_count ?? 0));
-      const status = job.interview_date ? getDateStatus(job.interview_date, todayKey) : null;
-      const showItemNo = job.item_number && job.item_number !== 'N/A';
-      return (
-        <tr key={job.id}>
-          <td className="ivd-cell-title">
-            <span className="ivd-job-title">{job.title}</span>
-            {showItemNo && <span className="ivd-job-meta text-body-s">Item No. {job.item_number}</span>}
-          </td>
-          <td className="ivd-cell-office" data-label="Office / Department">
-            <span>{job.office}</span>
-            {job.department && job.department !== job.office && (
-              <span className="ivd-job-meta text-body-s">{job.department}</span>
-            )}
-          </td>
-          <td className="ivd-cell-count is-num" data-label="Applicants">
-            <span
-              className={`ivd-count${remaining === 0 ? ' is-zero' : ''}`}
-              title={`${remaining} of ${job.applicant_count} still to evaluate`}
-              aria-label={`${remaining} of ${job.applicant_count} applicants still to evaluate`}
-            >
-              {remaining}
-            </span>
-          </td>
-          <td className="ivd-cell-date" data-label="Interview date">
-            {job.interview_date ? (
-              <span className="ivd-date">
-                <span className="ivd-date-text">{formatDate(job.interview_date)}</span>
-                {status && (
-                  <span className={`badge ${DATE_BADGE[status].className}`}>
-                    <span className="badge-dot" aria-hidden="true" />
-                    {DATE_BADGE[status].label}
-                  </span>
-                )}
-              </span>
-            ) : (
-              <span className="ivd-muted">Not scheduled</span>
-            )}
-          </td>
-          <td className="is-action">
-            <button
-              type="button"
-              className="btn btn-sm btn-primary"
-              onClick={() => handleViewJobApplicants(job.title)}
-              aria-label={`View applicants for ${job.title}`}
-            >
-              View<span className="ivd-view-more">Applicants</span>
-              <ArrowRight size={16} strokeWidth={1.75} aria-hidden="true" />
-            </button>
-          </td>
-        </tr>
-      );
-    });
-  };
+  const statusLabel = STATUS_OPTIONS.find((o) => o.value === statusFilter)?.label ?? '';
 
   return (
     <div className="abyan-ds ivd">
-      {/* ── Top navigation bar (same lockup as the admin portals' header) ── */}
+      {/* ── Top navigation bar (§8.2) ── */}
       <nav className="ivd-nav" aria-label="Interviewer Portal">
         <button type="button" className="ivd-brand" onClick={() => navigate('/interviewer/dashboard')}>
           <img src={abyanLogo} alt="" />
@@ -916,31 +526,20 @@ export function InterviewerDashboard({
         </div>
       </nav>
 
-      {/* ── Straight-edged hero with angular brand shapes (§7.1) ── */}
+      {/* ── Hero: gradient + blended Iloilo City Hall photo, straight edges ── */}
       <header className="ivd-hero">
-        {/* Every slanted edge moves 49px sideways per 100px down (≈26°):
-            "/" edges on P1/P2/P4, "\" on P3/P4, so only two angles are used. */}
-        <svg className="ivd-hero-shapes" viewBox="0 0 900 360" width="900" height="360" aria-hidden="true" focusable="false">
-          <polygon className="ivd-poly ivd-poly--dark" points="700,0 900,0 900,360 524,360" />
-          <polygon className="ivd-poly ivd-poly--light ivd-poly--p1" points="380,0 620,0 444,360 204,360" />
-          <polygon className="ivd-poly ivd-poly--vivid ivd-poly--p4" points="736,0 912,360 560,360" />
-          <polygon className="ivd-poly ivd-poly--lighter" points="760,0 900,0 900,286" />
-        </svg>
-
-        <div className="ivd-hero-ghosts" aria-hidden="true">
-          {[0, 1, 2].map((card) => (
-            <div key={card} className="ivd-ghost">
-              <div className="ivd-ghost-head">
-                <ClipboardList size={16} strokeWidth={1.75} />
-                To Evaluate
-              </div>
-              {[0, 1, 2, 3].map((row) => (
-                <div key={row} className="ivd-ghost-row"><i /><i /><i /><i /></div>
-              ))}
-            </div>
-          ))}
-        </div>
-
+        {heroPhotoOk && (
+          <div className="ivd-hero-photo" aria-hidden="true">
+            <img
+              src={HERO_PHOTO_URL}
+              alt=""
+              loading="lazy"
+              decoding="async"
+              onError={() => setHeroPhotoOk(false)}
+            />
+            <span className="ivd-hero-photo-tint" />
+          </div>
+        )}
         <div className="ivd-container">
           <div className="ivd-hero-text">
             <h1 className="text-title-l">Interviewer Dashboard</h1>
@@ -977,10 +576,9 @@ export function InterviewerDashboard({
         </div>
       )}
 
-      {/* ── Content panel overlapping the hero curve ── */}
       <main className="ivd-container ivd-main">
-        <div className="ivd-panel">
-          {error ? (
+        {error ? (
+          <div className="ivd-card">
             <div className="ivd-alert" role="alert">
               <CircleAlert size={20} strokeWidth={1.75} aria-hidden="true" />
               <div>
@@ -991,132 +589,279 @@ export function InterviewerDashboard({
                 </button>
               </div>
             </div>
-          ) : (
-            <>
-              <section aria-label="Evaluation summary">{renderKpiRow()}</section>
+          </div>
+        ) : (
+          <>
+            {/* ── 1. KPI quick-view cards ── */}
+            <section className="ivd-kpis" aria-label="Evaluation summary" aria-busy={loading}>
+              {KPI_ORDER.map((kpi) => (
+                <KpiCard
+                  key={kpi}
+                  kpi={kpi}
+                  rows={kpiSets[kpi]}
+                  loading={loading}
+                  onOpen={() => openKpiModal(kpi)}
+                  cardRef={(el) => { kpiCardRefs.current[kpi] = el; }}
+                />
+              ))}
+            </section>
 
-              <section className="ivd-section" ref={tableSectionRef} aria-labelledby="ivd-postings-title">
-                <div className="ivd-section-head">
-                  <div>
-                    <h2 id="ivd-postings-title" className="text-title-m">Assigned job postings</h2>
-                    <p className="text-body-m">Open a posting to view and evaluate its applicants.</p>
-                  </div>
+            {/* ── 2. Filters & search (§9.4) ── */}
+            <section className="ivd-card ivd-filters" aria-labelledby="ivd-filters-label">
+              <p id="ivd-filters-label" className="ivd-filters-label text-caps">Filters &amp; search</p>
+              <div className="ivd-toolbar">
+                <SearchField
+                  value={searchInput}
+                  onChange={setSearchInput}
+                  label="Search candidate, position, or office"
+                  placeholder="Search candidate, position, or office…"
+                />
+                <SelectField
+                  value={departmentFilter}
+                  onChange={setDepartmentFilter}
+                  label="Department"
+                  options={departmentOptions(departments)}
+                  icon={Building2}
+                />
+                <SelectField
+                  value={statusFilter}
+                  onChange={(value) => setStatusFilter(value as StatusFilter)}
+                  label="Status"
+                  options={statusOptions}
+                />
+              </div>
 
-                  <div className="ivd-toolbar">
-                    <label className="ivd-field">
-                      <span className="sr-only">Search job postings</span>
-                      <Search className="ivd-field-icon" size={20} strokeWidth={1.75} aria-hidden="true" />
-                      <input
-                        type="search"
-                        placeholder="Search by job title or office…"
-                        value={searchTerm}
-                        onChange={(e) => setSearchTerm(e.target.value)}
-                        className="ivd-input"
-                      />
-                    </label>
-
-                    <label className="ivd-field">
-                      <span className="sr-only">Filter by department</span>
-                      <Building2 className="ivd-field-icon" size={20} strokeWidth={1.75} aria-hidden="true" />
-                      <select
-                        value={departmentFilter}
-                        onChange={(e) => setDepartmentFilter(e.target.value)}
-                        className="ivd-select"
-                      >
-                        <option value="all">All Departments</option>
-                        {uniqueDepartments.map(dept => (
-                          <option key={dept} value={dept}>{dept}</option>
-                        ))}
-                      </select>
-                      <ChevronDown className="ivd-field-caret" size={16} strokeWidth={1.75} aria-hidden="true" />
-                    </label>
-                  </div>
-                </div>
-
-                {(kpiFilter || departmentFilter !== 'all') && (
-                  <div className="ivd-chips" aria-live="polite">
-                    {kpiFilter && (
-                      <span className="ivd-chip">
-                        Filtered: <strong>{KPI_CONFIG[kpiFilter].label}</strong>
-                        <button type="button" onClick={() => setKpiFilter(null)} aria-label={`Remove ${KPI_CONFIG[kpiFilter].label} filter`}>
-                          <X size={14} strokeWidth={1.75} aria-hidden="true" />
-                        </button>
-                      </span>
-                    )}
-                    {departmentFilter !== 'all' && (
-                      <span className="ivd-chip">
-                        Department: <strong>{departmentFilter}</strong>
-                        <button type="button" onClick={() => setDepartmentFilter('all')} aria-label={`Remove ${departmentFilter} filter`}>
-                          <X size={14} strokeWidth={1.75} aria-hidden="true" />
-                        </button>
-                      </span>
-                    )}
-                  </div>
-                )}
-
-                <div className="ivd-table-wrap">
-                  <table className="ivd-table" aria-busy={loading}>
-                    <thead>
-                      <tr>
-                        <th scope="col">Job title / position</th>
-                        <th scope="col">Office / department</th>
-                        <th scope="col" className="is-num">Applicants</th>
-                        <th scope="col">Interview date</th>
-                        <th scope="col" className="is-action"><span className="sr-only">Action</span></th>
-                      </tr>
-                    </thead>
-                    <tbody>{renderTableBody()}</tbody>
-                  </table>
-                </div>
-
-                {!loading && filteredJobs.length > 0 && (
-                  <nav className="ivd-pager" aria-label="Job postings pages">
-                    <span className="ivd-pager-info text-body-s">
-                      Showing {pageStart + 1}–{pageStart + pagedJobs.length} of {filteredJobs.length} entries
+              {hasActiveFilters && (
+                <div className="ivd-chips" aria-live="polite">
+                  {query && (
+                    <span className="ivd-chip">
+                      Search: <strong>“{searchInput.trim()}”</strong>
+                      <button type="button" onClick={() => setSearchInput('')} aria-label="Remove search filter">
+                        <X size={14} strokeWidth={1.75} aria-hidden="true" />
+                      </button>
                     </span>
-                    {pageCount > 1 && (
-                      <div className="ivd-pager-btns">
-                        <button
-                          type="button"
-                          className="ivd-page ivd-page--nav"
-                          onClick={() => setPage(currentPage - 1)}
-                          disabled={currentPage === 1}
-                        >
-                          <ChevronLeft size={16} strokeWidth={1.75} aria-hidden="true" /> Previous
-                        </button>
-                        {getPageList(currentPage, pageCount).map((p, i) =>
-                          p === 'gap' ? (
-                            <span key={`gap-${i}`} className="ivd-page-num ivd-muted" aria-hidden="true">…</span>
-                          ) : (
-                            <button
-                              key={p}
-                              type="button"
-                              className={`ivd-page ivd-page-num${p === currentPage ? ' is-active' : ''}`}
-                              onClick={() => setPage(p)}
-                              aria-current={p === currentPage ? 'page' : undefined}
-                              aria-label={`Page ${p}`}
-                            >
-                              {p}
-                            </button>
-                          ),
-                        )}
-                        <button
-                          type="button"
-                          className="ivd-page ivd-page--nav"
-                          onClick={() => setPage(currentPage + 1)}
-                          disabled={currentPage === pageCount}
-                        >
-                          Next <ChevronRight size={16} strokeWidth={1.75} aria-hidden="true" />
-                        </button>
-                      </div>
+                  )}
+                  {departmentFilter !== 'all' && (
+                    <span className="ivd-chip">
+                      Department: <strong>{departmentFilter}</strong>
+                      <button type="button" onClick={() => setDepartmentFilter('all')} aria-label={`Remove ${departmentFilter} filter`}>
+                        <X size={14} strokeWidth={1.75} aria-hidden="true" />
+                      </button>
+                    </span>
+                  )}
+                  {statusFilter !== 'all' && (
+                    <span className="ivd-chip">
+                      Status: <strong>{statusLabel}</strong>
+                      <button type="button" onClick={() => setStatusFilter('all')} aria-label={`Remove ${statusLabel} filter`}>
+                        <X size={14} strokeWidth={1.75} aria-hidden="true" />
+                      </button>
+                    </span>
+                  )}
+                  <button type="button" className="ivd-link" onClick={clearFilters}>Clear all</button>
+                </div>
+              )}
+            </section>
+
+            {/* ── 3. Assigned job postings (§9.5) ── */}
+            <section className="ivd-card" aria-labelledby="ivd-postings-title">
+              <div className="ivd-section-head">
+                <h2 id="ivd-postings-title" className="text-title-m">Assigned job postings</h2>
+                <p className="text-body-l">Open a posting to view and evaluate its applicants.</p>
+              </div>
+
+              <div className="ivd-table-wrap">
+                <table className="ivd-table" aria-busy={loading}>
+                  <thead>
+                    <tr>
+                      <th scope="col">Job title / position</th>
+                      <th scope="col">Office / department</th>
+                      <th scope="col" className="is-num">Applicants</th>
+                      <th scope="col">Interview date</th>
+                      <th scope="col" className="is-action"><span className="sr-only">Action</span></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {loading ? (
+                      Array.from({ length: 3 }, (_, i) => (
+                        <tr key={`skeleton-${i}`} aria-hidden="true">
+                          <td className="ivd-cell-primary"><span className="ivd-skel" style={{ width: '60%', height: 14 }} /></td>
+                          <td><span className="ivd-skel" style={{ width: '70%', height: 14 }} /></td>
+                          <td className="is-num"><span className="ivd-skel" style={{ width: 32, height: 24, marginLeft: 'auto' }} /></td>
+                          <td className="ivd-cell-wide"><span className="ivd-skel" style={{ width: 120, height: 14 }} /></td>
+                          <td className="is-action"><span className="ivd-skel" style={{ width: 148, height: 36, marginLeft: 'auto', borderRadius: 'var(--radius-pill)' }} /></td>
+                        </tr>
+                      ))
+                    ) : postings.pageItems.length === 0 ? (
+                      <tr>
+                        <td colSpan={5} className="ivd-cell-empty">
+                          <div className="ivd-empty">
+                            <div className="ivd-empty-icon" aria-hidden="true"><Briefcase size={24} strokeWidth={1.75} /></div>
+                            {hasActiveFilters ? (
+                              <>
+                                <h3 className="text-title-s">No postings match these filters</h3>
+                                <p className="text-body-m">Try another department or status, or clear the filters.</p>
+                                <button type="button" className="btn btn-sm btn-secondary" onClick={clearFilters}>Clear Filters</button>
+                              </>
+                            ) : (
+                              <>
+                                <h3 className="text-title-s">Nothing to evaluate. You're all caught up.</h3>
+                                <p className="text-body-m">New assignments from RSP will appear here.</p>
+                              </>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    ) : (
+                      postings.pageItems.map((job) => {
+                        const remaining = Math.max(0, job.applicant_count - (job.evaluated_count ?? 0));
+                        const showItemNo = job.item_number && job.item_number !== 'N/A';
+                        return (
+                          <tr key={job.id}>
+                            <td className="ivd-cell-primary">
+                              <span className="ivd-job-title">{job.title}</span>
+                              {showItemNo && <span className="ivd-job-meta text-body-s">Item No. {job.item_number}</span>}
+                            </td>
+                            <td data-label="Office / Department">
+                              <span>{job.office}</span>
+                              {job.department && job.department !== job.office && (
+                                <span className="ivd-job-meta text-body-s">{job.department}</span>
+                              )}
+                            </td>
+                            <td className="is-num" data-label="Applicants">
+                              <span
+                                className={`ivd-count${remaining === 0 ? ' is-zero' : ''}`}
+                                title={`${remaining} of ${job.applicant_count} still to evaluate`}
+                                aria-label={`${remaining} of ${job.applicant_count} applicants still to evaluate`}
+                              >
+                                {remaining}
+                              </span>
+                            </td>
+                            <td className="ivd-cell-wide" data-label="Interview date">
+                              <DateCell raw={job.interview_date ?? ''} todayKey={todayKey} />
+                            </td>
+                            <td className="is-action">
+                              <button
+                                type="button"
+                                className="btn btn-sm btn-primary"
+                                onClick={() => handleViewJobApplicants(job.title)}
+                                aria-label={`View applicants for ${job.title}`}
+                              >
+                                View<span className="ivd-view-more">Applicants</span>
+                                <ArrowRight size={16} strokeWidth={1.75} aria-hidden="true" />
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      })
                     )}
-                  </nav>
-                )}
-              </section>
-            </>
-          )}
-        </div>
+                  </tbody>
+                </table>
+              </div>
+
+              {!loading && (
+                <Pager total={filteredJobs.length} page={postings.current} pageSize={POSTINGS_PAGE_SIZE} onPage={setPostingsPage} label="Job postings pages" />
+              )}
+            </section>
+
+            {/* ── 4. Evaluation history ── */}
+            <section className="ivd-card" aria-labelledby="ivd-history-title">
+              <div className="ivd-section-head">
+                <h2 id="ivd-history-title" className="text-title-m">Evaluation History</h2>
+                <p className="text-body-l">Your submitted evaluations</p>
+              </div>
+
+              <div className="ivd-table-wrap">
+                <table className="ivd-table" aria-busy={loading}>
+                  <thead>
+                    <tr>
+                      <th scope="col">Candidate</th>
+                      <th scope="col">Position</th>
+                      <th scope="col">Department</th>
+                      <th scope="col">Date evaluated</th>
+                      <th scope="col">Result / rating</th>
+                      <th scope="col">Status</th>
+                      <th scope="col" className="is-action"><span className="sr-only">Action</span></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {loading ? (
+                      Array.from({ length: 2 }, (_, i) => (
+                        <tr key={`history-skeleton-${i}`} aria-hidden="true">
+                          <td className="ivd-cell-primary"><span className="ivd-skel" style={{ width: '70%', height: 14 }} /></td>
+                          <td><span className="ivd-skel" style={{ width: '70%', height: 14 }} /></td>
+                          <td><span className="ivd-skel" style={{ width: '70%', height: 14 }} /></td>
+                          <td><span className="ivd-skel" style={{ width: 96, height: 14 }} /></td>
+                          <td><span className="ivd-skel" style={{ width: 96, height: 14 }} /></td>
+                          <td><span className="ivd-skel" style={{ width: 88, height: 24 }} /></td>
+                          <td className="is-action"><span className="ivd-skel" style={{ width: 72, height: 36, marginLeft: 'auto', borderRadius: 'var(--radius-pill)' }} /></td>
+                        </tr>
+                      ))
+                    ) : history.pageItems.length === 0 ? (
+                      <tr>
+                        <td colSpan={7} className="ivd-cell-empty">
+                          <div className="ivd-empty">
+                            <div className="ivd-empty-icon" aria-hidden="true"><Briefcase size={24} strokeWidth={1.75} /></div>
+                            <h3 className="text-title-s">
+                              {hasActiveFilters ? 'No evaluations match these filters.' : 'No evaluations submitted yet.'}
+                            </h3>
+                            <p className="text-body-m">
+                              {hasActiveFilters
+                                ? 'Clear the filters to see all of your submitted evaluations.'
+                                : 'Evaluations you submit will be listed here.'}
+                            </p>
+                          </div>
+                        </td>
+                      </tr>
+                    ) : (
+                      history.pageItems.map((row) => (
+                        <tr key={row.id}>
+                          <td className="ivd-cell-primary"><span className="ivd-job-title" title={row.name}>{row.name}</span></td>
+                          <td data-label="Position">{row.position}</td>
+                          <td data-label="Department">{row.department}</td>
+                          <td data-label="Date evaluated">{formatDate(row.evaluatedAt)}</td>
+                          <td data-label="Result / rating">
+                            <span>{row.recommendation || '—'}</span>
+                            {row.rating !== null && (
+                              <span className="ivd-job-meta text-body-s">Rating {row.rating.toFixed(1)} / 5</span>
+                            )}
+                          </td>
+                          <td data-label="Status"><EvalStatusBadge evaluated /></td>
+                          <td className="is-action">
+                            <button
+                              type="button"
+                              className="btn btn-sm btn-secondary"
+                              onClick={() => openApplicantsList(row)}
+                              aria-label={`View ${row.name}`}
+                            >
+                              View
+                            </button>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+
+              {!loading && (
+                <Pager total={historyRows.length} page={history.current} pageSize={HISTORY_PAGE_SIZE} onPage={setHistoryPage} label="Evaluation history pages" />
+              )}
+            </section>
+          </>
+        )}
       </main>
+
+      {openKpi && (
+        <CandidateListModal
+          kpi={openKpi}
+          rows={kpiSets[openKpi]}
+          departments={departments}
+          todayKey={todayKey}
+          onClose={closeKpiModal}
+          onEvaluate={openEvaluation}
+          onView={openApplicantsList}
+        />
+      )}
 
       {/* Delete Confirmation Dialog */}
       <Dialog open={deleteConfirmOpen} onClose={() => setDeleteConfirmOpen(false)}>

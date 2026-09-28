@@ -1742,7 +1742,7 @@ export function ApplicantDetailsPage() {
   }
 
   return (
-    <div className={isRspAdmin ? 'min-h-screen bg-[#f8f9fa]' : 'min-h-screen bg-slate-100'}>
+    <div className={isRspAdmin ? 'rsp-ds min-h-screen bg-[#f8f9fa]' : 'min-h-screen bg-slate-100'}>
       {isRspAdmin && <AdminHeader userName="RSP Admin" divisionLabel="RSP Division" />}
       <div className={isRspAdmin ? 'admin-layout' : ''}>
         {isRspAdmin && <Sidebar activeModule="RSP" userRole="rsp" />}

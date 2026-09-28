@@ -255,7 +255,7 @@ export const ApplicationsListPage = () => {
   // ── Loading ────────────────────────────────────────────────────────────────
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#f8f9fa]">
+      <div className="rsp-ds min-h-screen bg-[#f8f9fa]">
         <AdminHeader userName="RSP Admin" divisionLabel="RSP Division" />
         <div className="admin-layout">
           <Sidebar activeModule="RSP" userRole="rsp" />
@@ -274,7 +274,7 @@ export const ApplicationsListPage = () => {
 
   // ── Render ─────────────────────────────────────────────────────────────────
   return (
-    <div className="min-h-screen bg-[#f8f9fa]">
+    <div className="rsp-ds min-h-screen bg-[#f8f9fa]">
       <AdminHeader userName="RSP Admin" divisionLabel="RSP Division" />
       <div className="admin-layout">
         <Sidebar activeModule="RSP" userRole="rsp" />
@@ -487,12 +487,12 @@ export const ApplicationsListPage = () => {
                   : `Showing ${(safePage - 1) * ITEMS_PER_PAGE + 1}–${Math.min(safePage * ITEMS_PER_PAGE, filtered.length)} of ${filtered.length}`}
               </p>
               <div className="flex items-center gap-2">
-                <button className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-300 bg-white text-slate-500 disabled:opacity-40 hover:bg-slate-50"
+                <button aria-label="Previous page" className="rsp-pager flex h-8 w-8 items-center justify-center rounded-lg border border-slate-300 bg-white text-slate-500 disabled:opacity-40 hover:bg-slate-50"
                   onClick={() => setPage(p => Math.max(1, p - 1))} disabled={safePage === 1}>
                   <ChevronLeft className="h-4 w-4" />
                 </button>
                 <span className="text-xs font-medium">Page {safePage} of {totalPages}</span>
-                <button className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-300 bg-white text-slate-500 disabled:opacity-40 hover:bg-slate-50"
+                <button aria-label="Next page" className="rsp-pager flex h-8 w-8 items-center justify-center rounded-lg border border-slate-300 bg-white text-slate-500 disabled:opacity-40 hover:bg-slate-50"
                   onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={safePage === totalPages}>
                   <ChevronRight className="h-4 w-4" />
                 </button>

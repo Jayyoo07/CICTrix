@@ -43,6 +43,9 @@ import { InterviewerApplicantsList } from './modules/interviewer/InterviewerAppl
 import { InterviewerDashboard } from './modules/interviewer/InterviewerDashboard';
 import { InterviewerLogin } from './modules/interviewer/InterviewerLogin';
 import './styles/globals.css';
+// After globals.css: remaps RSP-portal utilities onto the Design Identity tokens.
+import './styles/abyan-tokens.css';
+import './styles/rsp-design.css';
 import type { Employee, EmployeeSession } from './types/employee.types';
 import { scheduleTransientUiReset } from './utils/uiReset';
 

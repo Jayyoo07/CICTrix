@@ -60,6 +60,7 @@
 
   /* On-blue surfaces (§8.1, §9.1) */
   --on-blue-muted: rgba(255,255,255,.85);
+  --on-blue-text: rgba(255,255,255,.90);   /* §4.2 hero subtext */
   --on-blue-hover: rgba(255,255,255,.10);
   --on-blue-active: rgba(255,255,255,.18);
   --on-blue-border: rgba(255,255,255,.5);

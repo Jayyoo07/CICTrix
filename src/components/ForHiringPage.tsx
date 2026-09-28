@@ -706,7 +706,7 @@ export const ForHiringPage = () => {
 
   // ── Shell layout ──────────────────────────────────────────────────────────
   const Shell = ({ children }: { children: React.ReactNode }) => (
-    <div className="min-h-screen bg-[#f8f9fa]">
+    <div className="rsp-ds min-h-screen bg-[#f8f9fa]">
       <AdminHeader userName="RSP Admin" divisionLabel="RSP Division" />
       <div className="admin-layout">
         <Sidebar activeModule="RSP" userRole="rsp" />

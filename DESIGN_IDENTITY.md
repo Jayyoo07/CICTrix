@@ -128,7 +128,7 @@ This document is the single source of truth for how ABYAN looks and feels. Every
 | **Brand Soft** | `linear-gradient(135deg, #C8D1FF 0%, #363EE8 100%)` | Feature panels, illustration backdrops, progress accents |
 | **Primary Button** | `linear-gradient(180deg, #363EE8 0%, #191FA8 100%)` | Primary buttons (subtle; see Buttons) |
 
-Hero backgrounds are straight-edged and decorated only with **angular polygons** (diagonal slices, parallelograms, triangles) in tonal indigo at 6–14% opacity; see §7.1. **No circles, rings, arcs or curved hero corners.**
+Portal heroes are straight-edged: the hero gradient plus one blended, faded photograph (see §7.1). **No drawn shapes** (circles, arcs, blobs, polygons) and no curved hero corners.
 
 ### 3.6 Semantic status colors
 
@@ -268,7 +268,7 @@ Each status color has three steps. **100** = soft background, **300** = borders/
 
 ## 7. Brand Pattern & Graphics
 
-The brand pattern is a set of **geometric blue tiles**: quarter-circles, half-discs, solid squares, a diamond/checker grid, and vertical stripes, all built from the blue family (`#000CFF`, `#191FA8`, `#363EE8`, a lighter sky tone, and `#C8D1FF`). **Hero backgrounds use only the straight-edged subset** (slices, parallelograms, triangles; see §7.1). Rounded tiles stay in login panels, empty states and marketing material.
+The brand pattern is a set of **geometric blue tiles**: quarter-circles, half-discs, solid squares, a diamond/checker grid, and vertical stripes, all built from the blue family (`#000CFF`, `#191FA8`, `#363EE8`, a lighter sky tone, and `#C8D1FF`). **Portal heroes don't use the pattern at all** (they use a blended photo; see §7.1). The tiles stay in login panels, empty states and marketing material.
 
 **Use it for:** login/registration side panels, hero backdrops (low opacity), empty states, cover/section headers, error pages, and slide/marketing material.
 
@@ -279,37 +279,29 @@ The brand pattern is a set of **geometric blue tiles**: quarter-circles, half-di
 - Keep a single accent direction per composition.
 - Keep text over patterns at ≥4.5:1 contrast, or place text on a solid blue panel beside the pattern.
 
-### 7.1 Hero backdrop shapes (angular only)
+### 7.1 Portal hero (photo, straight edges)
 
-Portal and landing heroes are **straight-edged**. Their depth comes from a few large **angular polygons** (diagonal slices, parallelograms, triangles) layered in tonal indigo/navy.
+Portal heroes use the hero gradient plus **one blended photograph**. There are **no drawn shapes**: no circles, arcs, blobs, polygons or decorative screenshots.
 
 **Hero container**
-- `border-radius: 0` on **all four corners**, including bottom-left and bottom-right. The bottom edge is a straight horizontal line.
-- The same zero radius applies to any wrapper, overlay or pseudo-element on the hero.
-- `overflow: hidden`, so shapes that bleed off the top, right or bottom are clipped to that straight edge.
+- `--gradient-hero`, with `border-radius: 0` on all four corners and a straight bottom edge.
+- `overflow: hidden`.
+- It sits **below** the top navigation bar (§8.2); the photo never runs behind the bar or the logo (§2).
 
-**Shapes**
+**Photo layer**
 
 | Rule | Spec |
 |---|---|
-| Geometry | Straight-edged polygons only (`clip-path: polygon()` or inline SVG `<polygon>`). **No** circles, ellipses, arcs, blobs, swooshes, `border-radius: 50%`, radial "orb" gradients or rounded SVG paths. |
-| Count | 3–4 shapes on desktop; 2–3 on tablet; 1–2 on mobile, at lower opacity. |
-| Angles | One or two slant angles across the whole composition (the interviewer hero uses ≈26°: 49px sideways per 100px down, as both `/` and `\`). Draw the shapes at a fixed pixel size (e.g. an SVG anchored to the right edge) so the angle doesn't stretch with the viewport. |
-| Tones | Slightly lighter and slightly darker than the gradient, at **6–14% opacity**: white 6–10%, `#040E6B` ~14%, `#000CFF` ~12%. |
-| Placement | Mainly the **right half and top-right**. The left side, where the logo, title and subtitle sit, stays clean and quiet. |
-| Finish | Flat fills: no strokes, outlines, drop shadows or blur. |
+| Source | A team-provided local file, e.g. `/assets/hero/iloilo-city-hall.webp`. Never hotlink. Keep it under ~200KB (WebP, ~1600px wide). If it fails to load, render the gradient alone. |
+| Placement | Absolutely positioned over the **right 60–65%** of the hero; `object-fit: cover`, anchored so the building shows. `aria-hidden="true"`, `alt=""`, `pointer-events: none`, `loading="lazy"`. |
+| Blend | `opacity` 18–25% with `mix-blend-mode: luminosity` (or `soft-light`), so it reads as a blue-toned photo, not a pasted picture. |
+| Overlay | A deep-blue tint over the photo: `#040E6B` at 55%. |
+| Fade | A horizontal mask fading the photo and tint to fully transparent toward the left, so the title and subtitle sit on clean gradient. |
+| Mobile (< 640px) | Hide the photo, or drop it to 12–15% opacity. |
 
-**Optional faint table cards.** Decorative "To Evaluate"-style table cards may sit on top of the shapes on desktop (≥1024px) only:
-- 8–15% opacity, with square corners.
-- `aria-hidden="true"` and `pointer-events: none`.
+**Text.** Title L (white) and Body L subtitle (white at 90%), left-aligned. Both must pass **4.5:1** at every point behind the text. Check the lightest pixel behind the text, not the average.
 
-**Content card**
-- The white content wrapper overlaps the hero's straight bottom edge by 40–56px.
-- Its top edge is straight. It uses the **small radius** only (`--radius-md`, 8px): no large or pill-shaped corners.
-
-**Contrast**
-- White title and subtitle text must pass WCAG AA against both the darkest and the lightest area behind them.
-- A shape behind the title may never be lighter or more opaque than the base gradient allows.
+**Content below the hero.** The KPI cards overlap the hero's straight bottom edge by ~72px (56px on mobile). Every section after that is its **own white card** (1px `#E2E8F0`, radius 12px) with 32px between sections. Do **not** wrap sections in one large white container.
 
 ---
 
@@ -554,6 +546,21 @@ Use status colors for the icon chip only when the KPI itself is a status metric 
 | Trainings completed | `check-circle-2` | Green |
 | Succession-ready employees | `trending-up` | Green |
 
+#### 9.7.1 Quick-view KPI card (list-style)
+
+Used where a KPI should also preview **who** it counts (e.g. Interviewer Dashboard: To evaluate / Due today / Completed).
+
+| Part | Spec |
+|---|---|
+| Card | White, 1px `#E2E8F0`, radius 12px, padding 20–24px, **no gradient or shadow at rest**. Fixed height (~360px); content is capped, so it never scrolls or overflows. Three per row at ≥1024px, stacked below that, 16–24px gap. |
+| Header | Title (Title S) on the left, a muted outline Lucide icon (`#94A3B8`) on the right, and a 1px `#E2E8F0` divider beneath. |
+| KPI strip | Optional 40px status chip (100 bg / 500 icon; status metrics only), the value (Title L `#040E6B`) and a one-line Body S `#515F69` subtext. |
+| List | At most 3 rows. Each row is a 40px `#EEF0FF` chip with a `file-text` icon, then the name (Headline S `#040E6B`) over a meta line (Body S `#515F69`, "Position · Department · MMM DD, YYYY"). Rows are separated by 1px dividers; text truncates with an ellipsis and a tooltip. |
+| Footer | "View all (N) →" in brand blue, Body M Medium. **Visual only.** |
+| Empty / loading | Centered icon, short line and next step inside the list area. Shimmer skeletons for the header, the number and 3 rows. |
+| Interaction | The whole card is one control (`role="button"`, `tabindex="0"`, Enter/Space, `aria-haspopup="dialog"`) with no nested interactive elements. Hover: elevation 1 + `#C8D1FF` border. Focus: 2px `#363EE8` ring. |
+| Opens | A **large list modal** (§9.10, 880px): toolbar (§9.4) plus a table paginated at 8 rows (§9.6). Focus is trapped inside and returns to the card on close. It becomes a full-screen sheet on mobile, and only the overlay scrolls, never an area inside the modal. |
+
 ### 9.8 Status & Category Badges
 
 - **Shape:** pill, height 24–28px, padding `0 12px`, Body S (12px Medium), optional 6px dot or 14px icon at left.
@@ -668,7 +675,7 @@ Categories such as **Department**, **Employment type** (Permanent, Casual, Contr
 | **Employee portal** | Sidebar + topbar, `#F1F5F9` page | Personal KPIs (competency score, trainings, career path), progress bars in brand blue |
 | **HR / Admin portal** | Sidebar + topbar, `#F1F5F9` page | Dense tables, filters, bulk actions, charts; follow the table toolbar pattern strictly |
 | **Reports / Print** | White background, no gradients | Use Poppins, blue table headers `#040E6B` with white text, logo top-left |
-| **Interviewer portal** | Top navigation bar (§8.2) + straight-edged gradient hero with angular shapes (§7.1); white content card (8px radius) overlaps its straight bottom edge | KPI cards open a compact quick view; table paginates (no long scroll) |
+| **Interviewer portal** | Top navigation bar (§8.2) + straight-edged photo hero (§7.1); three KPI quick-view cards overlap the hero; each later section is its own card | KPI cards (§9.7.1) open a wide, paginated list modal; tables paginate at 5 rows |
 | **Emails / PDFs** | Blue header band with white logo | Buttons follow primary pill style; status badges as in §9.8 |
 
 ---
@@ -832,7 +839,8 @@ module.exports = {
 | Reuse the table toolbar and pagination patterns | Re-style search/sort/pagination per module |
 | Show KPI: icon chip + title + value | Add gradients, shadows, or clashing colors to KPI cards |
 | Keep brand patterns in heroes/auth/empty states | Put patterns behind dense data |
-| Use straight-edged angular polygons in hero backgrounds (§7.1) | Use circles, arcs, blobs or rounded hero corners |
+| Use the gradient + one blended, faded photo in portal heroes (§7.1) | Draw circles, arcs, blobs or polygons in the hero, or round its corners |
+| Give each dashboard section its own white card | Wrap every section in one big white container |
 | Keep the same top navigation bar and lockup in every portal (§8.2) | Restyle the header, logo lockup or Logout per portal |
 | Keep the Logout label and icon white | Let a global text color turn the Logout label dark |
 

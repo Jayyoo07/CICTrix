@@ -16,6 +16,7 @@ import { useRealtimeRefresh } from '../../hooks/useRealtimeRefresh';
 import { POSITION_TO_DEPARTMENT_MAP } from '../../constants/positions';
 import { getPreferredDataSourceMode } from '../../lib/dataSourceMode';
 import { isPositionAssignedToInterviewer, resolveAssignedPositionsForInterviewer } from '../../lib/interviewerAccess';
+import { getApplicantType, storeApplicantTypeForEval } from '../../lib/interviewerEvalNavigation';
 import { sendEmail } from '../../lib/email';
 import { mockDatabase } from '../../lib/mockDatabase';
 import { ensureRecruitmentSeedData, getAuthoritativeJobPostings, getApplicants as getRecruitmentApplicants } from '../../lib/recruitmentData';
@@ -39,24 +40,6 @@ interface Applicant {
   employee_id?: string | null;
 }
 
-const SCORE_SETUP_STORAGE_KEY = 'cictrix_rsp_score_setup';
-
-const getApplicantType = (applicant: Applicant): 'Original' | 'Promotional' => {
-  const appType = String(applicant.application_type ?? '').trim().toLowerCase();
-  const hasEmployeeId = Boolean(applicant.employee_id);
-  return appType === 'promotion' || appType === 'promotional' || hasEmployeeId ? 'Promotional' : 'Original';
-};
-
-const storeApplicantTypeForEval = (applicantId: string, type: 'Original' | 'Promotional') => {
-  try {
-    const raw = localStorage.getItem(SCORE_SETUP_STORAGE_KEY);
-    const parsed = raw ? (JSON.parse(raw) as Record<string, string>) : {};
-    parsed[applicantId] = type === 'Promotional' ? 'promotional' : 'original';
-    localStorage.setItem(SCORE_SETUP_STORAGE_KEY, JSON.stringify(parsed));
-  } catch {
-    // best effort
-  }
-};
 
 interface ApplicantAttachment {
   id: string;

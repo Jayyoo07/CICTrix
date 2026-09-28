@@ -468,13 +468,15 @@ const persistDashboardJobsToRecruitment = (rows: JobRecord[]) => {
   saveJobPostings(mapped);
 };
 
+// Status → colour follows DESIGN_IDENTITY.md §10. Negatives are checked first:
+// "disqualified" contains "qualified" and must not render green.
 const getStatusClass = (status: string) => {
   const lowered = status.toLowerCase();
+  if (lowered.includes('disqualif') || lowered.includes('reject') || lowered.includes('cancel')) return 'bg-red-100 text-red-700';
   if (lowered.includes('open')) return 'bg-green-100 text-green-700';
-  if (lowered.includes('review')) return 'bg-blue-100 text-blue-700';
-  if (lowered.includes('closed')) return 'bg-slate-200 text-slate-700';
-  if (lowered.includes('qualified') || lowered.includes('completed')) return 'bg-emerald-100 text-emerald-700';
-  if (lowered.includes('pending')) return 'bg-amber-100 text-amber-700';
+  if (lowered.includes('review') || lowered.includes('interview') || lowered.includes('pending')) return 'bg-amber-100 text-amber-700';
+  if (lowered.includes('closed')) return 'bg-slate-100 text-slate-700';
+  if (lowered.includes('qualified') || lowered.includes('completed') || lowered.includes('hired')) return 'bg-emerald-100 text-emerald-700';
   return 'bg-slate-100 text-slate-700';
 };
 
@@ -3413,7 +3415,7 @@ export const RSPDashboard = () => {
   ];
 
   return (
-    <div className="min-h-screen bg-slate-100 text-slate-800">
+    <div className="rsp-ds min-h-screen bg-slate-100 text-slate-800">
       <AdminHeader
         userName="RSP Admin"
         divisionLabel="RSP Division"
@@ -3444,8 +3446,8 @@ export const RSPDashboard = () => {
                 <section className="grid grid-cols-1 gap-5 xl:grid-cols-4">
                   {[
                     { label: 'Total Job Openings', value: dashboardStats.totalJobs, icon: FileText, iconBg: 'bg-blue-100', iconColor: 'text-blue-600' },
-                    { label: 'Total Applicants', value: dashboardStats.totalApplicants, icon: Users, iconBg: 'bg-green-100', iconColor: 'text-green-600' },
-                    { label: 'Shortlisted Applicants', value: dashboardStats.shortlisted, icon: UserCheck, iconBg: 'bg-purple-100', iconColor: 'text-purple-600' },
+                    { label: 'Total Applicants', value: dashboardStats.totalApplicants, icon: Users, iconBg: 'bg-blue-100', iconColor: 'text-blue-600' },
+                    { label: 'Shortlisted Applicants', value: dashboardStats.shortlisted, icon: UserCheck, iconBg: 'bg-blue-100', iconColor: 'text-blue-600' },
                     { label: 'Positions Under Review', value: dashboardStats.underReview, icon: Clock3, iconBg: 'bg-orange-100', iconColor: 'text-orange-600' },
                   ].map((card) => {
                     const Icon = card.icon;
@@ -4152,7 +4154,8 @@ export const RSPDashboard = () => {
                       </p>
                       <div className="flex items-center gap-2">
                         <button
-                          className="rounded border border-slate-300 p-1 disabled:opacity-40"
+                          aria-label="Previous page"
+                          className="rsp-pager inline-flex items-center justify-center rounded border border-slate-300 p-1 disabled:opacity-40"
                           onClick={() => setEmployeeDirectoryPage((current) => Math.max(0, current - 1))}
                           disabled={safeEmployeeDirectoryPage === 0 || filteredOfficeDirectoryRows.length === 0}
                         >
@@ -4160,7 +4163,8 @@ export const RSPDashboard = () => {
                         </button>
                         <span className="font-semibold text-slate-800">Page {safeEmployeeDirectoryPage + 1} / {employeeDirectoryPageCount}</span>
                         <button
-                          className="rounded border border-slate-300 p-1 disabled:opacity-40"
+                          aria-label="Next page"
+                          className="rsp-pager inline-flex items-center justify-center rounded border border-slate-300 p-1 disabled:opacity-40"
                           onClick={() => setEmployeeDirectoryPage((current) => Math.min(employeeDirectoryPageCount - 1, current + 1))}
                           disabled={safeEmployeeDirectoryPage >= employeeDirectoryPageCount - 1 || filteredOfficeDirectoryRows.length === 0}
                         >
@@ -4256,7 +4260,7 @@ export const RSPDashboard = () => {
                           </h2>
                           <p className="!mb-2 text-sm text-slate-500">{selectedEmployeeDbRecord?.position ?? selectedEmployeeDetails?.position ?? '—'}</p>
                           <div className="flex flex-wrap items-center gap-2">
-                            <span className={`rounded-full px-3 py-1 text-xs font-semibold ${(selectedEmployeeDbRecord?.status ?? selectedEmployeeDetails?.status)?.toLowerCase().includes('inactive') ? 'bg-rose-100 text-rose-700' : 'bg-emerald-100 text-emerald-700'}`}>
+                            <span className={`rounded-full px-3 py-1 text-xs font-semibold ${(selectedEmployeeDbRecord?.status ?? selectedEmployeeDetails?.status)?.toLowerCase().includes('inactive') ? 'bg-slate-100 text-slate-700' : 'bg-emerald-100 text-emerald-700'}`}>
                               {(selectedEmployeeDbRecord?.status ?? selectedEmployeeDetails?.status)?.toLowerCase().includes('inactive') ? 'Inactive' : 'Active'}
                             </span>
                             {(selectedEmployeeDbRecord?.employee_number ?? (selectedEmployeeDetails && employeeNumberById.get(selectedEmployeeDetails.id))) && (
@@ -4713,8 +4717,8 @@ export const RSPDashboard = () => {
                             <div className="mt-2 flex items-center justify-between text-xs text-slate-500">
                               <span>Showing {page * PAGE + 1}–{Math.min((page + 1) * PAGE, filtered.length)} of {filtered.length}</span>
                               <div className="flex gap-1.5">
-                                <button onClick={() => setArchivesClosedPage(p => Math.max(0, p - 1))} disabled={page === 0} className="rounded-lg border border-slate-200 px-3 py-1 font-semibold disabled:opacity-40">Previous</button>
-                                <button onClick={() => setArchivesClosedPage(p => Math.min(totalPages - 1, p + 1))} disabled={page >= totalPages - 1} className="rounded-lg border border-slate-200 px-3 py-1 font-semibold disabled:opacity-40">Next</button>
+                                <button onClick={() => setArchivesClosedPage(p => Math.max(0, p - 1))} disabled={page === 0} className="rsp-pager rounded-lg border border-slate-200 px-3 py-1 font-semibold disabled:opacity-40">Previous</button>
+                                <button onClick={() => setArchivesClosedPage(p => Math.min(totalPages - 1, p + 1))} disabled={page >= totalPages - 1} className="rsp-pager rounded-lg border border-slate-200 px-3 py-1 font-semibold disabled:opacity-40">Next</button>
                               </div>
                             </div>
                           )}
@@ -4797,8 +4801,8 @@ export const RSPDashboard = () => {
                             <div className="mt-2 flex items-center justify-between text-xs text-slate-500">
                               <span>Showing {page * PAGE + 1}–{Math.min((page + 1) * PAGE, filtered.length)} of {filtered.length}</span>
                               <div className="flex gap-1.5">
-                                <button onClick={() => setArchivesTempPage(p => Math.max(0, p - 1))} disabled={page === 0} className="rounded-lg border border-slate-200 px-3 py-1 font-semibold disabled:opacity-40">Previous</button>
-                                <button onClick={() => setArchivesTempPage(p => Math.min(totalPages - 1, p + 1))} disabled={page >= totalPages - 1} className="rounded-lg border border-slate-200 px-3 py-1 font-semibold disabled:opacity-40">Next</button>
+                                <button onClick={() => setArchivesTempPage(p => Math.max(0, p - 1))} disabled={page === 0} className="rsp-pager rounded-lg border border-slate-200 px-3 py-1 font-semibold disabled:opacity-40">Previous</button>
+                                <button onClick={() => setArchivesTempPage(p => Math.min(totalPages - 1, p + 1))} disabled={page >= totalPages - 1} className="rsp-pager rounded-lg border border-slate-200 px-3 py-1 font-semibold disabled:opacity-40">Next</button>
                               </div>
                             </div>
                           )}
@@ -4988,7 +4992,8 @@ export const RSPDashboard = () => {
                                 const rank = idx + 1;
                                 const medalBg = rank === 1 ? 'bg-yellow-400 text-yellow-900' : rank === 2 ? 'bg-slate-300 text-slate-800' : rank === 3 ? 'bg-amber-500 text-amber-900' : 'bg-slate-100 text-slate-600';
                                 const statusLc = row.status.toLowerCase();
-                                const statusColor = statusLc.includes('hired') ? 'bg-green-100 text-green-700' : statusLc.includes('qualified') ? 'bg-blue-100 text-blue-700' : statusLc.includes('disqualified') || statusLc.includes('rejected') ? 'bg-red-100 text-red-700' : 'bg-slate-100 text-slate-600';
+                                // §10: check "disqualified" before "qualified" (substring).
+                                const statusColor = statusLc.includes('disqualified') || statusLc.includes('rejected') ? 'bg-red-100 text-red-700' : statusLc.includes('hired') || statusLc.includes('qualified') ? 'bg-green-100 text-green-700' : 'bg-slate-100 text-slate-600';
                                 return (
                                   <tr key={row.id} className="border-b border-slate-100 last:border-0">
                                     <td className="px-4 py-3 text-center">

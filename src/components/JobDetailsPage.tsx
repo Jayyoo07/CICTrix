@@ -105,12 +105,12 @@ export const JobDetailsPage = () => {
 
   if (!job && !landingJob) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-6 flex items-center justify-center">
+      <div className={`${location.pathname.startsWith('/admin') ? 'rsp-ds ' : ''}min-h-screen bg-[#F1F5F9] p-6 flex items-center justify-center`}>
         <div className="text-center">
           <p className="text-slate-600 text-lg">Job posting not found.</p>
           <button
             onClick={() => navigate(-1)}
-            className="mt-4 inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+            className="mt-4 inline-flex h-[45px] items-center gap-2 rounded-full bg-[#363EE8] px-6 font-semibold text-white hover:bg-[#191FA8]"
           >
             <ArrowLeft className="h-4 w-4" />
             Go Back
@@ -149,11 +149,11 @@ export const JobDetailsPage = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-6">
+    <div className={`${isAdminView ? 'rsp-ds ' : ''}min-h-screen bg-[#F1F5F9] p-4 sm:p-6`}>
       {/* Header */}
       <button
         onClick={() => navigate(-1)}
-        className="mb-6 inline-flex items-center gap-2 px-4 py-2 bg-white rounded-lg border border-slate-200 text-slate-700 hover:bg-slate-50 transition-colors shadow-sm"
+        className="mb-6 inline-flex h-9 items-center gap-2 rounded-full border-[1.5px] border-[#363EE8] bg-white px-4 text-[13px] font-semibold text-[#363EE8] transition-colors hover:bg-[#EEF0FF]"
       >
         <ArrowLeft className="h-4 w-4" />
         Back
@@ -162,11 +162,12 @@ export const JobDetailsPage = () => {
       {/* Main Container */}
       <div className="max-w-4xl mx-auto">
         {/* Header Section with ABYAN Branding */}
-        <div className="bg-white rounded-2xl shadow-lg overflow-hidden mb-6 border-t-4 border-sky-500">
-          <div className="bg-gradient-to-r from-[#C8D1FF] via-[#7F93FF] to-[#363EE8] px-8 py-10 text-white">
+        <div className="mb-6 overflow-hidden rounded-xl border border-[#E2E8F0] bg-white">
+          {/* Hero gradient, straight edges, no drawn shapes (DESIGN_IDENTITY.md §3.5, §7.1) */}
+          <div className="bg-gradient-to-b from-[#363EE8] to-[#040E6B] px-6 py-8 text-white sm:px-8 sm:py-10">
             <div className="flex flex-col gap-6 mb-6">
               <div>
-                <h1 className="text-4xl font-bold mb-3">{title}</h1>
+                <h1 className="mb-3 text-[28px] font-bold leading-[34px] text-white sm:text-[36px] sm:leading-[40px]">{title}</h1>
                 <div className="flex items-center gap-3 text-slate-100">
                   <Briefcase className="h-5 w-5" />
                   <span className="text-lg font-semibold">

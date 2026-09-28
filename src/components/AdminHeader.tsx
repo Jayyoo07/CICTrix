@@ -33,29 +33,30 @@ export const AdminHeader = ({
     >
       {/* `min-w-0` on every flex child so a long name/label truncates instead of
           pushing its siblings off the right edge of the viewport. */}
-      <div className="flex w-full items-center justify-between gap-2 px-3 py-2 sm:gap-4 sm:px-6 sm:py-3">
+      {/* 64px bar (56px mobile), 24px side padding (16px mobile) — §8.2 */}
+      <div className="flex h-14 w-full items-center justify-between gap-2 px-4 sm:h-16 sm:gap-4 sm:px-6">
 
-        {/* Left — Logo & Branding (click to go to portal home) */}
+        {/* Left — single-line lockup: [Mark] ABYAN  Human Resource Information
+            System, 12px apart (§8.2). Click goes to the portal home. */}
         <button
           type="button"
-          className="flex min-w-0 flex-1 items-center gap-2 cursor-pointer sm:gap-3"
+          aria-label="ABYAN HRIS — go to portal home"
+          className="flex min-w-0 flex-1 items-center gap-3 cursor-pointer rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/50"
           onClick={() => navigate(homeUrl)}
         >
           <img
             src={abyanLogo}
-            alt="ABYAN HRIS"
+            alt=""
             className="h-8 w-auto shrink-0 object-contain sm:h-10"
             style={{ mixBlendMode: 'screen' }}
           />
-          <div className="flex min-w-0 flex-col items-start text-left leading-tight">
-            <span className="truncate text-base font-bold tracking-tight sm:text-lg" style={{ color: '#ffffff' }}>
-              ABYAN
-            </span>
-            {/* Full system name only where there is room for it */}
-            <span className="hidden truncate text-xs font-medium md:block" style={{ color: 'rgba(255,255,255,0.80)' }}>
-              Human Resource Information System
-            </span>
-          </div>
+          <span className="shrink-0 text-xl font-bold leading-none sm:text-[22px]" style={{ color: '#ffffff' }}>
+            ABYAN
+          </span>
+          {/* System name only where there is room for it (≥1024px) */}
+          <span className="hidden truncate text-base font-normal leading-none lg:block" style={{ color: '#ffffff' }}>
+            Human Resource Information System
+          </span>
         </button>
 
         {/* Right — User info + Logout. Never shrinks below its content, and its

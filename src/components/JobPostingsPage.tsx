@@ -61,7 +61,7 @@ const normalizeRomanNumeralsInText = (value: string) =>
 const STATUS_COLORS: Record<JobPosting['status'], string> = {
   Draft: 'bg-slate-100 text-slate-700',
   Active: 'bg-emerald-100 text-emerald-700',
-  Closed: 'bg-rose-100 text-rose-700',
+  Closed: 'bg-slate-100 text-slate-700',   // §10: Closed = Neutral, not Error
   Filled: 'bg-blue-100 text-blue-700',
 };
 
@@ -1277,7 +1277,7 @@ export const JobPostingsPage = () => {
   };
 
   return (
-    <div className="min-h-screen bg-[#f8f9fa]">
+    <div className="rsp-ds min-h-screen bg-[#f8f9fa]">
       <AdminHeader userName="RSP Admin" divisionLabel="RSP Division" />
     <div className="admin-layout">
       <Sidebar activeModule="RSP" userRole="rsp" />
@@ -1323,11 +1323,14 @@ export const JobPostingsPage = () => {
 
           const statusClass = (status: string) => {
             const s = status.toLowerCase();
-            if (s.includes('qualified') || s.includes('shortlist') || s.includes('recommend') || s.includes('hired')) return 'bg-emerald-100 text-emerald-700';
+            // DESIGN_IDENTITY.md §10 application-status map. Negatives first:
+            // "not qualified" / "disqualified" both contain "qualified".
             if (s.includes('reject') || s.includes('not qualified') || s.includes('disqual')) return 'bg-rose-100 text-rose-700';
-            if (s.includes('interview')) return 'bg-purple-100 text-purple-700';
-            if (s.includes('review') || s.includes('pending')) return 'bg-blue-100 text-blue-700';
-            return 'bg-amber-100 text-amber-700';
+            if (s.includes('withdraw') || s.includes('closed') || s.includes('draft')) return 'bg-slate-100 text-slate-700';
+            if (s.includes('interview') || s.includes('review') || s.includes('pending')) return 'bg-amber-100 text-amber-700';
+            if (s.includes('shortlist')) return 'bg-blue-100 text-blue-700';
+            if (s.includes('qualified') || s.includes('recommend') || s.includes('hired') || s.includes('approved')) return 'bg-emerald-100 text-emerald-700';
+            return 'bg-blue-100 text-blue-700';   // Submitted / Received
           };
 
           const renderCard = (a: typeof jobApplicantsRows[number], i: number) => (
@@ -1663,7 +1666,7 @@ export const JobPostingsPage = () => {
                           <button
                             type="button"
                             title="View Details"
-                            className="rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-blue-700 transition-colors"
+                            className="rounded-lg border border-blue-600 bg-white px-3 py-1.5 text-xs font-semibold text-blue-600 hover:bg-blue-50 transition-colors"
                             onClick={() => navigate(`/admin/rsp/job/${job.id}`)}
                           >
                             Details
@@ -1671,7 +1674,7 @@ export const JobPostingsPage = () => {
                           <button
                             type="button"
                             title="View Applicants"
-                            className="rounded-lg bg-slate-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-slate-700 transition-colors"
+                            className="rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-blue-700 transition-colors"
                             onClick={() => { setViewingApplicantsFor(job); setJobApplicantsSearch(''); setJobApplicantsSlotFilter('all'); }}
                           >
                             Applicants
@@ -1679,7 +1682,7 @@ export const JobPostingsPage = () => {
                           <button
                             type="button"
                             title="Edit Position"
-                            className="rounded-lg border border-blue-300 px-3 py-1.5 text-xs font-semibold text-blue-700 hover:bg-blue-50 transition-colors"
+                            className="rounded-lg border border-blue-600 bg-white px-3 py-1.5 text-xs font-semibold text-blue-600 hover:bg-blue-50 transition-colors"
                             onClick={() => openEditModal(job)}
                           >
                             Edit
@@ -1720,11 +1723,11 @@ export const JobPostingsPage = () => {
           <div className="mt-3 flex items-center justify-between px-1 text-sm text-slate-600">
             <p>{filteredJobs.length === 0 ? 'No results' : `Showing ${(page - 1) * ITEMS_PER_PAGE + 1}–${Math.min(page * ITEMS_PER_PAGE, filteredJobs.length)} of ${filteredJobs.length}`}</p>
             <div className="flex items-center gap-2">
-              <button className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-300 bg-white text-slate-500 disabled:opacity-40 hover:bg-slate-50" onClick={() => setPage((c) => Math.max(1, c - 1))} disabled={page === 1}>
+              <button aria-label="Previous page" className="rsp-pager flex h-8 w-8 items-center justify-center rounded-lg border border-slate-300 bg-white text-slate-500 disabled:opacity-40 hover:bg-slate-50" onClick={() => setPage((c) => Math.max(1, c - 1))} disabled={page === 1}>
                 <ChevronLeft className="h-4 w-4" />
               </button>
               <span className="text-xs font-medium">Page {page} of {totalPages || 1}</span>
-              <button className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-300 bg-white text-slate-500 disabled:opacity-40 hover:bg-slate-50" onClick={() => setPage((c) => Math.min(totalPages, c + 1))} disabled={page === totalPages}>
+              <button aria-label="Next page" className="rsp-pager flex h-8 w-8 items-center justify-center rounded-lg border border-slate-300 bg-white text-slate-500 disabled:opacity-40 hover:bg-slate-50" onClick={() => setPage((c) => Math.min(totalPages, c + 1))} disabled={page === totalPages}>
                 <ChevronRight className="h-4 w-4" />
               </button>
             </div>
