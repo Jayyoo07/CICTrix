@@ -227,14 +227,6 @@ export function EvaluationForm() {
     return 'Not Qualified';
   };
 
-  const persistDataSourceMode = (mode: 'local' | 'supabase') => {
-    try {
-      localStorage.setItem('cictrix_data_source_mode', mode);
-    } catch {
-      // Ignore localStorage write errors
-    }
-  };
-
   useEffect(() => {
     const { name, locked } = resolveInterviewerIdentity();
     if (name) {
@@ -475,21 +467,10 @@ export function EvaluationForm() {
         }
       };
 
-      let successfulClient: any = supabase;
-      try {
-        await submitWithClient(supabase);
-        successfulClient = supabase;
-        persistDataSourceMode('supabase');
-      } catch (primaryErr) {
-        if (isMockModeEnabled) {
-          throw primaryErr;
-        }
-        await submitWithClient(mockDatabase as any);
-        successfulClient = mockDatabase as any;
-        persistDataSourceMode('local');
-      }
+      // No mock fallback: a failed save must reach the interviewer as an error.
+      await submitWithClient(supabase);
 
-      await updateApplicantStatus(successfulClient);
+      await updateApplicantStatus(supabase);
 
       saveInterviewerScoreSnapshot(id, applicant?.email, {
         pcptAverage: averagePcpt,

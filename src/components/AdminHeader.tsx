@@ -1,6 +1,7 @@
-import { LogOut, UserCircle2 } from 'lucide-react';
+import { AlertTriangle, LogOut, UserCircle2 } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import abyanLogo from '../assets/abyan-logo.png';
+import { getPreferredDataSourceMode } from '../lib/dataSourceMode';
 import { LogoutConfirmPopover } from './LogoutConfirmPopover';
 
 interface AdminHeaderProps {
@@ -25,6 +26,7 @@ export const AdminHeader = ({
   const navigate = useNavigate();
   const { pathname } = useLocation();
   const homeUrl = getPortalHome(pathname);
+  const isMockData = getPreferredDataSourceMode() === 'local';
 
   return (
     <header
@@ -62,6 +64,19 @@ export const AdminHeader = ({
         {/* Right — User info + Logout. Never shrinks below its content, and its
             own children truncate, so it always stays inside the viewport. */}
         <div className="flex shrink-0 items-center gap-2 sm:gap-4">
+          {/* Mock-data warning — solid warning badge (§9.8), only rendered
+              when this browser is off the live database. */}
+          {isMockData && (
+            <div
+              className="hidden shrink-0 items-center gap-1.5 rounded-full px-3 py-1 sm:flex"
+              style={{ backgroundColor: '#E8821A' }}
+              title="This browser is showing locally stored mock data, not the live database."
+            >
+              <AlertTriangle className="h-3.5 w-3.5" style={{ color: '#ffffff' }} />
+              <span className="text-xs font-medium" style={{ color: '#ffffff' }}>Mock data mode</span>
+            </div>
+          )}
+
           {/* User block */}
           <div className="flex min-w-0 items-center gap-2 sm:gap-3">
             <div
