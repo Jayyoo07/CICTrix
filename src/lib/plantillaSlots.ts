@@ -4,6 +4,12 @@ import type {
   PlantillaSlot,
   PlantillaSlotStatus,
 } from '../types/recruitment.types';
+import {
+  internalPlantillaKey,
+  isPlantillaHasApplicationsError,
+  plantillaLabel,
+  validatePlantillaLabels,
+} from './plantillaRules';
 
 /**
  * Plantilla slots — the vacancies inside a job post.
@@ -46,6 +52,7 @@ const toSlot = (row: any): PlantillaSlot => ({
   id: String(row?.id ?? ''),
   jobPostingId: String(row?.job_posting_id ?? ''),
   slotNumber: Number(row?.slot_number ?? 1) || 1,
+  label: row?.label ? String(row.label).trim() : undefined,
   itemNumber: String(row?.item_number ?? '').trim(),
   salaryGrade: row?.salary_grade == null ? undefined : Number(row.salary_grade),
   monthlySalary: row?.monthly_salary == null ? undefined : Number(row.monthly_salary),
@@ -143,135 +150,125 @@ export const fetchApplicantSlotLinks = async (
   return grouped;
 };
 
-// ─── Uniqueness ─────────────────────────────────────────────────────────────
-
-/**
- * Item numbers are unique system-wide, not per posting — two different posts
- * cannot both advertise ABYAN-2026-451. `excludeSlotIds` lets the edit modal
- * ignore the rows it is itself saving.
- */
-export const findTakenItemNumbers = async (
-  itemNumbers: string[],
-  excludeSlotIds: string[] = [],
-): Promise<Set<string>> => {
-  const taken = new Set<string>();
-  const candidates = itemNumbers.map((value) => value.trim()).filter(Boolean);
-  if (candidates.length === 0) return taken;
-
-  try {
-    const { data, error } = await client
-      .from('plantilla_slots')
-      .select('id, item_number');
-    if (error) {
-      // Cannot verify -> do not block the save. The unique index is the real
-      // guarantee; this check only exists to fail early with a clear message.
-      if (!isMissingSlotSchema(error)) console.warn('[plantillaSlots] uniqueness check failed:', error);
-      return taken;
-    }
-
-    const excluded = new Set(excludeSlotIds.filter(Boolean));
-    const used = new Map<string, string>();
-    (data ?? []).forEach((row: any) => {
-      const id = String(row?.id ?? '');
-      if (excluded.has(id)) return;
-      used.set(normalizeItemNumber(row?.item_number), id);
-    });
-
-    candidates.forEach((candidate) => {
-      if (used.has(normalizeItemNumber(candidate))) taken.add(candidate);
-    });
-  } catch (err) {
-    console.warn('[plantillaSlots] uniqueness check threw:', err);
-  }
-  return taken;
-};
-
 // ─── Writes ─────────────────────────────────────────────────────────────────
 
 export type SlotDraft = {
   /** Present when editing an existing row; absent for a newly added slot. */
   id?: string;
-  itemNumber: string;
+  /** Admin-entered name, e.g. "Plantilla 2". Required, unique per posting. */
+  label: string;
+  /** Internal key. Kept as-is for existing rows; generated for new ones. */
+  itemNumber?: string;
   salaryGrade?: number;
   monthlySalary?: number;
   status?: PlantillaSlotStatus;
 };
 
 /**
- * Replace a posting's slot list with `drafts`, in order.
+ * Replace a posting's plantilla list with `drafts`, in order.
  *
- * Ordinals are assigned from the array index, which is what makes "delete
- * Plantilla 2 and 3/4 shift up" work: the item numbers stay attached to their
- * own rows, only the label moves. Rows the admin removed are deleted last, so
- * the BEFORE DELETE trigger sees the new rows and only flags applicants who
- * genuinely have nothing left on the posting.
+ * Ordinals come from the array index, which is how the admin reorders
+ * plantillas. Labels are what everyone sees. Internal item_number keys stay
+ * attached to their own rows (applications match on them).
  */
 export const saveSlotsForJob = async (
   jobPostingId: string,
   drafts: SlotDraft[],
 ): Promise<SlotResult<PlantillaSlot[]>> => {
   if (!jobPostingId) return { ok: false, error: 'Missing job posting id.' };
-  const cleaned = drafts
-    .map((draft) => ({ ...draft, itemNumber: String(draft.itemNumber ?? '').trim() }))
-    .filter((draft) => draft.itemNumber.length > 0);
+  const cleaned = drafts.map((draft) => ({
+    ...draft,
+    label: String(draft.label ?? '').trim().replace(/\s+/g, ' '),
+    itemNumber: String(draft.itemNumber ?? '').trim(),
+  }));
 
-  if (cleaned.length === 0) {
-    return { ok: false, error: 'A job post needs at least one plantilla slot.' };
-  }
+  const labelProblem = validatePlantillaLabels(cleaned.map((draft) => draft.label));
+  if (labelProblem) return { ok: false, error: labelProblem };
 
   const existing = await fetchSlotsForJob(jobPostingId);
   const keptIds = new Set(cleaned.map((draft) => draft.id).filter(Boolean) as string[]);
-  const removedIds = existing.filter((slot) => !keptIds.has(slot.id)).map((slot) => slot.id);
+  const removed = existing.filter((slot) => !keptIds.has(slot.id));
+
+  // A plantilla with applications can't be deleted (the database refuses too);
+  // say so before touching anything, so nothing is half-saved.
+  if (removed.length > 0) {
+    const counts = await fetchSlotApplicantCounts(jobPostingId);
+    const blocked = removed.filter((slot) => (counts.get(slot.id) ?? 0) > 0);
+    if (blocked.length > 0) {
+      return {
+        ok: false,
+        error: `${blocked.map((slot) => plantillaLabel(slot)).join(', ')} already ${blocked.length === 1 ? 'has' : 'have'} applications and can't be removed. Close ${blocked.length === 1 ? 'it' : 'them'} instead.`,
+      };
+    }
+  }
 
   // Every row carries an id, including brand-new ones. PostgREST rejects a
   // bulk payload whose objects do not all have the same keys (PGRST102), so
-  // "id on some rows only" is not an option.
-  const withIds = cleaned.map((draft) => ({ ...draft, id: draft.id ?? crypto.randomUUID() }));
+  // "id on some rows only" is not an option. For the same reason every row
+  // also carries an item_number: the existing internal key, or a fresh one.
+  const withIds = cleaned.map((draft) => ({
+    ...draft,
+    id: draft.id ?? crypto.randomUUID(),
+    itemNumber: draft.itemNumber || internalPlantillaKey(),
+  }));
 
   // Two passes. Ordinals are unique per posting, so writing the final numbers
   // straight onto rows that are being reshuffled would collide with the rows
   // still holding those numbers. Park the existing ones above the range first.
+  // Labels are unique per posting too, so parked rows get a temporary label.
   const parkOffset = existing.length + cleaned.length + 100;
 
-  try {
-    const reshuffled = withIds.filter((draft) => keptIds.has(draft.id));
-    if (reshuffled.length > 0) {
-      const parkRows = reshuffled.map((draft, index) => ({
-        id: draft.id,
-        slot_number: parkOffset + index,
-      }));
-      // Plain UPDATEs, not an upsert: these rows already exist, and an upsert
-      // payload this narrow would reset every column it omits on any row that
-      // turned out to be missing.
-      for (const parkRow of parkRows) {
-        const { error: parkError } = await client
-          .from('plantilla_slots')
-          .update({ slot_number: parkRow.slot_number })
-          .eq('id', parkRow.id);
-        if (parkError) throw parkError;
-      }
-    }
-
-    const rows = withIds.map((draft, index) => ({
+  const buildRows = (withLabel: boolean) =>
+    withIds.map((draft, index) => ({
       id: draft.id,
       job_posting_id: jobPostingId,
       slot_number: index + 1,
+      ...(withLabel ? { label: draft.label } : {}),
       item_number: draft.itemNumber,
       salary_grade: draft.salaryGrade ?? null,
       monthly_salary: draft.monthlySalary ?? null,
       status: draft.status ?? 'open',
     }));
 
-    const { error: upsertError } = await client
+  const isMissingLabelColumn = (err: any) =>
+    ['42703', 'PGRST204'].includes(String(err?.code ?? '')) && String(err?.message ?? '').includes('label');
+
+  try {
+    let labelSupported = true;
+    const reshuffled = withIds.filter((draft) => keptIds.has(draft.id));
+    for (let index = 0; index < reshuffled.length; index += 1) {
+      const parkId = reshuffled[index].id;
+      const parkPatch: Record<string, unknown> = { slot_number: parkOffset + index };
+      if (labelSupported) parkPatch.label = `__parking_${parkId}`;
+      // Plain UPDATEs, not an upsert: these rows already exist, and an upsert
+      // payload this narrow would reset every column it omits.
+      let { error: parkError } = await client.from('plantilla_slots').update(parkPatch).eq('id', parkId);
+      if (parkError && isMissingLabelColumn(parkError)) {
+        // Migration 20260928 not applied: ordinals only, labels live in the app.
+        labelSupported = false;
+        ({ error: parkError } = await client
+          .from('plantilla_slots')
+          .update({ slot_number: parkOffset + index })
+          .eq('id', parkId));
+      }
+      if (parkError) throw parkError;
+    }
+
+    let { error: upsertError } = await client
       .from('plantilla_slots')
-      .upsert(rows, { onConflict: 'id' });
+      .upsert(buildRows(labelSupported), { onConflict: 'id' });
+    if (upsertError && labelSupported && isMissingLabelColumn(upsertError)) {
+      ({ error: upsertError } = await client
+        .from('plantilla_slots')
+        .upsert(buildRows(false), { onConflict: 'id' }));
+    }
     if (upsertError) throw upsertError;
 
-    if (removedIds.length > 0) {
+    if (removed.length > 0) {
       const { error: deleteError } = await client
         .from('plantilla_slots')
         .delete()
-        .in('id', removedIds);
+        .in('id', removed.map((slot) => slot.id));
       if (deleteError) throw deleteError;
     }
 
@@ -285,14 +282,44 @@ export const saveSlotsForJob = async (
           'Plantilla slots are not available yet — migration 20260922_plantilla_slots.sql has not been applied to this database.',
       };
     }
+    if (isPlantillaHasApplicationsError(err)) {
+      return { ok: false, error: 'A plantilla that already has applications can\'t be removed. Close it instead.' };
+    }
     const code = String(err?.code ?? '');
     const message = String(err?.message ?? err ?? '');
     if (code === '23505' || message.toLowerCase().includes('duplicate key')) {
-      return { ok: false, error: 'One of those plantilla item numbers is already used by another job post.' };
+      return {
+        ok: false,
+        error: message.includes('label')
+          ? 'Two plantillas in this job post have the same name. Each name must be unique.'
+          : 'Could not save the plantillas because of a conflict. Please try again.',
+      };
     }
     console.error('[plantillaSlots] saveSlotsForJob failed:', err);
-    return { ok: false, error: message || 'Could not save the plantilla slots.' };
+    return { ok: false, error: message || 'Could not save the plantillas.' };
   }
+};
+
+/**
+ * Applicants per plantilla, keyed by slot id. Reads the 20260928 view, and
+ * falls back to counting link rows when that migration isn't applied.
+ */
+export const fetchSlotApplicantCounts = async (jobPostingId?: string): Promise<Map<string, number>> => {
+  const counts = new Map<string, number>();
+  try {
+    let query = client.from('plantilla_slot_applicant_counts').select('plantilla_slot_id, applicant_count');
+    if (jobPostingId) query = query.eq('job_posting_id', jobPostingId);
+    const { data, error } = await query;
+    if (!error) {
+      (data ?? []).forEach((row: any) => counts.set(String(row.plantilla_slot_id), Number(row.applicant_count) || 0));
+      return counts;
+    }
+  } catch {
+    // fall through to the link-table count
+  }
+  const links = await fetchApplicantSlotLinks();
+  links.forEach((list) => list.forEach((link) => counts.set(link.slotId, (counts.get(link.slotId) ?? 0) + 1)));
+  return counts;
 };
 
 /** Link one application to the slots the applicant ticked. */

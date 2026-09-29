@@ -26,6 +26,8 @@ interface ApplicantAssessmentFormProps {
    * Education in the two-column grid while DOM order stays reading order.
    */
   afterEducation?: ReactNode;
+  /** Name of the plantilla this form is for, e.g. "Plantilla 2". Blank for a general application. */
+  plantillaName?: string;
   /** Makes element ids unique per plantilla form (one form per tab). */
   idPrefix?: string;
 }
@@ -43,6 +45,7 @@ export const ApplicantAssessmentForm: React.FC<ApplicantAssessmentFormProps> = (
   lockedPosition = false,
   afterEducation,
   idPrefix = 'af',
+  plantillaName = '',
 }) => {
   // Departments come from the canonical Supabase table, shared with every other
   // screen — never a list local to this form.
@@ -386,13 +389,13 @@ export const ApplicantAssessmentForm: React.FC<ApplicantAssessmentFormProps> = (
             )}
           </div>
 
-          {/* The position's official staffing-pattern code, shown only when the
-              applicant came in through a job post. Their own tracking code is
-              the Reference No., which the system issues on submission. */}
+          {/* The plantilla this application is for, by its admin-given name
+              ("Plantilla 2"). Never a code: the applicant's tracking code is
+              the Reference No., issued on submission. */}
           <Input
-            label="Plantilla Item No."
+            label="Plantilla"
             placeholder="Applies only when you apply through a specific job posting"
-            value={formData.item_number}
+            value={plantillaName}
             readOnly
           />
 
@@ -487,8 +490,7 @@ export const ApplicantAssessmentForm: React.FC<ApplicantAssessmentFormProps> = (
       >
         <p className="af-notice" style={{ marginBottom: 20 }}>
           <strong>HR policy notice:</strong> Only enter work experience relevant to the position you are applying for,
-          if required by HR policies. Upload your <strong>Curriculum Vitae (CV)</strong> as a supporting document in the
-          Documents section below.
+          if required by HR policies.
         </p>
         <div className="af-fields">
           <Input

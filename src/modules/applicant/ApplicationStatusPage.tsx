@@ -5,6 +5,7 @@ import { ATTACHMENTS_BUCKET, supabase } from '../../lib/supabase';
 import { getApplicants, saveApplicants } from '../../lib/recruitmentData';
 import { parseDisqualificationReason, getDisqualificationReasonLabel } from '../../lib/applicationActivity';
 import { fetchApplicantSlotLinks, fetchSlotsByJobPosting } from '../../lib/plantillaSlots';
+import { plantillaLabel } from '../../lib/plantillaRules';
 import type { ApplicationSlotStatus, PlantillaSlot } from '../../types/recruitment.types';
 
 /** The columns the tracker is allowed to look an application up by. */
@@ -913,11 +914,10 @@ export const ApplicationStatusPage = () => {
                       return (
                         <li key={slot.id} className="flex flex-wrap items-center justify-between gap-2">
                           <span className="text-sm" style={{ color: '#040E6B' }}>
-                            <span className="font-semibold">Plantilla {slot.slotNumber}</span>
-                            <span className="ml-2" style={{ color: '#363EE8' }}>{slot.itemNumber}</span>
+                            <span className="font-semibold">{plantillaLabel(slot)}</span>
                           </span>
                           <span className={`rounded-full px-3 py-1 text-xs font-semibold ${tone}`}>
-                            {label} for Plantilla {slot.slotNumber}
+                            {label} for {plantillaLabel(slot)}
                           </span>
                         </li>
                       );

@@ -7,8 +7,8 @@ interface AttachmentsUploadFormProps {
   files: UploadedFile[];
   onFilesChange: (files: UploadedFile[]) => void;
   error?: string;
-  /** The position's Plantilla Item No., when applying through a job post. */
-  plantillaItemNo?: string;
+  /** Name of the plantilla applied for, e.g. "Plantilla 2". */
+  plantillaName?: string;
   applicationType?: 'job' | 'promotion';
   formData?: ApplicantFormData;
   onChange?: (field: keyof ApplicantFormData, value: string | boolean) => void;
@@ -29,7 +29,7 @@ const EXPIRING_IDS = ['Passport', "Driver's License", 'PRC ID', 'Postal ID'];
 export type DocumentType =
   | 'application_letter'
   | 'pds_with_photo'
-  | 'curriculum_vitae'
+  | 'curriculum_vitae' // no longer requested; kept so older uploads still type-check
   | 'eligibility_proof'
   | 'training_certificate'
   | 'transcript_of_records'
@@ -53,12 +53,6 @@ export const REQUIRED_DOCUMENTS = [
     type: 'pds_with_photo' as DocumentType,
     label: 'Personal Data Sheet (PDS)',
     description: 'CS Form No. 212, Revised 2023 with Work Experience Sheet and recent passport-sized photo; digitally signed',
-    required: true,
-  },
-  {
-    type: 'curriculum_vitae' as DocumentType,
-    label: 'Curriculum Vitae',
-    description: 'Updated CV summarizing your educational background, work experience, and relevant achievements',
     required: true,
   },
   {
@@ -120,7 +114,7 @@ export const AttachmentsUploadForm: React.FC<AttachmentsUploadFormProps> = ({
   files,
   onFilesChange,
   error,
-  plantillaItemNo,
+  plantillaName,
   applicationType = 'job',
   formData,
   onChange,
@@ -245,7 +239,7 @@ export const AttachmentsUploadForm: React.FC<AttachmentsUploadFormProps> = ({
         headingId={`${idPrefix}-docs`}
         wide
       >
-        {plantillaItemNo && <p className="af-body-m" style={{ marginBottom: 12 }}>Plantilla Item No. {plantillaItemNo}</p>}
+        {plantillaName && <p className="af-body-m" style={{ marginBottom: 12 }}>{plantillaName}</p>}
         <p className="af-notice" style={{ marginBottom: 16 }}>
           Upload certificates, performance records, updated PDS, training proofs, and any other supporting files in one
           batch. If possible, name files clearly, for example: <strong>Training-Certificate-Leadership.pdf</strong>.
@@ -374,8 +368,8 @@ export const AttachmentsUploadForm: React.FC<AttachmentsUploadFormProps> = ({
       icon={<FileText size={20} strokeWidth={1.75} />}
       title="Documents"
       description={
-        plantillaItemNo
-          ? `Plantilla Item No. ${plantillaItemNo}. Your Reference No. for tracking is issued once you submit.`
+        plantillaName
+          ? `${plantillaName}. Your Reference No. for tracking is issued once you submit.`
           : 'General application. Your Reference No. for tracking is issued once you submit.'
       }
       headingId={`${idPrefix}-docs`}
@@ -388,7 +382,7 @@ export const AttachmentsUploadForm: React.FC<AttachmentsUploadFormProps> = ({
       <p className="af-notice" style={{ marginTop: 12 }}>
         <strong>File naming format:</strong> name your files like this for easier tracking:{' '}
         <code>[DocumentType]-[LastName]-[FirstName].pdf</code>, for example <em>ApplicationLetter-DelaCruz-Juan.pdf</em>{' '}
-        or <em>CurriculumVitae-Santos-Maria.pdf</em>.
+        or <em>PersonalDataSheet-Santos-Maria.pdf</em>.
       </p>
 
       <ul className="af-docs">

@@ -10,6 +10,7 @@ import { isPositionAssignedToInterviewer, resolveAssignedPositionsForInterviewer
 import { mockDatabase } from '../../lib/mockDatabase';
 import { getApplicants as getRecruitmentApplicants, saveApplicants as saveRecruitmentApplicants } from '../../lib/recruitmentData';
 import { isMockModeEnabled, supabase } from '../../lib/supabase';
+import { usePlantillaNames } from '../../hooks/usePlantillaNames';
 
 interface Applicant {
   id: string;
@@ -152,6 +153,8 @@ const resolveInterviewerIdentity = (): { name: string; locked: boolean } => {
 };
 
 export function EvaluationForm() {
+  // Plantilla name for the applicant (never its internal key).
+  const { nameFor: plantillaNameFor } = usePlantillaNames();
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   // Back returns to where the evaluation was opened from (the applicants list
@@ -638,8 +641,8 @@ export function EvaluationForm() {
 
                 <div className="pcpt-info-row">
                   <div className="pcpt-info-group full-width">
-                    <label className="pcpt-label">Plantilla Item No.:</label>
-                    <span className="pcpt-value">{applicant.item_number || 'N/A'}</span>
+                    <label className="pcpt-label">Plantilla:</label>
+                    <span className="pcpt-value">{plantillaNameFor(applicant.item_number) || 'N/A'}</span>
                   </div>
                 </div>
               </div>
@@ -908,8 +911,8 @@ export function EvaluationForm() {
 
                 <div className="oral-info-row">
                   <div className="oral-info-group full-width">
-                    <label className="oral-label">Plantilla Item No.:</label>
-                    <span className="oral-value">{applicant.item_number || 'N/A'}</span>
+                    <label className="oral-label">Plantilla:</label>
+                    <span className="oral-value">{plantillaNameFor(applicant.item_number) || 'N/A'}</span>
                   </div>
                 </div>
               </div>

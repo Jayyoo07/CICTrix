@@ -685,7 +685,8 @@ const getStoredInterviewerScoreSnapshot = (
 const DOCUMENT_SLOTS = [
   { type: 'application_letter', label: 'Application Letter', required: true },
   { type: 'pds_with_photo', label: 'Personal Data Sheet', required: true },
-  { type: 'curriculum_vitae', label: 'Curriculum Vitae', required: true },
+  // No longer required; kept so CVs on older applications stay viewable.
+  { type: 'curriculum_vitae', label: 'Curriculum Vitae', required: false },
   { type: 'eligibility_proof', label: 'Proof of Eligibility Rating/License', required: true },
   { type: 'training_certificate', label: 'Certificate of Relevant Training/Seminars', required: true },
   { type: 'transcript_of_records', label: 'Transcript of Records', required: true },
@@ -2048,6 +2049,8 @@ export function ApplicantDetailsPage() {
                             return resolvedType === slot.type && a.document_type !== 'resubmission_request' && a.document_type !== 'resubmission_resolved';
                           })
                           .sort((x, y) => new Date(x.created_at ?? '').getTime() - new Date(y.created_at ?? '').getTime());
+                        // CV is no longer a requirement: only list it when an older application has one.
+                        if (slot.type === 'curriculum_vitae' && matched.length === 0) return null;
 
                         // Resubmission notice for this slot from Supabase
                         const slotNotice = attachments.find(a =>

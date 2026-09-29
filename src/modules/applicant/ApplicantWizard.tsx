@@ -38,6 +38,7 @@ import '../../styles/wizard.css';
 import type { ApplicantFormData, UploadedFile, ValidationErrors } from '../../types/applicant.types';
 import type { JobPosting } from '../../types/recruitment.types';
 import { validateApplicantForm, validateFiles } from '../../utils/validation';
+import { duplicatePlantillaMessage, isDuplicatePlantillaApplication, normalizeApplicantEmail } from '../../lib/plantillaRules';
 import { logErrorForAdmin } from '../../utils/errorLogger';
 import { ApplicantAssessmentForm } from './ApplicantAssessmentForm';
 import { AttachmentsUploadForm, REQUIRED_DOCUMENTS } from './AttachmentsUploadForm';
@@ -563,7 +564,7 @@ export const ApplicantWizard: React.FC = () => {
 
   const labelFor = (key: string): string => {
     const choice = choiceByKey.get(key);
-    return choice ? `Plantilla ${choice.slotNumber}` : 'Your application';
+    return choice ? choiceLabel(choice) : 'Your application';
   };
 
   // Move focus to the form heading when Step 2 (or a jumped-to tab) opens.
@@ -774,19 +775,34 @@ export const ApplicantWizard: React.FC = () => {
   };
 
   /**
-   * Has this email already applied for this Plantilla Item No.? The public
-   * portal has no applicant account, so this is the only authoritative check,
-   * and it can only run once the email is known (i.e. at submit time).
+   * Has this email already applied to this plantilla? The public portal has no
+   * applicant account, so this can only run once the email is known (submit
+   * time). It only exists to answer early: the database's unique index
+   * (uq_applicants_one_per_plantilla) is the real guarantee.
    */
-  const findExistingApplication = async (email: string, itemNumber: string): Promise<{ referenceNo?: string } | null> => {
-    if (!email || !itemNumber || itemNumber === 'UNASSIGNED') return null;
-    try {
-      const { data, error } = await (supabase as any)
+  const findExistingApplication = async (
+    email: string,
+    plantillaSlotId: string | null,
+    itemNumber: string,
+  ): Promise<{ referenceNo?: string } | null> => {
+    const normalizedEmail = normalizeApplicantEmail(email);
+    if (!normalizedEmail) return null;
+    const lookup = async (column: string, value: string) =>
+      (supabase as any)
         .from('applicants')
         .select('id, reference_no')
-        .eq('email', email.trim().toLowerCase())
-        .eq('item_number', itemNumber)
+        .eq('email', normalizedEmail)
+        .eq(column, value)
         .limit(1);
+    try {
+      let result = plantillaSlotId ? await lookup('plantilla_slot_id', plantillaSlotId) : null;
+      // Before migration 20260928 there is no plantilla_slot_id column; the
+      // plantilla's internal key on the application is the next best match.
+      if (!result || result.error) {
+        if (!itemNumber || itemNumber === 'UNASSIGNED') return null;
+        result = await lookup('item_number', itemNumber);
+      }
+      const { data, error } = result;
       if (error || !Array.isArray(data) || data.length === 0) return null;
       return { referenceNo: String(data[0].reference_no ?? '').trim() || undefined };
     } catch {
@@ -801,12 +817,13 @@ export const ApplicantWizard: React.FC = () => {
     const choice = choiceByKey.get(key);
     const applicationType: 'job' | 'promotion' = formData.application_type === 'promotion' ? 'promotion' : 'job';
 
-    // The Plantilla Item No. of THIS application. The applicant's own tracking
-    // code is not this: the database issues `reference_no` on insert.
+    // The plantilla's internal key (never shown). Applications still match
+    // postings on it. The applicant's tracking code is not this: the database
+    // issues `reference_no` on insert.
     const plantillaItemNo = choice?.itemNumber || formData.item_number || '';
     const safe = (val: string | null | undefined) => (val == null ? '' : String(val));
 
-    const existing = await findExistingApplication(formData.email, plantillaItemNo);
+    const existing = await findExistingApplication(formData.email, choice?.slotId ?? null, plantillaItemNo);
     if (existing) return { status: 'already', referenceNo: existing.referenceNo };
 
     const experienceYears = parseInt(formData.work_experience_years || '0', 10) || 0;
@@ -836,6 +853,10 @@ export const ApplicantWizard: React.FC = () => {
       education_degree: safe(formData.education_degree).trim() || null,
       education_school: safe(formData.education_school).trim() || null,
     };
+
+    // This application's own plantilla (migration 20260928). The database
+    // rejects a second application from the same email to the same plantilla.
+    if (choice?.slotId) applicantPayload.plantilla_slot_id = choice.slotId;
 
     if (applicationType === 'promotion') {
       if (formData.employee_id) applicantPayload.employee_id = formData.employee_id;
@@ -867,6 +888,13 @@ export const ApplicantWizard: React.FC = () => {
 
       let { data, error } = await insertWith('id, item_number, reference_no');
 
+      // Migration 20260928 not applied yet: file without the direct link (the
+      // link table below still records the plantilla).
+      if (isMissingColumn(error, 'plantilla_slot_id')) {
+        delete applicantPayload.plantilla_slot_id;
+        ({ data, error } = await insertWith('id, item_number, reference_no'));
+      }
+
       if (isMissingColumn(error, 'reference_no')) {
         ({ data, error } = await insertWith('id, item_number'));
       }
@@ -885,6 +913,12 @@ export const ApplicantWizard: React.FC = () => {
       }
       applicantData = data;
     } catch (dbErr: any) {
+      // Same applicant, same plantilla: not a failure to retry, just already on
+      // file (e.g. submitted from another tab since the pre-check ran).
+      if (isDuplicatePlantillaApplication(dbErr)) {
+        const onFile = await findExistingApplication(formData.email, choice?.slotId ?? null, plantillaItemNo);
+        return { status: 'already', referenceNo: onFile?.referenceNo };
+      }
       logErrorForAdmin('Database insertion error during applicant record creation', dbErr, 'Database Submission');
 
       // Classify the failure so the applicant sees a useful message.
@@ -894,7 +928,7 @@ export const ApplicantWizard: React.FC = () => {
 
       let userMessage: string;
       if (code === '23505' || lower.includes('duplicate')) {
-        userMessage = 'An application with this email or item number already exists. Please check your previous submission.';
+        userMessage = duplicatePlantillaMessage(choice ? choiceLabel(choice) : 'this plantilla');
       } else if (code === '23502' || lower.includes('null value') || lower.includes('not-null')) {
         userMessage = 'A required field is missing. Please go back and review the form.';
       } else if (
@@ -1189,8 +1223,7 @@ export const ApplicantWizard: React.FC = () => {
     const choice = choiceByKey.get(key);
     const formData = apps[key]?.formData;
     const parts = [formData?.position || posting?.title];
-    const itemNo = choice?.itemNumber || formData?.item_number;
-    if (itemNo) parts.push(`Plantilla Item No. ${itemNo}`);
+    if (choice) parts.push(choiceLabel(choice));
     if (choice?.salaryGrade != null) parts.push(`SG ${choice.salaryGrade}`);
     return parts.filter(Boolean).join(' · ');
   };
@@ -1236,7 +1269,7 @@ export const ApplicantWizard: React.FC = () => {
                     <h4 className="font-bold text-slate-900 leading-tight mb-1">{job.title}</h4>
                     <p className="text-sm text-slate-600 flex-1">{job.division || job.department}</p>
                     <div className="mt-4 pt-4 border-t border-slate-200">
-                      <p className="text-xs font-mono text-slate-500 mb-3">Item No: {job.jobCode}</p>
+                      <p className="text-xs text-slate-500 mb-3">{(job.plantillaSlots ?? []).length > 1 ? `${(job.plantillaSlots ?? []).length} plantillas` : "1 plantilla"}</p>
                       <button
                         onClick={() => openPosting(job)}
                         className="w-full flex items-center justify-center gap-2 rounded-full bg-white py-2.5 px-4 font-bold text-blue-600 border-[1.5px] border-blue-600 hover:bg-blue-50 transition-colors shadow-sm"
@@ -1546,6 +1579,7 @@ export const ApplicantWizard: React.FC = () => {
                     isLoadingPrefill={isLoadingPrefill}
                     onApplicationTypeChange={(next) => handleApplicationTypeChange(currentKey, next)}
                     lockedPosition={lockedPosition}
+                    plantillaName={choiceByKey.get(currentKey) ? choiceLabel(choiceByKey.get(currentKey)!) : ""}
                     afterEducation={
                       <AttachmentsUploadForm
                         part="govId"
@@ -1565,7 +1599,7 @@ export const ApplicantWizard: React.FC = () => {
                     files={activeApp.files}
                     onFilesChange={handleFilesChangeFor(currentKey)}
                     error={activeApp.fileError}
-                    plantillaItemNo={activeApp.formData.item_number}
+                    plantillaName={choiceByKey.get(currentKey) ? choiceLabel(choiceByKey.get(currentKey)!) : ""}
                     applicationType={activeType}
                     formData={activeApp.formData}
                     onChange={handleFormChangeFor(currentKey)}
@@ -1682,7 +1716,7 @@ export const ApplicantWizard: React.FC = () => {
                           <div><dt>Address</dt><dd>{fd.address || '-'}</dd></div>
                           <div><dt>Position Applied For</dt><dd>{fd.position || '-'}</dd></div>
                           <div><dt>Department</dt><dd>{fd.office || '-'}</dd></div>
-                          <div><dt>Plantilla Item No.</dt><dd>{choice?.itemNumber || fd.item_number || 'Not tied to a plantilla item'}</dd></div>
+                          <div><dt>Plantilla</dt><dd>{choice ? choiceLabel(choice) : 'Not tied to a plantilla'}</dd></div>
                           <div><dt>PWD Status</dt><dd>{fd.is_pwd ? 'Yes' : 'No'}</dd></div>
                           <div>
                             <dt>Educational Background</dt>

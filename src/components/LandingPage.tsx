@@ -383,7 +383,7 @@ export const LandingPage = () => {
                 <tr className="border-b border-slate-200">
                   <th className="px-4 py-3 text-left font-semibold text-[#050D65]">Position Title</th>
                   <th className="px-4 py-3 text-left font-semibold text-[#050D65]">Department</th>
-                  <th className="px-4 py-3 text-left font-semibold text-[#050D65]">Plantilla Item No.</th>
+                  <th className="px-4 py-3 text-left font-semibold text-[#050D65]">Plantillas</th>
                   <th className="px-4 py-3 text-left font-semibold text-[#050D65]">Posting Date</th>
                   <th className="px-4 py-3 text-left font-semibold text-[#050D65]">Closing Date</th>
                   <th className="px-4 py-3 text-center font-semibold text-[#050D65]">Details</th>
@@ -408,8 +408,8 @@ export const LandingPage = () => {
                       <td className={`px-4 py-3 ${hasPosting ? 'text-slate-600' : 'text-slate-400'}`}>
                         {job.department || 'N/A'}
                       </td>
-                      <td className={`px-4 py-3 font-mono ${hasPosting ? 'text-slate-600' : 'text-slate-400'}`}>
-                        {job.itemNumber}
+                      <td className={`px-4 py-3 ${hasPosting ? 'text-slate-600' : 'text-slate-400'}`}>
+                        {(() => { const n = job.originalJob?.plantillaSlots?.length ?? (hasPosting ? 1 : 0); return n > 0 ? `${n} plantilla${n === 1 ? "" : "s"}` : "—"; })()}
                       </td>
                       <td className={`px-4 py-3 ${hasPosting ? 'text-slate-600' : 'text-slate-400'}`}>
                         {job.postingDate ? formatDate(job.postingDate) : '-'}
@@ -421,7 +421,7 @@ export const LandingPage = () => {
                         <button
                           type="button"
                           disabled={!hasPosting}
-                          onClick={() => navigate(`/job-details/${job.itemNumber}`, { state: { landingJob: job } })}
+                          onClick={() => navigate(`/job-details/${encodeURIComponent(job.originalJob?.id ?? job.itemNumber)}`, { state: { landingJob: job } })}
                           className={`inline-flex items-center gap-1 rounded-lg border px-3 py-2 text-xs font-medium transition ${
                             hasPosting
                               ? 'border-slate-300 bg-white text-slate-600 hover:bg-slate-50 hover:border-slate-400 cursor-pointer'

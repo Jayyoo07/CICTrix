@@ -16,6 +16,12 @@ export interface PlantillaSlot {
   id: string;
   jobPostingId: string;
   slotNumber: number;
+  /**
+   * Admin-entered display name, e.g. "Plantilla 2" (migration 20260928).
+   * Always render through plantillaLabel(), which falls back to the ordinal.
+   */
+  label?: string;
+  /** Internal key only — never displayed. Applications still match on it. */
   itemNumber: string;
   /** Per-slot overrides. Undefined means "inherit the posting's shared value". */
   salaryGrade?: number;

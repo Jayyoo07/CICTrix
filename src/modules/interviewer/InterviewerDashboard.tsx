@@ -654,12 +654,10 @@ export function InterviewerDashboard({
                     ) : (
                       postings.pageItems.map((job) => {
                         const remaining = Math.max(0, job.applicant_count - (job.evaluated_count ?? 0));
-                        const showItemNo = job.item_number && job.item_number !== 'N/A';
                         return (
                           <tr key={job.id}>
                             <td className="ivd-cell-primary">
                               <span className="ivd-job-title">{job.title}</span>
-                              {showItemNo && <span className="ivd-job-meta text-body-s">Item No. {job.item_number}</span>}
                             </td>
                             <td data-label="Office / Department">
                               <span>{job.office}</span>

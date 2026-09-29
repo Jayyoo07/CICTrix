@@ -9,6 +9,7 @@ import { getPreferredDataSourceMode } from '../lib/dataSourceMode';
 import { ChevronLeft, ChevronRight, Search, Undo2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { fetchApplicantSlotLinks, fetchSlotsByJobPosting } from '../lib/plantillaSlots';
+import { plantillaLabel } from '../lib/plantillaRules';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -30,7 +31,7 @@ interface Applicant {
    * posting can advertise several identical vacancies, and one application can
    * cover more than one of them.
    */
-  plantilla_slots: Array<{ slotNumber: number; itemNumber: string }>;
+  plantilla_slots: Array<{ slotNumber: number; itemNumber: string; label?: string }>;
   needs_slot_reassignment: boolean;
 }
 
@@ -74,10 +75,9 @@ const PlantillaTags = ({ applicant }: { applicant: Applicant }) => {
       {applicant.plantilla_slots.map(slot => (
         <span
           key={slot.itemNumber}
-          title={slot.itemNumber}
           className="rounded-full bg-indigo-50 px-2 py-0.5 text-[11px] font-semibold text-indigo-700 ring-1 ring-inset ring-indigo-200"
         >
-          Plantilla {slot.slotNumber}
+          {plantillaLabel(slot)}
         </span>
       ))}
       {applicant.needs_slot_reassignment && (
@@ -135,7 +135,7 @@ export const ApplicationsListPage = () => {
           application_type: r.application_type ?? null,
           plantilla_slots:  (slotLinks.get(String(r.id ?? '')) ?? [])
                               .map(link => slotById.get(link.slotId))
-                              .filter((slot): slot is { slotNumber: number; itemNumber: string } => Boolean(slot))
+                              .filter((slot): slot is { slotNumber: number; itemNumber: string; label?: string } => Boolean(slot))
                               .sort((a, b) => a.slotNumber - b.slotNumber),
           needs_slot_reassignment: Boolean(r.needs_slot_reassignment),
         }));

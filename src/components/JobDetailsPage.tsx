@@ -23,6 +23,9 @@ import { getJobPostings, loadJobPostings } from '../lib/recruitmentData';
 import { supabase } from '../lib/supabase';
 import { JobPosting } from '../types/recruitment.types';
 import { QualificationGapPanel } from './QualificationGapPanel';
+import { fetchSlotApplicantCounts } from '../lib/plantillaSlots';
+import { plantillaLabel } from '../lib/plantillaRules';
+import { isCurriculumVitae } from '../lib/applicationDocuments';
 import {
   APPLY_STEPS,
   ConfirmModal,
@@ -97,6 +100,8 @@ export const JobDetailsPage = () => {
   const [loaded, setLoaded] = useState(() => Boolean(location.state?.landingJob?.originalJob));
   /** Name of the applicant placed in each filled slot, for the admin view. */
   const [hireNamesBySlotId, setHireNamesBySlotId] = useState<Record<string, string>>({});
+  /** Applicants per plantilla, for the admin view ("3 applicants"). */
+  const [slotApplicantCounts, setSlotApplicantCounts] = useState<Map<string, number>>(new Map());
 
   useEffect(() => {
     let cancelled = false;
@@ -123,6 +128,16 @@ export const JobDetailsPage = () => {
       .finally(() => { if (!cancelled) setLoaded(true); });
     return () => { cancelled = true; };
   }, [jobId]);
+
+  // Applicants per plantilla — RSP view only.
+  useEffect(() => {
+    if (!isAdminView || !job?.id) return;
+    let cancelled = false;
+    void fetchSlotApplicantCounts(job.id).then((counts) => {
+      if (!cancelled) setSlotApplicantCounts(counts);
+    });
+    return () => { cancelled = true; };
+  }, [isAdminView, job?.id]);
 
   // Who was placed in each filled slot. Admin view only — applicants have no
   // business seeing who took the other plantilla items.
@@ -403,14 +418,15 @@ export const JobDetailsPage = () => {
     </details>
   );
 
-  const requiredDocs = job && !landingJob
-    ? job.requiredDocuments || ['Resume/CV', 'Application Letter']
+  // Curriculum Vitae is no longer required; older postings may still list it.
+  const requiredDocs = (job && !landingJob
+    ? job.requiredDocuments || ['Application Letter']
     : [
         'Personal Data Sheet (PDS) with Work Experience Sheet',
         'Application Letter',
         'Proof of eligibility/rating/license',
         'Transcript of Records',
-      ];
+      ]).filter((doc) => !isCurriculumVitae(doc));
   const deadlineText = closingDate ? formatShortDate(closingDate) : 'the closing date';
 
   const moreCards = (
@@ -520,13 +536,11 @@ export const JobDetailsPage = () => {
           const meta = (
             <div className="af-choice-body">
               <div className="af-choice-row">
-                <span className="af-choice-name">Plantilla {choice.slotNumber}</span>
+                {/* A plantilla shows its name and salary grade only, never a code. */}
+                <span className="af-choice-name">{choiceLabel(choice)}</span>
                 {choice.salaryGrade != null && <span className="af-choice-sg">SG {choice.salaryGrade}</span>}
               </div>
-              <div className="af-choice-row" style={{ marginTop: 6 }}>
-                <span className="af-choice-meta" style={{ marginTop: 0 }}>
-                  Plantilla Item No. {choice.itemNumber || '—'}
-                </span>
+              <div className="af-choice-row" style={{ marginTop: 6, justifyContent: 'flex-end' }}>
                 <StatusBadge status={choice.status} />
               </div>
               {choice.monthlySalary != null && (
@@ -595,11 +609,14 @@ export const JobDetailsPage = () => {
           <li key={choice.key} className="af-choice" style={{ cursor: 'default' }}>
             <div className="af-choice-body">
               <div className="af-choice-row">
-                <span className="af-choice-name">Plantilla {choice.slotNumber}</span>
+                <span className="af-choice-name">{choiceLabel(choice)}</span>
                 <StatusBadge status={choice.status === 'applied' || choice.status === 'closing' ? 'open' : choice.status} />
               </div>
               <p className="af-choice-meta">
-                Plantilla Item No. {choice.itemNumber || '—'}
+                {(() => {
+                  const count = slotApplicantCounts.get(choice.key) ?? 0;
+                  return `${count} applicant${count === 1 ? '' : 's'}`;
+                })()}
                 {choice.salaryGrade != null ? ` · SG ${choice.salaryGrade}` : ''}
               </p>
               {hireNamesBySlotId[choice.key] && (
@@ -626,8 +643,8 @@ export const JobDetailsPage = () => {
           <p className="af-hero-sub">
             <Briefcase size={18} strokeWidth={1.75} aria-hidden="true" />
             {isMultiSlot
-              ? `${slots.length} Plantilla Items · ${openSlots.length} open`
-              : `Plantilla Item No. ${slots[0]?.itemNumber || itemNo}`}
+              ? `${slots.length} Plantillas · ${openSlots.length} open`
+              : slots[0] ? plantillaLabel(slots[0]) : 'Plantilla 1'}
             {department ? ` · ${department}` : ''}
           </p>
         </div>

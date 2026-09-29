@@ -420,7 +420,7 @@ export function JobPortalPage() {
                 <div className="grid grid-cols-2 gap-3">
                   <button
                     type="button"
-                    onClick={() => navigate(`/job-details/${job.itemNumber}`, { state: { landingJob: job } })}
+                    onClick={() => navigate(`/job-details/${encodeURIComponent(job.originalJob?.id ?? job.itemNumber)}`, { state: { landingJob: job } })}
                     className="inline-flex justify-center items-center rounded-xl border border-slate-200 bg-white py-2.5 text-sm font-semibold text-slate-600 transition hover:bg-slate-50 hover:text-slate-800"
                   >
                     View Details
@@ -472,7 +472,7 @@ export function JobPortalPage() {
                       <div className="flex items-center justify-center gap-2">
                         <button
                           type="button"
-                          onClick={() => navigate(`/job-details/${job.itemNumber}`, { state: { landingJob: job } })}
+                          onClick={() => navigate(`/job-details/${encodeURIComponent(job.originalJob?.id ?? job.itemNumber)}`, { state: { landingJob: job } })}
                           className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50 transition"
                         >
                           Details

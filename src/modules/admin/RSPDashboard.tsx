@@ -83,6 +83,8 @@ import { DocumentPreviewModal } from '../../components/DocumentPreviewModal';
 import { sendEmail } from '../../lib/email';
 import '../../styles/admin.css';
 import type { EmployeeRecord, JobPosting, NewlyHired } from '../../types/recruitment.types';
+import { usePlantillaNames } from '../../hooks/usePlantillaNames';
+import { internalPlantillaKey } from '../../lib/plantillaRules';
 
 type JobStatus = 'Open' | 'Reviewing' | 'Closed';
 type Section = 'dashboard' | 'jobs' | 'qualified' | 'applicant-score' | 'new-hired' | 'raters' | 'accounts' | 'succession' | 'reports' | 'settings';
@@ -834,6 +836,8 @@ const normalizeWrittenScore = (value: number): number => {
 // No local cache — every read goes through the DB.
 
 export const RSPDashboard = () => {
+  // Plantilla names for posting/application rows (never their internal keys).
+  const { nameFor: plantillaNameFor, summaryForPosting } = usePlantillaNames();
   const navigate = useNavigate();
   const location = useLocation();
   const section = resolveSection(location.pathname, location.search);
@@ -2723,7 +2727,9 @@ export const RSPDashboard = () => {
   };
 
   const handleCreateJob = async () => {
-    if (!newJob.title || !newJob.item_number || !newJob.department) return;
+    if (!newJob.title || !newJob.department) return;
+    // Internal key only (never shown). Plantillas are named in the Job Posts editor.
+    const itemKey = newJob.item_number || internalPlantillaKey();
 
     const createdAt = new Date().toISOString();
     // job_postings.id is a uuid column — the old code handed it an incrementing
@@ -2741,7 +2747,7 @@ export const RSPDashboard = () => {
     // typed is preserved here and persisted by mapJobPostingToSupabaseRow.
     const posting: JobPosting = {
       id,
-      jobCode: newJob.item_number,
+      jobCode: itemKey,
       title: newJob.title,
       department: newJob.department,
       positionType: 'Civil Service',
@@ -2775,7 +2781,7 @@ export const RSPDashboard = () => {
       {
         id,
         title: newJob.title,
-        item_number: newJob.item_number,
+        item_number: itemKey,
         department: newJob.department,
         status: newJob.status,
         created_at: createdAt,
@@ -3625,7 +3631,7 @@ export const RSPDashboard = () => {
                           setJobsSearch(e.target.value);
                           setJobsPage(0);
                         }}
-                        placeholder="Search by job title or item number..."
+                        placeholder="Search by job title..."
                         className="w-full rounded-xl border border-[var(--border-color)] py-3 pl-11 pr-4 text-lg"
                       />
                     </div>
@@ -3687,7 +3693,7 @@ export const RSPDashboard = () => {
                           <h3 className="!mb-0 text-2xl font-semibold text-[var(--text-primary)]">{job.title}</h3>
                           <span className={`rounded-full px-4 py-1 text-base font-semibold ${getStatusClass(job.status)}`}>{job.status}</span>
                         </div>
-                        <p className="!mb-3 text-lg text-[var(--text-secondary)]">Plantilla Item No. {job.item_number}</p>
+                        {summaryForPosting(job.id) && <p className="!mb-3 text-lg text-[var(--text-secondary)]">{summaryForPosting(job.id)}</p>}
                         <p className="!mb-1 flex items-center gap-2 text-base text-[var(--text-secondary)]"><Building2 size={18} /> {job.department}</p>
                         <p className="!mb-1 flex items-center gap-2 text-base text-[var(--text-secondary)]"><Calendar size={18} /> Posted {formatDate(job.created_at)}</p>
                         <p className="!mb-5 flex items-center gap-2 text-base text-[var(--text-secondary)]"><Users size={18} /> {job.applicant_count} Applicants</p>
@@ -4691,7 +4697,7 @@ export const RSPDashboard = () => {
                                 <tr className="border-b border-slate-200 bg-slate-50">
                                   <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">Position Title</th>
                                   <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">Department</th>
-                                  <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">Plantilla Item No.</th>
+                                  <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">Plantilla</th>
                                   <th className="px-5 py-3 text-center text-xs font-semibold uppercase tracking-wider text-slate-500">Date</th>
                                   <th className="px-5 py-3 text-center text-xs font-semibold uppercase tracking-wider text-slate-500">Status</th>
                                 </tr>
@@ -4703,7 +4709,7 @@ export const RSPDashboard = () => {
                                   <tr key={j.id} className="border-b border-slate-100 last:border-0">
                                     <td className="px-5 py-3 text-sm font-semibold text-slate-900">{j.title}</td>
                                     <td className="px-5 py-3 text-sm text-slate-600">{j.department}</td>
-                                    <td className="px-5 py-3 text-sm text-slate-500">{j.item_number || '—'}</td>
+                                    <td className="px-5 py-3 text-sm text-slate-500">{plantillaNameFor(j.item_number) || '—'}</td>
                                     <td className="px-5 py-3 text-center text-sm text-slate-500">{fmtDt(j.created_at)}</td>
                                     <td className="px-5 py-3 text-center">
                                       <span className="inline-flex rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-semibold text-slate-600">Closed</span>
@@ -5072,7 +5078,7 @@ export const RSPDashboard = () => {
                                       <tr key={card.position} className="border-b border-slate-100 last:border-0">
                                         <td className="px-5 py-3">
                                           <p className="!mb-0 text-sm font-semibold text-[var(--text-primary)]">{card.position}</p>
-                                          <p className="!mb-0 text-xs text-[var(--text-secondary)]">{card.itemNumber}</p>
+                                          {plantillaNameFor(card.itemNumber) && <p className="!mb-0 text-xs text-[var(--text-secondary)]">{plantillaNameFor(card.itemNumber)}</p>}
                                         </td>
                                         <td className="px-5 py-3 text-center text-sm font-bold text-slate-700">{card.totalApplicants}</td>
                                         <td className="px-5 py-3 text-center">
@@ -6292,16 +6298,6 @@ export const RSPDashboard = () => {
                         placeholder="e.g., Administrative Officer III"
                         value={newJob.title}
                         onChange={(event) => setNewJob((prev) => ({ ...prev, title: event.target.value }))}
-                      />
-                    </div>
-
-                    <div>
-                      <label className="mb-2 block text-base font-semibold text-[var(--text-primary)]">Item Number <span className="text-red-500">*</span></label>
-                      <input
-                        className="w-full rounded-xl border border-[var(--border-color)] p-3 text-base"
-                        placeholder="e.g., ITEM-2024-001"
-                        value={newJob.item_number}
-                        onChange={(event) => setNewJob((prev) => ({ ...prev, item_number: event.target.value }))}
                       />
                     </div>
 

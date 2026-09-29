@@ -15,6 +15,7 @@
 import type { ApplicantFormData } from '../../../types/applicant.types';
 import type { JobPosting, PlantillaSlot } from '../../../types/recruitment.types';
 import type { EmployeePortalAccount } from '../../../lib/employeePortalData';
+import { plantillaLabel } from '../../../lib/plantillaRules';
 
 export const DRAFTS_KEY = 'cictrix_apply_drafts_v2';
 /** The pre-redesign single-form cache; cleared so it can't resurrect old state. */
@@ -34,6 +35,8 @@ export interface PlantillaChoice {
   /** Real `plantilla_slots.id`, or null when there is nothing to link to. */
   slotId: string | null;
   slotNumber: number;
+  /** Admin-entered name, e.g. "Plantilla 2". What the applicant sees. */
+  label: string;
   itemNumber: string;
   salaryGrade?: number;
   monthlySalary?: number;
@@ -199,6 +202,7 @@ export const buildPlantillaChoices = (
         key,
         slotId: null,
         slotNumber: 1,
+        label: 'Plantilla 1',
         itemNumber: job.jobCode ?? '',
         salaryGrade: job.salaryGrade,
         monthlySalary: job.monthlySalary,
@@ -217,6 +221,7 @@ export const buildPlantillaChoices = (
         // `legacy:` / `pending:` ids are synthetic — nothing real to link to.
         slotId: slot.id.startsWith('legacy:') || slot.id.startsWith('pending:') ? null : slot.id,
         slotNumber: slot.slotNumber,
+        label: plantillaLabel(slot),
         itemNumber: slot.itemNumber,
         salaryGrade: slot.salaryGrade ?? job.salaryGrade,
         monthlySalary: slot.monthlySalary ?? job.monthlySalary,
@@ -229,8 +234,9 @@ export const isSelectable = (choice: PlantillaChoice): boolean =>
   choice.status === 'open' || choice.status === 'closing';
 
 /** "Plantilla 2 · ABYAN-2026-298" */
-export const choiceLabel = (choice: Pick<PlantillaChoice, 'slotNumber' | 'itemNumber'>): string =>
-  choice.itemNumber ? `Plantilla ${choice.slotNumber} · ${choice.itemNumber}` : `Plantilla ${choice.slotNumber}`;
+/** "Plantilla 2": the admin label only. A plantilla never shows a code. */
+export const choiceLabel = (choice: Pick<PlantillaChoice, "slotNumber"> & { label?: string }): string =>
+  plantillaLabel(choice);
 
 /** Dates everywhere read "Sep 25, 2026" (DESIGN_IDENTITY.md §9.5). */
 export const formatShortDate = (value: string | undefined | null): string => {

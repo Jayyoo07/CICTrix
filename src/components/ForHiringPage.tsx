@@ -13,6 +13,7 @@ import {
 } from '../lib/recruitmentData';
 import type { NewlyHired, PlantillaSlot } from '../types/recruitment.types';
 import { assignApplicantToSlot, fetchApplicantSlotLinks, fetchSlotsByJobPosting } from '../lib/plantillaSlots';
+import { plantillaLabel } from '../lib/plantillaRules';
 import { sendEmail } from '../lib/email';
 import { createPassword, getEmployeePortalAccounts, upsertEmployeePortalAccount } from '../lib/employeePortalData';
 import { supabase } from '../lib/supabase';
@@ -946,10 +947,10 @@ export const ForHiringPage = () => {
                           setHireSlotChoice(prev => ({ ...prev, [r.id]: event.target.value }))
                         }
                       >
-                        <option value="">Select a plantilla item…</option>
+                        <option value="">Select a plantilla…</option>
                         {options.map(slot => (
                           <option key={slot.id} value={slot.id}>
-                            Plantilla {slot.slotNumber} ({slot.itemNumber})
+                            {plantillaLabel(slot)}
                           </option>
                         ))}
                       </select>

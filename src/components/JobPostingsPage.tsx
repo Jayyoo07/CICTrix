@@ -2,8 +2,10 @@ import { useBackClosesView } from '../hooks/useHistoryBack';
 import {
     Briefcase,
     Calendar,
+    ChevronDown,
     ChevronLeft,
     ChevronRight,
+    ChevronUp,
     FileText,
     Lock,
     MapPin,
@@ -34,14 +36,21 @@ import {
 } from '../lib/recruitmentData';
 import {
     fetchApplicantSlotLinks,
-    findTakenItemNumbers,
+    fetchSlotApplicantCounts,
     saveSlotsForJob,
     setSlotStatus,
     summarizeSlots,
 } from '../lib/plantillaSlots';
+import {
+    applicantsPerPlantillaText,
+    internalPlantillaKey,
+    plantillaLabel,
+    validatePlantillaLabels,
+} from '../lib/plantillaRules';
 import { isMockModeEnabled, supabase } from '../lib/supabase';
 import { JobPosting, PlantillaSlotStatus } from '../types/recruitment.types';
 import { RecruitmentNavigationGuide } from './RecruitmentNavigationGuide';
+import { isCurriculumVitae } from '../lib/applicationDocuments';
 import { AdminHeader } from './AdminHeader';
 import { Sidebar } from './Sidebar';
 
@@ -77,14 +86,16 @@ const STATUS_LABELS: Record<JobPosting['status'], string> = {
  * One editable row of the "Plantilla Slots" list.
  *
  * `key` is a client-side identity so React keeps focus on the right input
- * while rows are added/removed; `id` is the DB row and is absent until the
- * slot has been saved once. The "Plantilla N" label is never stored — it is
- * the array index + 1, which is what makes deleting a middle row shift the
- * ones below it up while their item numbers stay put.
+ * while rows are added/removed/reordered; `id` is the DB row and is absent
+ * until the slot has been saved once. `label` is what the admin types
+ * ("Plantilla 2", "Plantilla 100") and what everyone sees; the row's position
+ * in the list is only its ordering. `itemNumber` is a hidden internal key.
  */
 interface PlantillaSlotFormRow {
   key: string;
   id?: string;
+  label: string;
+  /** Internal key; blank for a new row until it is saved. Never shown. */
   itemNumber: string;
   /** Blank means "inherit the shared Salary Grade / Monthly Salary above". */
   salaryGrade: string;
@@ -95,6 +106,7 @@ interface PlantillaSlotFormRow {
 
 const buildSlotRow = (overrides: Partial<PlantillaSlotFormRow> = {}): PlantillaSlotFormRow => ({
   key: crypto.randomUUID(),
+  label: '',
   itemNumber: '',
   salaryGrade: '',
   monthlySalary: '',
@@ -102,18 +114,17 @@ const buildSlotRow = (overrides: Partial<PlantillaSlotFormRow> = {}): PlantillaS
   ...overrides,
 });
 
-const suggestItemNumber = (existing: PlantillaSlotFormRow[]): string => {
-  // Batch postings run in sequence (…-451, -452, -453), so offer the next
-  // number in the series rather than making the admin retype the prefix.
-  for (let index = existing.length - 1; index >= 0; index -= 1) {
-    const match = /^(.*?)(\d+)\s*$/.exec(existing[index].itemNumber.trim());
-    if (match) {
-      const [, prefix, digits] = match;
-      const next = String(Number(digits) + 1).padStart(digits.length, '0');
-      return `${prefix}${next}`;
-    }
-  }
-  return '';
+/**
+ * Suggest the next name: one past the highest number already used
+ * ("Plantilla 2", "Plantilla 5" → "Plantilla 6"). The admin can overwrite it.
+ */
+const suggestPlantillaLabel = (existing: PlantillaSlotFormRow[]): string => {
+  const numbers = existing
+    .map((row) => /(\d+)\s*$/.exec(row.label.trim())?.[1])
+    .filter(Boolean)
+    .map(Number);
+  const next = numbers.length > 0 ? Math.max(...numbers) + 1 : existing.length + 1;
+  return `Plantilla ${next}`;
 };
 
 interface JobPostFormValues {
@@ -157,7 +168,8 @@ interface JobPostFormValues {
 
 const buildDefaultJobForm = (): JobPostFormValues => ({
   title: '',
-  slots: [buildSlotRow({ itemNumber: `ABYAN-2026-${String(Math.floor(Math.random() * 999) + 1).padStart(3, '0')}` })],
+  // A plantilla is a name the admin chooses, not a generated code.
+  slots: [buildSlotRow({ label: 'Plantilla 1' })],
   department: '',
   division: '',
   positionLevel: '',
@@ -184,7 +196,7 @@ const buildDefaultJobForm = (): JobPostFormValues => ({
   skills: 'Communication, Records Management',
   certifications: 'Civil Service Eligibility',
   preferred: '',
-  requiredDocuments: ['Resume/CV', 'Application Letter'],
+  requiredDocuments: ['Application Letter'],
   otherDocument: '',
   applicationDeadline: '',
   interviewStart: '',
@@ -823,25 +835,17 @@ export const JobPostingsPage = () => {
     }
   }, [showModal]);
 
-  // How many applicants are riding on each plantilla slot, so removing a row
-  // can warn about them before the admin commits to it.
+  // Applicants per plantilla ("Plantilla 1: 15 applicants"), shown in the list
+  // and the editor, and used to stop a plantilla with applications from being
+  // removed. Refreshed whenever the editor opens or closes.
   useEffect(() => {
-    if (!showModal || !editingId) {
-      setSlotApplicantCounts(new Map());
-      return;
-    }
     let cancelled = false;
     void (async () => {
-      const links = await fetchApplicantSlotLinks();
-      if (cancelled) return;
-      const counts = new Map<string, number>();
-      links.forEach((rows) => {
-        rows.forEach((row) => counts.set(row.slotId, (counts.get(row.slotId) ?? 0) + 1));
-      });
-      setSlotApplicantCounts(counts);
+      const counts = await fetchSlotApplicantCounts();
+      if (!cancelled) setSlotApplicantCounts(counts);
     })();
     return () => { cancelled = true; };
-  }, [showModal, editingId]);
+  }, [showModal, jobs.length]);
 
   const clearFilters = () => {
     setSearch('');
@@ -876,13 +880,14 @@ export const JobPostingsPage = () => {
       slots: (job.plantillaSlots ?? []).length > 0
         ? (job.plantillaSlots ?? []).map((slot) => buildSlotRow({
             id: slot.id.startsWith('legacy:') ? undefined : slot.id,
+            label: plantillaLabel(slot),
             itemNumber: slot.itemNumber,
             salaryGrade: slot.salaryGrade != null ? String(slot.salaryGrade) : '',
             monthlySalary: slot.monthlySalary != null ? String(slot.monthlySalary) : '',
             status: slot.status,
             filledByApplicantId: slot.filledByApplicantId,
           }))
-        : [buildSlotRow({ itemNumber: job.jobCode })],
+        : [buildSlotRow({ label: 'Plantilla 1', itemNumber: job.jobCode })],
       department: job.department,
       division: job.division ?? '',
       positionLevel: '',
@@ -900,7 +905,7 @@ export const JobPostingsPage = () => {
       skills: job.qualifications.skills.join(', '),
       certifications: job.qualifications.certifications.join(', '),
       preferred: job.qualifications.preferred ?? '',
-      requiredDocuments: job.requiredDocuments.filter((item) => item !== 'Other'),
+      requiredDocuments: job.requiredDocuments.filter((item) => item !== 'Other' && !isCurriculumVitae(item)),
       otherDocument: job.requiredDocuments.find((item) => item !== 'Resume/CV' && item !== 'Application Letter' && item !== 'Transcript of Records' && item !== 'NBI Clearance' && item !== 'Birth Certificate' && item !== 'SALN') ?? '',
       applicationDeadline: job.applicationDeadline.slice(0, 10),
       interviewStart: job.interviewPeriod?.start.slice(0, 10) ?? '',
@@ -943,8 +948,21 @@ export const JobPostingsPage = () => {
     setSlotError('');
     setForm((prev) => ({
       ...prev,
-      slots: [...prev.slots, buildSlotRow({ itemNumber: suggestItemNumber(prev.slots) })],
+      slots: [...prev.slots, buildSlotRow({ label: suggestPlantillaLabel(prev.slots) })],
     }));
+  };
+
+  /** Move a plantilla up (-1) or down (+1). Order is display order only. */
+  const moveSlot = (key: string, direction: -1 | 1) => {
+    setSlotError('');
+    setForm((prev) => {
+      const index = prev.slots.findIndex((slot) => slot.key === key);
+      const target = index + direction;
+      if (index < 0 || target < 0 || target >= prev.slots.length) return prev;
+      const slots = [...prev.slots];
+      [slots[index], slots[target]] = [slots[target], slots[index]];
+      return { ...prev, slots };
+    });
   };
 
   const removeSlot = (key: string) => {
@@ -952,21 +970,25 @@ export const JobPostingsPage = () => {
     if (!target) return;
     if (form.slots.length <= 1) return;
 
-    // Removing a slot people already applied to does not delete their
-    // applications — they stay on the job post and get flagged for
-    // reassignment — but that is a decision the admin has to make knowingly.
+    // A plantilla people already applied to can't be deleted (the database
+    // refuses too). Offer to close it instead, which stops new applications
+    // and keeps every existing one.
     const linked = target.id ? slotApplicantCounts.get(target.id) ?? 0 : 0;
     if (linked > 0) {
-      const confirmed = window.confirm(
-        `${linked} applicant(s) applied to this plantilla (${target.itemNumber || 'no item number'}).\n\n` +
-        'Removing it keeps their applications on this job post but flags them as needing reassignment to another plantilla.\n\n' +
-        'Remove this plantilla slot?',
+      if (target.status === 'closed') {
+        setSlotError(`${target.label || 'This plantilla'} has ${linked} applicant${linked === 1 ? '' : 's'}, so it can't be removed. It is already closed.`);
+        return;
+      }
+      const closeIt = window.confirm(
+        `${applicantsPerPlantillaText(target.label || 'This plantilla', linked)}.\n\n` +
+        "A plantilla with applications can't be removed. Close it instead? It will stop taking new applications and keep every existing one.",
       );
-      if (!confirmed) return;
+      if (closeIt) updateSlot(key, { status: 'closed' });
+      return;
     }
     if (target.status === 'filled') {
       const confirmed = window.confirm(
-        `This plantilla (${target.itemNumber}) is already marked Filled. Removing it will detach the recorded hire. Continue?`,
+        `${target.label || 'This plantilla'} is already marked Filled. Removing it will detach the recorded hire. Continue?`,
       );
       if (!confirmed) return;
     }
@@ -976,35 +998,10 @@ export const JobPostingsPage = () => {
   };
 
   /**
-   * Slot rules the DB also enforces, checked here so the admin gets a pointed
-   * message instead of a unique-index violation.
+   * Plantilla rules the DB also enforces (name required, unique per posting),
+   * checked here so the admin gets a pointed message instead of an index error.
    */
-  const validateSlots = async (): Promise<string> => {
-    const rows = form.slots;
-    if (rows.length === 0) return 'Add at least one plantilla slot.';
-
-    const blankAt = rows.findIndex((slot) => !slot.itemNumber.trim());
-    if (blankAt >= 0) return `Plantilla ${blankAt + 1} needs an item number.`;
-
-    const seen = new Map<string, number>();
-    for (let index = 0; index < rows.length; index += 1) {
-      const key = rows[index].itemNumber.trim().toLowerCase();
-      const first = seen.get(key);
-      if (first != null) {
-        return `Plantilla ${first + 1} and Plantilla ${index + 1} have the same item number (${rows[index].itemNumber.trim()}).`;
-      }
-      seen.set(key, index);
-    }
-
-    const taken = await findTakenItemNumbers(
-      rows.map((slot) => slot.itemNumber),
-      rows.map((slot) => slot.id).filter(Boolean) as string[],
-    );
-    if (taken.size > 0) {
-      return `Already used by another job post: ${Array.from(taken).join(', ')}.`;
-    }
-    return '';
-  };
+  const validateSlots = async (): Promise<string> => validatePlantillaLabels(form.slots.map((slot) => slot.label));
 
   const submitForm = async (status: JobPosting['status']) => {
     const missing: string[] = [];
@@ -1042,7 +1039,9 @@ export const JobPostingsPage = () => {
     const jobId = editingId ?? crypto.randomUUID();
     const slotDrafts = form.slots.map((slot) => ({
       id: slot.id,
-      itemNumber: slot.itemNumber.trim(),
+      label: slot.label.trim().replace(/\s+/g, ' '),
+      // Existing rows keep their internal key; new ones get a neutral one.
+      itemNumber: slot.itemNumber.trim() || internalPlantillaKey(),
       // Blank per-slot override falls back to the shared value at the top of
       // the form, so a batch posting stays consistent unless a row is edited.
       salaryGrade: slot.salaryGrade ? Number(slot.salaryGrade) : (form.salaryGrade ? Number(form.salaryGrade) : undefined),
@@ -1058,6 +1057,7 @@ export const JobPostingsPage = () => {
         id: draft.id ?? `pending:${index}`,
         jobPostingId: jobId,
         slotNumber: index + 1,
+        label: draft.label,
         itemNumber: draft.itemNumber,
         salaryGrade: draft.salaryGrade,
         monthlySalary: draft.monthlySalary,
@@ -1125,7 +1125,7 @@ export const JobPostingsPage = () => {
 
     setShowModal(false);
     const slotCount = slotDrafts.length;
-    const slotNote = slotCount > 1 ? ` with ${slotCount} plantilla slots` : '';
+    const slotNote = slotCount > 1 ? ` with ${slotCount} plantillas` : '';
     setToast(editingId ? `Job post updated successfully${slotNote}.` : `Job post created successfully${slotNote}.`);
   };
 
@@ -1141,9 +1141,8 @@ export const JobPostingsPage = () => {
 
   const duplicatePosting = async (job: JobPosting) => {
     const duplicatedId = crypto.randomUUID();
-    // Item numbers are unique system-wide, so a copy cannot reuse them. The
-    // -COPY suffix is a placeholder the admin is expected to replace with the
-    // real plantilla numbers before publishing the draft.
+    // The copy keeps the plantilla names; internal keys are unique system-wide,
+    // so each copied plantilla gets a fresh one.
     const duplicatedSlots = (job.plantillaSlots ?? [{
       id: `legacy:${job.id}`,
       jobPostingId: job.id,
@@ -1154,7 +1153,8 @@ export const JobPostingsPage = () => {
       id: `pending:${index}`,
       jobPostingId: duplicatedId,
       slotNumber: index + 1,
-      itemNumber: `${slot.itemNumber}-COPY`,
+      label: plantillaLabel(slot),
+      itemNumber: internalPlantillaKey(),
       salaryGrade: slot.salaryGrade,
       monthlySalary: slot.monthlySalary,
       status: 'open' as PlantillaSlotStatus,
@@ -1175,6 +1175,7 @@ export const JobPostingsPage = () => {
     const result = await saveSlotsForJob(
       duplicatedId,
       duplicatedSlots.map((slot) => ({
+        label: slot.label,
         itemNumber: slot.itemNumber,
         salaryGrade: slot.salaryGrade,
         monthlySalary: slot.monthlySalary,
@@ -1378,10 +1379,9 @@ export const JobPostingsPage = () => {
                           return (
                             <span
                               key={slotId}
-                              title={slot.itemNumber}
                               className="rounded-full bg-indigo-50 px-2 py-0.5 text-[11px] font-semibold text-indigo-700 ring-1 ring-inset ring-indigo-200"
                             >
-                              Plantilla {slot.slotNumber}
+                              {plantillaLabel(slot)}
                             </span>
                           );
                         })}
@@ -1430,8 +1430,8 @@ export const JobPostingsPage = () => {
                   <p className="!mb-0 text-sm text-slate-600">
                     {formatOfficeLabel(job.department, job.division)} ·{' '}
                     {jobSlots.length > 1
-                      ? `${jobSlots.length} plantilla items`
-                      : `Plantilla Item No. ${jobSlots[0]?.itemNumber || job.jobCode}`}{' '}
+                      ? `${jobSlots.length} plantillas`
+                      : jobSlots[0] ? plantillaLabel(jobSlots[0]) : 'Plantilla 1'}{' '}
                     · {totalMatched} matched · {totalInDb} in database
                   </p>
                 </div>
@@ -1468,10 +1468,10 @@ export const JobPostingsPage = () => {
                     onChange={(event) => setJobApplicantsSlotFilter(event.target.value)}
                     aria-label="Filter by plantilla slot"
                   >
-                    <option value="all">All plantilla items</option>
+                    <option value="all">All plantillas</option>
                     {jobSlots.map((slot) => (
                       <option key={slot.id} value={slot.id}>
-                        Plantilla {slot.slotNumber} ({slot.itemNumber})
+                        {applicantsPerPlantillaText(plantillaLabel(slot), slotApplicantCounts.get(slot.id) ?? 0)}
                       </option>
                     ))}
                   </select>
@@ -1553,7 +1553,7 @@ export const JobPostingsPage = () => {
               <Search className="pointer-events-none absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" />
               <input
                 className="h-10 w-full rounded-xl border border-slate-300 pl-10 pr-3 text-sm"
-                placeholder="Search by job title or item number..."
+                placeholder="Search by job title or plantilla..."
                 value={search}
                 onChange={(event) => setSearch(event.target.value)}
               />
@@ -1587,7 +1587,7 @@ export const JobPostingsPage = () => {
               <thead>
                 <tr className="border-b border-slate-200 bg-slate-50">
                   <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">Position Title</th>
-                  <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">Plantilla Item No.</th>
+                  <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">Plantillas</th>
                   <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">Office / Department</th>
                   <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">Date Posted</th>
                   <th className="px-5 py-3 text-center text-xs font-semibold uppercase tracking-wider text-slate-500">Applicants</th>
@@ -1630,15 +1630,15 @@ export const JobPostingsPage = () => {
                               className="inline-flex items-center gap-1 whitespace-nowrap font-semibold text-blue-700 hover:underline"
                               aria-expanded={expanded}
                             >
-                              {slots.length} Plantilla Items
+                              {slots.length} Plantillas
                               <ChevronRight className={`h-3.5 w-3.5 transition-transform ${expanded ? 'rotate-90' : ''}`} />
                             </button>
                             {expanded && (
                               <ul className="mt-1.5 space-y-1">
                                 {slots.map((slot) => (
                                   <li key={slot.id} className="flex items-center gap-2 whitespace-nowrap text-xs">
-                                    <span className="text-slate-400">P{slot.slotNumber}</span>
-                                    <span className="text-slate-600">{slot.itemNumber}</span>
+                                    <span className="font-semibold text-slate-700">{plantillaLabel(slot)}</span>
+                                    <span className="text-slate-500">{slotApplicantCounts.get(slot.id) ?? 0} applicant{(slotApplicantCounts.get(slot.id) ?? 0) === 1 ? "" : "s"}</span>
                                     {slot.status !== 'open' && (
                                       <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-semibold ${
                                         slot.status === 'filled' ? 'bg-blue-100 text-blue-700' : 'bg-slate-200 text-slate-600'
@@ -1652,7 +1652,7 @@ export const JobPostingsPage = () => {
                             )}
                           </div>
                         ) : (
-                          <span className="whitespace-nowrap">{slots[0]?.itemNumber || job.jobCode}</span>
+                          <span className="whitespace-nowrap">{slots[0] ? applicantsPerPlantillaText(plantillaLabel(slots[0]), slotApplicantCounts.get(slots[0].id) ?? 0) : "Plantilla 1"}</span>
                         )}
                       </td>
                       <td className="px-5 py-4 text-sm text-slate-700">{officeLabel}</td>
@@ -1790,37 +1790,77 @@ export const JobPostingsPage = () => {
                         Plantilla Slots <span className="text-red-500">*</span>
                         <span className="ml-1.5 text-sm font-medium text-slate-500">({form.slots.length})</span>
                       </label>
-                      <span className="text-xs text-slate-400">Each item number must be unique system-wide</span>
+                      <span className="text-xs text-slate-400">Name each plantilla, e.g. "Plantilla 2". Names must be unique in this job post.</span>
                     </div>
 
                     <div className="space-y-2 rounded-xl border border-slate-200 bg-slate-50 p-3">
                       {form.slots.map((slot, index) => {
                         const linkedApplicants = slot.id ? slotApplicantCounts.get(slot.id) ?? 0 : 0;
+                        const canRemove = form.slots.length > 1 && linkedApplicants === 0;
+                        const removeTitle = form.slots.length === 1
+                          ? 'A job post needs at least one plantilla'
+                          : linkedApplicants > 0
+                            ? "This plantilla has applications and can't be removed. Close it instead."
+                            : 'Remove this plantilla';
                         return (
                           <div key={slot.key} className="rounded-lg border border-slate-200 bg-white p-3">
                             <div className="flex flex-wrap items-center gap-2 sm:flex-nowrap">
-                              <span className="w-24 shrink-0 text-sm font-bold" style={{ color: '#040E6B' }}>
-                                Plantilla {index + 1}
-                              </span>
+                              <label className="sr-only" htmlFor={`plantilla-label-${slot.key}`}>Plantilla name, row {index + 1}</label>
                               <input
-                                className="min-w-0 flex-1 rounded-lg border border-slate-300 px-3 py-2 text-sm"
-                                placeholder="Plantilla Item No. e.g., ABYAN-2026-451"
-                                value={slot.itemNumber}
-                                onChange={(event) => updateSlot(slot.key, { itemNumber: event.target.value })}
+                                id={`plantilla-label-${slot.key}`}
+                                className="min-w-0 flex-1 rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold"
+                                style={{ color: '#040E6B' }}
+                                placeholder={`e.g., Plantilla ${index + 1}`}
+                                maxLength={60}
+                                required
+                                value={slot.label}
+                                onChange={(event) => updateSlot(slot.key, { label: event.target.value })}
                               />
-                              {slot.status !== 'open' && (
-                                <span className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-semibold ${
-                                  slot.status === 'filled' ? 'bg-blue-100 text-blue-700' : 'bg-slate-200 text-slate-600'
-                                }`}>
-                                  {slot.status === 'filled' ? 'Filled' : 'Closed'}
-                                </span>
+                              {slot.status === 'filled' ? (
+                                // Set by placing a hire, not by hand.
+                                <span className="shrink-0 rounded-full bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-700">Filled</span>
+                              ) : (
+                                <select
+                                  aria-label={`Status of ${slot.label || `row ${index + 1}`}`}
+                                  className="shrink-0 rounded-lg border border-slate-300 bg-white px-2 py-2 text-xs font-semibold text-slate-700"
+                                  value={slot.status}
+                                  onChange={(event) => updateSlot(slot.key, { status: event.target.value as PlantillaSlotStatus })}
+                                >
+                                  <option value="open">Open</option>
+                                  <option value="closed">Closed</option>
+                                </select>
                               )}
                               <button
                                 type="button"
-                                title={form.slots.length === 1 ? 'A job post needs at least one plantilla slot' : 'Remove this plantilla slot'}
+                                aria-label={`Move ${slot.label || `row ${index + 1}`} up`}
+                                title="Move up"
+                                disabled={index === 0}
+                                onClick={() => moveSlot(slot.key, -1)}
+                                className="shrink-0 rounded-lg border border-slate-200 p-2 text-slate-500 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:text-slate-300"
+                              >
+                                <ChevronUp className="h-4 w-4" />
+                              </button>
+                              <button
+                                type="button"
+                                aria-label={`Move ${slot.label || `row ${index + 1}`} down`}
+                                title="Move down"
+                                disabled={index === form.slots.length - 1}
+                                onClick={() => moveSlot(slot.key, 1)}
+                                className="shrink-0 rounded-lg border border-slate-200 p-2 text-slate-500 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:text-slate-300"
+                              >
+                                <ChevronDown className="h-4 w-4" />
+                              </button>
+                              <button
+                                type="button"
+                                aria-label={removeTitle}
+                                title={removeTitle}
+                                // Rows with applications stay clickable so the
+                                // admin is offered "Close it instead".
                                 disabled={form.slots.length === 1}
                                 onClick={() => removeSlot(slot.key)}
-                                className="shrink-0 rounded-lg border border-rose-200 p-2 text-rose-500 transition hover:bg-rose-50 disabled:cursor-not-allowed disabled:border-slate-200 disabled:text-slate-300 disabled:hover:bg-transparent"
+                                className={`shrink-0 rounded-lg border p-2 transition disabled:cursor-not-allowed disabled:border-slate-200 disabled:text-slate-300 disabled:hover:bg-transparent ${
+                                  canRemove ? 'border-rose-200 text-rose-500 hover:bg-rose-50' : 'border-slate-200 text-slate-400 hover:bg-slate-50'
+                                }`}
                               >
                                 <Trash2 className="h-4 w-4" />
                               </button>
@@ -1828,7 +1868,7 @@ export const JobPostingsPage = () => {
 
                             {/* Per-slot overrides for a batch whose rows are not
                                 quite identical. Blank = use the shared value. */}
-                            <div className="mt-2 grid grid-cols-1 gap-2 pl-0 sm:grid-cols-2 sm:pl-24">
+                            <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
                               <input
                                 type="number"
                                 min={1}
@@ -1847,9 +1887,10 @@ export const JobPostingsPage = () => {
                               />
                             </div>
 
-                            {linkedApplicants > 0 && (
-                              <p className="mt-2 pl-0 text-xs text-slate-500 sm:pl-24">
-                                {linkedApplicants} applicant{linkedApplicants === 1 ? '' : 's'} applied to this plantilla.
+                            {slot.id && (
+                              <p className="mt-2 text-xs text-slate-500">
+                                {applicantsPerPlantillaText(slot.label.trim() || `Row ${index + 1}`, linkedApplicants)}
+                                {linkedApplicants > 0 && " · can't be removed; close it to stop new applications"}
                               </p>
                             )}
                           </div>
