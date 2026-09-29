@@ -92,7 +92,6 @@ export const QualificationGapPanel = ({
   allPostings: JobPosting[];
   department: string;
 }) => {
-  const [open, setOpen] = useState(false);
   const [education, setEducation] = useState('');
   const [years, setYears] = useState('');
   const [skills, setSkills] = useState('');
@@ -129,7 +128,7 @@ export const QualificationGapPanel = ({
 
   return (
     <section className="af-card" aria-labelledby="gap-title">
-      <div className="af-card-head" style={{ marginBottom: open ? 20 : 0 }}>
+      <div className="af-card-head">
         <span className="af-chip" aria-hidden="true"><TrendingUp size={20} strokeWidth={1.75} /></span>
         <div className="af-card-head-text">
           <h2 className="af-title-s" id="gap-title">Where do I stand?</h2>
@@ -140,104 +139,94 @@ export const QualificationGapPanel = ({
               : '.'}
           </p>
         </div>
-        <button
-          type="button"
-          className="af-textbtn"
-          onClick={() => setOpen((prev) => !prev)}
-          aria-expanded={open}
-          aria-controls="gap-body"
-        >
-          {open ? 'Hide' : 'Check Now'}
-        </button>
       </div>
 
-      {open && (
-        <div id="gap-body" className="af-stack">
-          {/* Self-assessment inputs */}
-          <div className="af-fields">
-            <div className="af-field">
-              <label htmlFor="gap-education" className="af-label">Your highest educational attainment</label>
-              <select
-                id="gap-education"
-                value={education}
-                onChange={(event) => setEducation(event.target.value)}
-                className="af-control"
-              >
-                <option value="">Select…</option>
-                {EDUCATION_OPTIONS.map((option) => (
-                  <option key={option} value={option}>{option}</option>
-                ))}
-              </select>
-            </div>
-
-            <div className="af-field">
-              <label htmlFor="gap-years" className="af-label">Years of relevant work experience</label>
-              <input
-                id="gap-years"
-                type="number"
-                min={0}
-                step={0.5}
-                value={years}
-                onChange={(event) => setYears(event.target.value)}
-                placeholder="0"
-                className="af-control"
-              />
-            </div>
-
-            <div className="af-field af-field-full">
-              <label htmlFor="gap-skills" className="af-label">Your skills</label>
-              <textarea
-                id="gap-skills"
-                rows={3}
-                value={skills}
-                onChange={(event) => setSkills(event.target.value)}
-                placeholder="One per line, or comma-separated, e.g. Network administration, SQL, Technical writing"
-                className="af-control"
-                aria-describedby="gap-skills-help"
-              />
-              <p id="gap-skills-help" className="af-helper">Nothing you type here is saved or submitted.</p>
-            </div>
+      {/* Always open: the self-assessment is the content, so there is nothing to reveal. */}
+      <div className="af-stack">
+        {/* Self-assessment inputs */}
+        <div className="af-fields">
+          <div className="af-field">
+            <label htmlFor="gap-education" className="af-label">Your highest educational attainment</label>
+            <select
+              id="gap-education"
+              value={education}
+              onChange={(event) => setEducation(event.target.value)}
+              className="af-control"
+            >
+              <option value="">Select…</option>
+              {EDUCATION_OPTIONS.map((option) => (
+                <option key={option} value={option}>{option}</option>
+              ))}
+            </select>
           </div>
 
-          <div aria-live="polite">
-            {!hasAnswered ? (
-              <p className="af-notice af-notice-neutral">
-                Fill in your background above and your gaps will appear here.
-              </p>
-            ) : (
-              <div className="af-stack">
-                {/* This posting */}
-                <div>
-                  <h3 className="af-headline" style={{ marginBottom: 12 }}>For this role: {posting.title}</h3>
-                  <GapList comparison={thisJobComparison} />
-                </div>
+          <div className="af-field">
+            <label htmlFor="gap-years" className="af-label">Years of relevant work experience</label>
+            <input
+              id="gap-years"
+              type="number"
+              min={0}
+              step={0.5}
+              value={years}
+              onChange={(event) => setYears(event.target.value)}
+              placeholder="0"
+              className="af-control"
+            />
+          </div>
 
-                {/* The department's most senior position */}
-                {topPosition && topJobComparison && !isTopPositionThisJob && (
-                  <div>
-                    <h3 className="af-headline af-headline-icon">
-                      <ArrowUpRight size={18} strokeWidth={1.75} aria-hidden="true" />
-                      To reach {topPosition.title}
-                    </h3>
-                    <p className="af-body-m" style={{ margin: '4px 0 12px' }}>
-                      The most senior position in {department}
-                      {topPosition.salaryGrade != null ? ` (SG ${topPosition.salaryGrade})` : ''}.
-                    </p>
-                    <GapList comparison={topJobComparison} />
-                  </div>
-                )}
-
-                {topPosition && isTopPositionThisJob && (
-                  <div className="af-alert af-alert-info">
-                    <Info size={20} strokeWidth={1.75} aria-hidden="true" />
-                    <p className="af-alert-body">This is already the most senior {department} position on record.</p>
-                  </div>
-                )}
-              </div>
-            )}
+          <div className="af-field af-field-full">
+            <label htmlFor="gap-skills" className="af-label">Your skills</label>
+            <textarea
+              id="gap-skills"
+              rows={3}
+              value={skills}
+              onChange={(event) => setSkills(event.target.value)}
+              placeholder="One per line, or comma-separated, e.g. Network administration, SQL, Technical writing"
+              className="af-control"
+              aria-describedby="gap-skills-help"
+            />
+            <p id="gap-skills-help" className="af-helper">Nothing you type here is saved or submitted.</p>
           </div>
         </div>
-      )}
+
+        <div aria-live="polite">
+          {!hasAnswered ? (
+            <p className="af-notice af-notice-neutral">
+              Fill in your background above and your gaps will appear here.
+            </p>
+          ) : (
+            <div className="af-stack">
+              {/* This posting */}
+              <div>
+                <h3 className="af-headline" style={{ marginBottom: 12 }}>For this role: {posting.title}</h3>
+                <GapList comparison={thisJobComparison} />
+              </div>
+
+              {/* The department's most senior position */}
+              {topPosition && topJobComparison && !isTopPositionThisJob && (
+                <div>
+                  <h3 className="af-headline af-headline-icon">
+                    <ArrowUpRight size={18} strokeWidth={1.75} aria-hidden="true" />
+                    To reach {topPosition.title}
+                  </h3>
+                  <p className="af-body-m" style={{ margin: '4px 0 12px' }}>
+                    The most senior position in {department}
+                    {topPosition.salaryGrade != null ? ` (SG ${topPosition.salaryGrade})` : ''}.
+                  </p>
+                  <GapList comparison={topJobComparison} />
+                </div>
+              )}
+
+              {topPosition && isTopPositionThisJob && (
+                <div className="af-alert af-alert-info">
+                  <Info size={20} strokeWidth={1.75} aria-hidden="true" />
+                  <p className="af-alert-body">This is already the most senior {department} position on record.</p>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
     </section>
   );
 };
