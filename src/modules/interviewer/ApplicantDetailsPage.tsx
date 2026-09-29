@@ -1868,7 +1868,7 @@ export function ApplicantDetailsPage() {
                             : 'border-[#363EE8] bg-white text-[#363EE8] hover:bg-blue-50'
                           }`}
                       >
-                        <Star size={14} /> {isApplicantShortlisted ? 'Undo Shortlist' : 'Shortlist'}
+                        <Star size={14} /> {isApplicantShortlisted ? 'Undo Pending' : 'Pending'}
                       </button>
                       <button
                         type="button"
@@ -1880,7 +1880,7 @@ export function ApplicantDetailsPage() {
                             : 'border-emerald-500 bg-white text-emerald-600 hover:bg-emerald-50'
                           }`}
                       >
-                        <CheckCircle2 size={14} /> Qualify
+                        <CheckCircle2 size={14} /> Shortlist
                       </button>
                     </>
                   );
