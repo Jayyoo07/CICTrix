@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>ABYAN · Sidebar rail</title>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://unpkg.com/lucide@0.469.0/dist/umd/lucide.min.js"></script>
+<style>
+  :root {
+    --color-primary: #363EE8; --color-primary-700: #191FA8; --color-primary-900: #040E6B;
+    --color-primary-200: #C8D1FF; --color-primary-50: #EEF0FF;
+    --bg-page: #F1F5F9; --neutral-800: #28343D; --neutral-600: #515F69; --neutral-200: #E2E8F0;
+    --gradient-hero: linear-gradient(180deg, #363EE8 0%, #040E6B 100%);
+    --rail-collapsed: 72px; --rail-open: 256px;
+    --item-h: 48px; --item-gap: 8px; --corner: 20px;
+    --ease: cubic-bezier(.2, .8, .2, 1); --dur: 200ms;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Poppins', system-ui, sans-serif; background: #E4E9F0; color: var(--neutral-800); padding: 24px; }
+
+  .question { max-width: 1100px; margin: 0 auto 16px; }
+  .question h2 { font: 600 24px/32px 'Poppins'; color: var(--color-primary-900); }
+  .question p { font: 400 14px/20px 'Poppins'; color: var(--neutral-600); margin-top: 4px; }
+  .controls { display: flex; gap: 8px; align-items: center; margin-top: 12px; flex-wrap: wrap; }
+  .controls span { font: 500 14px/16px 'Poppins'; color: var(--neutral-600); margin-right: 4px; }
+  .seg { height: 36px; padding: 0 16px; border-radius: 999px; border: 1.5px solid var(--color-primary); background: transparent; color: var(--color-primary); font: 600 13px 'Poppins'; cursor: pointer; }
+  .seg.on { background: var(--color-primary); color: #fff; }
+
+  /* ===== App shell ===== */
+  .app { position: relative; max-width: 1100px; height: 640px; margin: 0 auto; border-radius: 16px; overflow: hidden; background: var(--gradient-hero); }
+
+  .rail {
+    position: absolute; inset: 0 auto 0 0; z-index: 2; width: var(--rail-collapsed);
+    background: var(--gradient-hero); overflow: hidden;
+    display: flex; flex-direction: column; padding: 16px 0;
+    transition: width var(--dur) var(--ease);
+  }
+  .rail.open { width: var(--rail-open); }
+
+  .brand { display: flex; align-items: center; gap: 12px; padding: 0 0 0 16px; min-height: 40px; margin-bottom: 28px; white-space: nowrap; }
+  .logo-slot { width: 40px; height: 40px; flex: none; border-radius: 50%; border: 1.5px dashed rgba(255,255,255,.55); display: grid; place-items: center; font: 500 9px 'Poppins'; color: rgba(255,255,255,.8); }
+  .brand-text { white-space: normal; width: 180px; opacity: 0; transform: translateX(-6px); transition: opacity 150ms ease-out, transform var(--dur) var(--ease); }
+  .brand-text b { display: block; font: 700 16px/20px 'Poppins'; color: #fff; letter-spacing: .5px; }
+  .brand-text small { display: block; font: 500 12px/16px 'Poppins'; color: rgba(255,255,255,.75); }
+
+  .nav { position: relative; list-style: none; padding-left: 12px; display: flex; flex-direction: column; gap: var(--item-gap); }
+  .nav.bottom { margin-top: auto; }
+
+  /* The moving selection. Collapsed = 48px circle behind the icon.
+     Open = pill that runs to the rail edge and fuses into the page via concave corners. */
+  .hl {
+    position: absolute; left: 12px; top: 0; height: var(--item-h); width: var(--item-h);
+    border-radius: 24px; background: var(--bg-page);
+    transition: transform 260ms var(--ease), width var(--dur) var(--ease), border-radius var(--dur) var(--ease);
+  }
+  .rail.open .hl { width: calc(100% - 12px); border-radius: 24px 0 0 24px; }
+  .hl::before, .hl::after {
+    content: ''; position: absolute; right: 0; width: var(--corner); height: var(--corner);
+    opacity: 0; transition: opacity 120ms ease-out;
+  }
+  .hl::before { top: calc(var(--corner) * -1); border-bottom-right-radius: var(--corner); box-shadow: 8px 8px 0 8px var(--bg-page); }
+  .hl::after { bottom: calc(var(--corner) * -1); border-top-right-radius: var(--corner); box-shadow: 8px -8px 0 8px var(--bg-page); }
+  .rail.open .hl::before, .rail.open .hl::after { opacity: 1; transition-delay: 120ms; }
+
+  .item {
+    position: relative; z-index: 1; display: flex; align-items: center; gap: 12px;
+    height: var(--item-h); padding-left: 4px; margin-right: 12px; border-radius: 24px;
+    color: rgba(255,255,255,.85); text-decoration: none; white-space: nowrap; cursor: pointer;
+    transition: background 150ms ease-out, color 150ms ease-out;
+  }
+  .chip {
+    width: 40px; height: 40px; flex: none; border-radius: 50%; display: grid; place-items: center;
+    background: rgba(255,255,255,.12); border: 1px solid rgba(255,255,255,.22);
+    transition: background 150ms ease-out, border-color 150ms ease-out, color 150ms ease-out;
+  }
+  .chip svg { width: 20px; height: 20px; }
+  .label { font: 500 16px/20px 'Poppins'; opacity: 0; transform: translateX(-6px); transition: opacity 150ms ease-out, transform var(--dur) var(--ease); }
+  .rail.open .label, .rail.open .brand-text { opacity: 1; transform: none; transition-delay: 60ms; }
+
+  .item:hover .chip { background: rgba(255,255,255,.22); }
+  .rail.open .item:not(.active):hover { background: rgba(255,255,255,.10); color: #fff; }
+  .item:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+
+  .item.active { color: var(--color-primary-900); }
+  .item.active .chip { background: transparent; border-color: transparent; color: var(--color-primary); }
+  .item.active .label { font-weight: 600; }
+
+  /* ===== Page ===== */
+  .main {
+    position: absolute; inset: 0 0 0 var(--rail-collapsed); background: var(--bg-page);
+    border-radius: 16px 0 0 16px; padding: 28px 32px; overflow: hidden;
+    transition: left var(--dur) var(--ease);
+  }
+  .app.push .rail.open ~ .main { left: var(--rail-open); }
+  .topbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; }
+  .topbar h1 { font: 700 28px/36px 'Poppins'; color: var(--color-primary-900); }
+  .topbar .crumb { font: 500 14px/16px 'Poppins'; color: var(--neutral-600); margin-bottom: 4px; }
+  .avatar { width: 40px; height: 40px; border-radius: 50%; background: var(--color-primary-200); }
+  .kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 16px; margin-bottom: 20px; }
+  .kpi { background: #fff; border: 1px solid var(--neutral-200); border-radius: 12px; padding: 20px; }
+  .kpi .ic { width: 36px; height: 36px; border-radius: 10px; background: var(--color-primary-50); color: var(--color-primary); display: grid; place-items: center; margin-bottom: 12px; }
+  .kpi .ic svg { width: 20px; height: 20px; }
+  .kpi small { font: 500 14px/16px 'Poppins'; color: var(--neutral-600); }
+  .kpi b { display: block; font: 700 32px/40px 'Poppins'; color: var(--color-primary-900); margin-top: 4px; }
+  .table { background: #fff; border: 1px solid var(--neutral-200); border-radius: 12px; height: 300px; }
+  .table .th { height: 52px; background: var(--bg-page); border-bottom: 1px solid var(--neutral-200); border-radius: 12px 12px 0 0; }
+  .table .tr { height: 60px; border-bottom: 1px solid var(--neutral-200); margin: 0 20px; }
+
+  .note { max-width: 1100px; margin: 12px auto 0; font: 500 12px/16px 'Poppins'; color: var(--neutral-600); }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { transition-duration: 0ms !important; transition-delay: 0ms !important; }
+  }
+</style>
+</head>
+<body>
+
+<div class="question">
+  <h2>Side navigation: hover to expand</h2>
+  <p>Hover the rail to open it. Click items to watch the selection slide. When the rail opens, the active pill fuses into the page background.</p>
+  <div class="controls">
+    <span>When it opens, the rail should</span>
+    <button class="seg on" data-choice="overlay" onclick="setMode('overlay', this)">Overlay the page</button>
+    <button class="seg" data-choice="push" onclick="setMode('push', this)">Push the page</button>
+  </div>
+</div>
+
+<div class="app" id="app">
+  <aside class="rail" id="rail" aria-label="Main navigation">
+    <div class="brand">
+      <div class="logo-slot">LOGO</div>
+      <div class="brand-text"><b>ABYAN</b><small>Human Resource Information System</small></div>
+    </div>
+
+    <ul class="nav" id="nav">
+      <div class="hl" id="hl" aria-hidden="true"></div>
+      <li><a class="item active" href="#" aria-label="Dashboard"><span class="chip"><i data-lucide="layout-dashboard"></i></span><span class="label">Dashboard</span></a></li>
+      <li><a class="item" href="#" aria-label="Employees"><span class="chip"><i data-lucide="users"></i></span><span class="label">Employees</span></a></li>
+      <li><a class="item" href="#" aria-label="Competency"><span class="chip"><i data-lucide="clipboard-check"></i></span><span class="label">Competency</span></a></li>
+      <li><a class="item" href="#" aria-label="Training"><span class="chip"><i data-lucide="graduation-cap"></i></span><span class="label">Training</span></a></li>
+      <li><a class="item" href="#" aria-label="Succession"><span class="chip"><i data-lucide="git-branch"></i></span><span class="label">Succession</span></a></li>
+      <li><a class="item" href="#" aria-label="Reports"><span class="chip"><i data-lucide="bar-chart-3"></i></span><span class="label">Reports</span></a></li>
+    </ul>
+
+    <ul class="nav bottom">
+      <li><a class="item" href="#" aria-label="Settings"><span class="chip"><i data-lucide="settings"></i></span><span class="label">Settings</span></a></li>
+    </ul>
+  </aside>
+
+  <main class="main">
+    <div class="topbar">
+      <div><div class="crumb">HR / Admin</div><h1 id="title">Dashboard</h1></div>
+      <div class="avatar"></div>
+    </div>
+    <div class="kpis">
+      <div class="kpi"><div class="ic"><i data-lucide="users"></i></div><small>Total employees</small><b>1,248</b></div>
+      <div class="kpi"><div class="ic"><i data-lucide="briefcase"></i></div><small>Open vacancies</small><b>18</b></div>
+      <div class="kpi"><div class="ic"><i data-lucide="graduation-cap"></i></div><small>Trainings recommended</small><b>64</b></div>
+      <div class="kpi"><div class="ic"><i data-lucide="trending-up"></i></div><small>Succession-ready</small><b>37</b></div>
+    </div>
+    <div class="table"><div class="th"></div><div class="tr"></div><div class="tr"></div><div class="tr"></div></div>
+  </main>
+</div>
+
+<p class="note">Logo slot is a placeholder; the real white mark goes here unchanged. Keyboard: Tab into the rail opens it, Esc or tabbing out closes it. Reduced-motion users get instant state changes.</p>
+
+<script>
+  lucide.createIcons({ attrs: { 'stroke-width': 1.75 } });
+
+  const app = document.getElementById('app');
+  const rail = document.getElementById('rail');
+  const hl = document.getElementById('hl');
+  const title = document.getElementById('title');
+  const mainItems = [...document.querySelectorAll('#nav .item')];
+  const CLOSE_DELAY_MS = 250; // grace period so brushing past the edge doesn't snap it shut
+  const STRIDE = 48 + 8;      // item height + gap
+  let closeTimer = null;
+
+  function open() { clearTimeout(closeTimer); rail.classList.add('open'); }
+  function close() { clearTimeout(closeTimer); closeTimer = setTimeout(() => rail.classList.remove('open'), CLOSE_DELAY_MS); }
+
+  rail.addEventListener('mouseenter', open);
+  rail.addEventListener('mouseleave', close);
+  rail.addEventListener('focusin', open);
+  rail.addEventListener('focusout', e => { if (!rail.contains(e.relatedTarget)) close(); });
+  rail.addEventListener('keydown', e => { if (e.key === 'Escape') { document.activeElement.blur(); close(); } });
+
+  function select(i) {
+    mainItems.forEach((el, j) => el.classList.toggle('active', j === i));
+    mainItems.forEach((el, j) => j === i ? el.setAttribute('aria-current', 'page') : el.removeAttribute('aria-current'));
+    hl.style.transform = `translateY(${i * STRIDE}px)`;
+    title.textContent = mainItems[i].getAttribute('aria-label');
+  }
+  mainItems.forEach((el, i) => el.addEventListener('click', e => { e.preventDefault(); select(i); }));
+  select(0);
+
+  function setMode(mode, btn) {
+    app.classList.toggle('push', mode === 'push');
+    document.querySelectorAll('.seg').forEach(b => b.classList.toggle('on', b === btn));
+  }
+</script>
+</body>
+</html>

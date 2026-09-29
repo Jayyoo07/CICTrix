@@ -18,7 +18,7 @@ This document is the single source of truth for how ABYAN looks and feels. Every
 7. [Brand Pattern & Graphics](#7-brand-pattern--graphics)
 8. [Layout & Page Anatomy](#8-layout--page-anatomy)
 9. [Components](#9-components)
-   - [Buttons](#91-buttons) · [Navigation](#92-navigation-header--tabs) · [Forms](#93-form-controls) · [Table toolbar](#94-table-toolbar-search--sort--entries) · [Tables](#95-tables) · [Pagination](#96-pagination) · [KPI cards](#97-dashboard-kpi-cards) · [Status badges](#98-status--category-badges) · [Alerts & toasts](#99-alerts-toasts) · [Modals](#910-modals--dialogs) · [Charts](#911-charts--data-visualization)
+   - [Buttons](#91-buttons) · [Navigation](#92-navigation-header--tabs) · [Forms](#93-form-controls) · [Table toolbar](#94-table-toolbar-search--sort--entries) · [Tables](#95-tables) · [Pagination](#96-pagination) · [KPI cards](#97-dashboard-kpi-cards) · [Status badges](#98-status--category-badges) · [Alerts & toasts](#99-alerts-toasts) · [Modals](#910-modals--dialogs) · [Charts](#911-charts--data-visualization) · [Side navigation](#912-side-navigation-portals)
 10. [Status & Category Color Map (HR Domain)](#10-status--category-color-map-hr-domain)
 11. [Portal-Specific Notes](#11-portal-specific-notes)
 12. [Voice & Content](#12-voice--content)
@@ -255,6 +255,7 @@ Each status color has three steps. **100** = soft background, **300** = borders/
 | Training | `graduation-cap` |
 | Succession planning | `git-branch` / `trending-up` |
 | Departments | `building-2` |
+| Dashboard | `layout-dashboard` |
 | Reports | `bar-chart-3` |
 | Settings | `settings` |
 | Documents | `file-text` |
@@ -342,7 +343,7 @@ Portal heroes use the hero gradient plus **one blended photograph**. There are *
 ```
 
 - Page background `#F1F5F9`; all content sits on white cards (`--radius-lg`, 1px `#E2E8F0` border).
-- Sidebar: 256px expanded / 72px collapsed. Use the same blue (`#363EE8`) or the deep gradient with white text; active item uses the `rgba(255,255,255,.18)` pill, matching the public header.
+- Sidebar: a collapsible icon rail (72px collapsed, 256px on hover or focus, overlaying the page); see **§9.12**. The `rgba(255,255,255,.18)` active pill now applies only to the public header (§8.1).
 - Page order: **Title → KPIs → primary content → secondary content.**
 
 #### Top navigation bar (all authenticated portals: RSP, L&D, PM, Interviewer, Office console)
@@ -624,6 +625,177 @@ Used where a KPI should also preview **who** it counts (e.g. Interviewer Dashboa
 - Titles: Title S in the card header; legends below or top-right, Body S.
 - Tooltips: `#101E29` bg, white text, radius 8px.
 
+### 9.12 Side Navigation (Portals)
+
+The HR/Admin and Employee portals use a **collapsible icon rail** on the left. It sits collapsed as a slim rail of icons and opens over the page when the user hovers over it or tabs into it. The approved mockup is `docs/mockups/2026-09-28-sidebar-rail.html`; it is the source of truth for the values below.
+
+**Behaviour**
+
+| Trigger | Result |
+|---|---|
+| Default | **Collapsed**: a 72px (`--rail-collapsed`) icon rail showing only the logo mark and the circular icon chips. No labels. |
+| Pointer enters the rail | Opens to 256px (`--rail-open`). The labels and the ABYAN lockup fade in. |
+| Pointer leaves the rail | Closes after a **250ms grace delay**, so brushing past the edge doesn't snap it shut. Re-entering within 250ms cancels the close. |
+| Keyboard focus lands on any item (Tab) | Opens. |
+| Focus leaves the rail (Tab out), or Esc | Closes, with the same 250ms delay. Esc also removes focus from the item. |
+| Open | The rail **overlays** the page. The page keeps a fixed 72px left offset and never moves or reflows. |
+
+**Anatomy**
+
+```
+ 72px collapsed                        256px open (overlays the page)
+┌──────┬─────────────────              ┌───────────────────────────┬──────
+│ [◎]  │ page #F1F5F9                  │ [◎] ABYAN                 │ page
+│      │ (16px left radius)            │     Human Resource        │
+│ (▣)  │                               │     Information System    │
+│ (●)  │  ← active: 48px circle        │ (▣) Dashboard             │
+│ (●)  │                               │ (●) Employees ════════════╡ ← active pill fused
+│      │                               │ (●) Competency            │   into the page
+│ (⚙)  │  Settings pinned to bottom    │ (⚙) Settings              │
+└──────┴─────────────────              └───────────────────────────┴──────
+```
+
+| Part | Spec |
+|---|---|
+| Rail | Full height, `--gradient-hero` background, `overflow: hidden`, flex column. Padding 16px top and bottom and none at the sides; the groups carry their own insets. Width `--rail-collapsed` → `--rail-open`. |
+| Brand row | Inset 16px from the left, min-height 40px, 28px below it, 12px gap. Logo mark in a 40px slot: the real white mark file (§2), never a redraw. Text block 180px wide, hidden while collapsed: **ABYAN** in Poppins Bold 16/20, `#FFFFFF`, 0.5px letter-spacing, over **Human Resource Information System** in Poppins Medium 12/16, white at 75%, wrapping to two lines. |
+| Nav groups | The main group sits at the top; Settings is its own group, pinned to the bottom (`margin-top: auto`). Each group is inset 12px from the left, with 8px between items. |
+| Nav item | A link, 48px tall, with a 4px left inset, 12px right margin and a 24px radius. There is a 12px gap between chip and label. The 12px group inset plus the 4px item inset puts the chip at 16px, in line with the logo and centered in the 72px rail. Text color white at 85%. |
+| Icon chip | 40px circle. Fill `rgba(255,255,255,.12)`, 1px border `rgba(255,255,255,.22)`. 20px Lucide icon, 1.75px stroke, in `currentColor`, so it matches the label (white at 85%). |
+| Label | Poppins Medium 16/20, white at 85%. Hidden while collapsed (opacity 0, shifted 6px left). |
+| Highlight | **One** shared `aria-hidden` element in the nav group, in `--bg-page` (`#F1F5F9`). Absolutely positioned 12px from the left and 48px tall. It moves with `translateY(index × 56px)` (48px item + 8px gap). **Collapsed:** a 48×48 circle (radius 24px) behind the active chip. **Open:** width `calc(100% - 12px)`, so it runs to the rail's right edge, with radius `24px 0 0 24px`. 20px concave corners above and below fuse it into the page. |
+| Page | Fixed 72px left offset, `#F1F5F9` background, 16px top-left and bottom-left radius where it meets the rail. |
+
+**Items and icons** (§6)
+
+| Item | Icon |
+|---|---|
+| Dashboard | `layout-dashboard` |
+| Employees | `users` |
+| Competency | `clipboard-check` |
+| Training | `graduation-cap` |
+| Succession | `git-branch` |
+| Reports | `bar-chart-3` |
+| Settings (bottom group) | `settings` |
+
+**States**
+
+| State | Collapsed (72px) | Open (256px) |
+|---|---|---|
+| Default | Chip fill `rgba(255,255,255,.12)`, border `rgba(255,255,255,.22)`; icon white at 85%. No label. | Same chip; label Poppins Medium 16px, white at 85%. |
+| Hover | Chip fill `rgba(255,255,255,.22)`. | Chip fill `rgba(255,255,255,.22)`. The row gets a `rgba(255,255,255,.10)` pill (24px radius), and icon and label turn `#FFFFFF`. The active item doesn't change on hover. |
+| Focus-visible | 2px `#FFFFFF` outline, 2px offset; focusing opens the rail. | Same. |
+| Active | The highlight is a 48px `#F1F5F9` circle behind the icon. Chip fill and border go transparent; icon `#363EE8`. | The highlight stretches into a pill to the rail's right edge, with concave corners. Icon `#363EE8`; label `#040E6B`, SemiBold (600). |
+
+Changing the active item **slides** the highlight vertically to the new item. It never jumps, and the element is never re-created.
+
+**Motion**
+
+| What | Duration | Easing |
+|---|---|---|
+| Rail width 72 → 256px | 200ms (`--dur-base`) | `--ease-standard` `cubic-bezier(.2,.8,.2,1)` |
+| Highlight slide between items | 260ms | `--ease-standard` |
+| Highlight circle → pill (width, radius) | 200ms | `--ease-standard` |
+| Concave corners fade in | 120ms, after a 120ms delay when opening (no delay when closing) | `ease-out` |
+| Labels and brand text: fade in | 150ms, 60ms delay when opening | `ease-out` |
+| Labels and brand text: 6px slide | 200ms, 60ms delay when opening | `--ease-standard` |
+| Hover fills (chip, row, text color) | 150ms | `ease-out` |
+
+`--ease-standard` is the custom curve token. `ease-out` is the plain CSS keyword. Under `prefers-reduced-motion: reduce`, every transition duration and delay is 0ms, so state changes are instant. The 250ms close grace period is a timer, not an animation, so it still applies.
+
+**Accessibility**
+
+- The rail is an `<aside aria-label="Main navigation">`. Each item is a link with an `aria-label`, since its visible label is hidden while collapsed. The active item has `aria-current="page"`.
+- The highlight is decorative (`aria-hidden="true"`). A `<ul>` may only contain `<li>`s, so in production put the highlight in a wrapper around the list, or use an `<li role="presentation" aria-hidden="true">`. The mockup places a `<div>` directly inside the `<ul>`.
+- Visible focus: 2px `#FFFFFF` outline, 2px offset. See §17 for the active-item focus caveat.
+- Color contrast is unchanged: white on the Hero gradient, and `#363EE8` / `#040E6B` on `#F1F5F9`.
+
+**Reference CSS** (from the mockup; overlay mode only)
+
+```css
+/* Tokens: --rail-collapsed, --rail-open, --ease-standard, --dur-base (§14.1) */
+.rail {
+  --item-h: 48px; --item-gap: 8px; --corner: 20px;
+  position: absolute; inset: 0 auto 0 0; z-index: 2;       /* overlays the page */
+  width: var(--rail-collapsed);
+  background: var(--gradient-hero); overflow: hidden;
+  display: flex; flex-direction: column; padding: 16px 0;
+  transition: width var(--dur-base) var(--ease-standard);
+}
+.rail.open { width: var(--rail-open); }
+
+.brand { display: flex; align-items: center; gap: 12px; padding: 0 0 0 16px; min-height: 40px; margin-bottom: 28px; white-space: nowrap; }
+.brand-logo { width: 40px; height: 40px; flex: none; }   /* real white mark (§2) */
+.brand-text { white-space: normal; width: 180px; opacity: 0; transform: translateX(-6px);
+  transition: opacity 150ms ease-out, transform var(--dur-base) var(--ease-standard); }
+.brand-text b { display: block; font: 700 16px/20px var(--font-sans); color: #fff; letter-spacing: .5px; }
+.brand-text small { display: block; font: 500 12px/16px var(--font-sans); color: rgba(255,255,255,.75); }
+
+.nav { position: relative; list-style: none; padding-left: 12px; display: flex; flex-direction: column; gap: var(--item-gap); }
+.nav.bottom { margin-top: auto; }                          /* Settings pinned to the bottom */
+
+/* The one moving selection: circle when collapsed, fused pill when open. */
+.hl {
+  position: absolute; left: 12px; top: 0; height: var(--item-h); width: var(--item-h);
+  border-radius: 24px; background: var(--bg-page);
+  transition: transform 260ms var(--ease-standard), width var(--dur-base) var(--ease-standard),
+              border-radius var(--dur-base) var(--ease-standard);
+}
+.rail.open .hl { width: calc(100% - 12px); border-radius: 24px 0 0 24px; }
+.hl::before, .hl::after {                                  /* concave corners */
+  content: ''; position: absolute; right: 0; width: var(--corner); height: var(--corner);
+  opacity: 0; transition: opacity 120ms ease-out;
+}
+.hl::before { top: calc(var(--corner) * -1); border-bottom-right-radius: var(--corner); box-shadow: 8px 8px 0 8px var(--bg-page); }
+.hl::after  { bottom: calc(var(--corner) * -1); border-top-right-radius: var(--corner); box-shadow: 8px -8px 0 8px var(--bg-page); }
+.rail.open .hl::before, .rail.open .hl::after { opacity: 1; transition-delay: 120ms; }
+
+.item {
+  position: relative; z-index: 1; display: flex; align-items: center; gap: 12px;
+  height: var(--item-h); padding-left: 4px; margin-right: 12px; border-radius: 24px;
+  color: rgba(255,255,255,.85); text-decoration: none; white-space: nowrap; cursor: pointer;
+  transition: background 150ms ease-out, color 150ms ease-out;
+}
+.chip {
+  width: 40px; height: 40px; flex: none; border-radius: 50%; display: grid; place-items: center;
+  background: rgba(255,255,255,.12); border: 1px solid rgba(255,255,255,.22);
+  transition: background 150ms ease-out, border-color 150ms ease-out, color 150ms ease-out;
+}
+.chip svg { width: 20px; height: 20px; }                   /* Lucide, stroke-width 1.75 */
+.label { font: 500 16px/20px var(--font-sans); opacity: 0; transform: translateX(-6px);
+  transition: opacity 150ms ease-out, transform var(--dur-base) var(--ease-standard); }
+.rail.open .label, .rail.open .brand-text { opacity: 1; transform: none; transition-delay: 60ms; }
+
+.item:hover .chip { background: rgba(255,255,255,.22); }
+.rail.open .item:not(.active):hover { background: rgba(255,255,255,.10); color: #fff; }
+.item:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+
+.item.active { color: var(--color-primary-900); }
+.item.active .chip { background: transparent; border-color: transparent; color: var(--color-primary); }
+.item.active .label { font-weight: 600; }
+
+/* Page: fixed offset, never pushed by the rail. */
+.main { position: absolute; inset: 0 0 0 var(--rail-collapsed); background: var(--bg-page); border-radius: 16px 0 0 16px; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { transition-duration: 0ms !important; transition-delay: 0ms !important; }
+}
+```
+
+**Behaviour wiring.** Open by adding `.open` on `mouseenter` and `focusin`. On `mouseleave`, on a `focusout` whose next target is outside the rail, or on Esc, remove it after a 250ms timer; any open event clears that timer. Selecting an item sets `.active` and `aria-current="page"` on it (removing them from the others) and sets the highlight's `transform: translateY(index × 56px)`.
+
+**Implementation notes (RSP admin portal, first rollout).** The RSP portal is the first to ship this pattern (`RailNav.tsx` / `rail-nav.css`). It follows the spec above with four deliberate adaptations, plus two of the §17 open items below are now resolved by it:
+
+| Spec / mockup | RSP implementation | Why |
+|---|---|---|
+| Rail has its own brand row (logo + ABYAN lockup) | No brand row; the rail sits **under** the existing §8.2 top bar, which already carries the lockup | Avoids showing the logo twice |
+| Not specified for phones | Rail is kept at every width; a tap (or focus) opens it the same as a hover | The old sidebar's phone-only horizontal strip is retired in favour of one consistent pattern |
+| Highlight lives inside the main nav group only, so it can't reach Settings (§17 item 10) | The highlight element lives on the rail itself, above both groups, so it can travel to Settings too | Resolves §17 item 10 |
+| 2px white focus ring on every item, including when active (§17 item 11) | The active item's focus ring is `--color-primary` instead of white when the rail is open | A white ring is invisible on the light `--bg-page` active pill; resolves §17 item 11 |
+| Highlight position is local to one page load | The rail remembers the highlight's last Y position (per browser tab) so it **slides** across full page navigations, not just clicks within one mounted rail | Each RSP route is a separate page mount, not a client-side view swap |
+
+Esc still drops keyboard focus to the page body (§17 item 12) — unresolved, carried over from the mockup.
+
 ---
 
 ## 10. Status & Category Color Map (HR Domain)
@@ -720,7 +892,7 @@ Categories such as **Department**, **Employment type** (Permanent, Casual, Contr
 - **Color independence:** Statuses always have a text label or icon.
 - **Forms:** Labels always visible (no placeholder-only labels); errors linked via `aria-describedby`.
 - **Tables:** Proper `<th scope>`, sortable headers announce sort state.
-- **Motion:** 150–200ms ease-out transitions; respect `prefers-reduced-motion`.
+- **Motion:** 150–200ms ease-out transitions; respect `prefers-reduced-motion`. The side navigation's 260ms highlight slide (§9.12) is the one deliberate exception to the 150–200ms range.
 - **Language:** Set `lang="en"`; mark Filipino phrases with `lang="fil"` where feasible.
 
 ---
@@ -771,6 +943,12 @@ Categories such as **Department**, **Employment type** (Permanent, Casual, Contr
   --shadow-2: 0 4px 12px rgba(16,30,41,.10);
   --shadow-3: 0 12px 32px rgba(16,30,41,.16);
   --shadow-focus: 0 4px 14px rgba(54,62,232,.40);
+
+  /* Side navigation (§9.12) */
+  --rail-collapsed: 72px; --rail-open: 256px;
+
+  /* Motion */
+  --ease-standard: cubic-bezier(.2,.8,.2,1); --dur-base: 200ms;
 
   /* Type */
   --font-sans: 'Poppins', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
@@ -839,6 +1017,9 @@ module.exports = {
         hero: 'linear-gradient(180deg, #363EE8 0%, #040E6B 100%)',
         soft: 'linear-gradient(135deg, #C8D1FF 0%, #363EE8 100%)',
       },
+      spacing: { 'rail-collapsed': '72px', 'rail-open': '256px' },
+      transitionTimingFunction: { standard: 'cubic-bezier(.2,.8,.2,1)' },
+      transitionDuration: { base: '200ms' },
     },
   },
 };
@@ -864,6 +1045,8 @@ module.exports = {
 | Give each dashboard section its own white card | Wrap every section in one big white container |
 | Keep the same top navigation bar and lockup in every portal (§8.2) | Restyle the header, logo lockup or Logout per portal |
 | Keep the Logout label and icon white | Let a global text color turn the Logout label dark |
+| Keep the sidebar collapsed until hovered or focused (§9.12) | Push page content when the sidebar opens |
+| Use one sliding highlight for the active item | Recolor the highlight or add a second active indicator |
 
 ---
 
@@ -882,6 +1065,7 @@ Before merging any UI change, confirm:
 - [ ] Spacing uses the 4px scale; radii use the tokens.
 - [ ] Contrast and keyboard navigation are checked.
 - [ ] The top bar follows §8.2, and the Logout label and icon render **white** (check the rendered color, not just the code).
+- [ ] Sidebar follows §9.12: collapsed by default, hover and focus open, overlay, reduced motion respected.
 - [ ] Verified at mobile, tablet, and desktop widths.
 - [ ] Works identically across Public, Employee, and HR/Admin portals.
 
@@ -900,6 +1084,9 @@ These were found while compiling this guide and should be resolved by the design
 7. **Logo file** is referenced as `USWAG (3)`. Add the final SVG to the repo (e.g. `/assets/brand/abyan-logo.svg`) and reference that path here.
 8. **Legacy global text color.** `src/styles/globals.css` sets `color: var(--text-primary)` directly on `span, p, label, button, a` and headings, so they ignore their parent's color. This is why Logout labels rendered dark on the blue header. It is patched per component for now: explicit white on header labels, and a text-inherit reset inside `.abyan-ds`. Remove the global rule once every portal uses the token file.
 9. **Admin header lockup.** `AdminHeader` still stacks "ABYAN" above the system name. Move it to the single-line lockup in §8.2.
+10. ~~**Side navigation: Settings has no active state.**~~ **Resolved** in the RSP rollout: the highlight lives on the rail itself (not inside a single nav group), so it can travel to Settings too. See §9.12 implementation notes.
+11. ~~**Side navigation: focus ring on the active item.**~~ **Resolved** in the RSP rollout: the active item's focus ring is `--color-primary` instead of white when the rail is open. See §9.12 implementation notes.
+12. **Side navigation: Esc drops focus.** In the mockup, Esc closes the rail by blurring the focused item, which sends keyboard focus to the page body. Still true in the RSP rollout. Consider moving focus to a sensible target, such as the main content.
 
 ---
 
