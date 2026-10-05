@@ -1,7 +1,7 @@
 ---
 title: Office phase override survives realtime refresh
 date: 2026-10-05
-status: In Progress
+status: Done
 summary: Employee phase gates fall back to system schedules on realtime refresh, ignoring office overrides. Route full load, refresh, and the target-submit guard through one service resolver.
 ---
 
