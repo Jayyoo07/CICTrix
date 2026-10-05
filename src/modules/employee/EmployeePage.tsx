@@ -71,6 +71,7 @@ import {
   type TargetsByFunction,
   type TargetStatus,
 } from '../../lib/api/ipcrTargets';
+import { loadEffectiveSchedules } from '../../lib/api/phaseSchedules';
 import { generateIpcrPdf } from '../../lib/ipcrPdf';
 import { EmployeePhase2 } from './EmployeePhase2';
 import { supabase as supabaseClient } from '../../lib/supabase';
@@ -490,35 +491,9 @@ export const EmployeePage: React.FC<EmployeePageProps> = ({ currentUser, loginUs
       // OFFICE override if one exists, else the system default — so offices can
       // sit on different phases (e.g. Legal stays in Phase 1 while every other
       // office moves to Phase 2).
-      {
-        const supabase = supabaseClient as any;
-        // Resolve the employee's office_id (departments.id) to match an override.
-        let officeId: string | null = null;
-        const empIdForOffice = currentUser.supabaseId ?? null;
-        if (empIdForOffice) {
-          const { data: empRow } = await supabase
-            .from('employees_with_department')
-            .select('department')
-            .eq('id', empIdForOffice)
-            .maybeSingle();
-          const officeName = String(empRow?.department ?? '').trim();
-          if (officeName) {
-            const { data: dep } = await supabase.from('departments').select('id').eq('name', officeName).maybeSingle();
-            officeId = dep?.id ?? null;
-          }
-        }
-        const { data: schedRows } = await supabase
-          .from('phase_schedules')
-          .select('*')
-          .or(officeId ? `scope.eq.system,office_id.eq.${officeId}` : 'scope.eq.system');
-        if (loadId !== latestEmployeeIpcrLoadId.current) return;
-        const rows: any[] = Array.isArray(schedRows) ? schedRows : [];
-        const resolvePhase = (phase: string) =>
-          (officeId && rows.find((r) => r.scope === 'office' && r.office_id === officeId && r.phase === phase)) ||
-          rows.find((r) => r.scope === 'system' && r.phase === phase) ||
-          null;
-        setSystemSchedules({ target: resolvePhase('target_setting'), rating: resolvePhase('rating') });
-      }
+      const schedules = await loadEffectiveSchedules(currentUser.supabaseId);
+      if (loadId !== latestEmployeeIpcrLoadId.current) return;
+      setSystemSchedules(schedules);
 
       // Phase 1 relational targets. If the active cycle resolves, load by cycle;
       // otherwise (e.g. performance_cycles not readable by the anon client due to
@@ -654,29 +629,16 @@ export const EmployeePage: React.FC<EmployeePageProps> = ({ currentUser, loginUs
   }, [isIpcrFormDirty, loadIPCRData]);
 
   /**
-   * Lightweight phase-gate refresh: re-fetches only the two system-scope
-   * phase_schedules rows and updates systemSchedules without touching any
-   * form state. Called unconditionally from the realtime onChange so that
+   * Lightweight phase-gate refresh: re-resolves the two phase windows (office
+   * override first, else system default, same as the full load) and updates
+   * systemSchedules without touching any form state. Called unconditionally from the realtime onChange so that
    * isTargetSettingActive / isAccomplishmentRatingActive flip instantly
    * for every employee when the PM opens or closes a phase — even when
    * the full loadIPCRData reload is deferred due to a dirty form.
    */
   const refreshPhaseSchedules = useCallback(async () => {
     if (!currentUser.supabaseId) return;
-    try {
-      const supabase = supabaseClient as any;
-      const { data: schedRows } = await supabase
-        .from('phase_schedules')
-        .select('*')
-        .eq('scope', 'system');
-      const rows: any[] = Array.isArray(schedRows) ? schedRows : [];
-      setSystemSchedules({
-        target: rows.find((r: any) => r.phase === 'target_setting') ?? null,
-        rating: rows.find((r: any) => r.phase === 'rating') ?? null,
-      });
-    } catch (err) {
-      console.warn('[EmployeePage] refreshPhaseSchedules failed:', err);
-    }
+    setSystemSchedules(await loadEffectiveSchedules(currentUser.supabaseId));
   }, [currentUser.supabaseId]);
 
   // ── My IPCR Workspace (Phase 1 targets / Phase 2 accomplishments) ──────────
