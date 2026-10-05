@@ -76,20 +76,21 @@ import { generateIpcrPdf } from '../../lib/ipcrPdf';
 import { EmployeePhase2 } from './EmployeePhase2';
 import { supabase as supabaseClient } from '../../lib/supabase';
 import { listEmployeeNotifications, markEmployeeNotificationsRead, type EmployeeNotification } from '../../lib/api/employeeNotifications';
+import {
+  EMPTY_PHASE_GATE,
+  fetchPhaseGate,
+  isPhaseOpen,
+  sameGateState,
+  type PhaseGate,
+} from '../../lib/api/employeePhaseGate';
 
 /**
- * Whether a system-scope phase_schedules row is currently "open".
- * `Open`/`Closed` force it; `Auto` follows start_date..deadline_date.
- * A missing row means the PM hasn't configured it yet — don't block the employee.
+ * How often the employee page re-checks whether PM has opened or closed a
+ * phase. Short enough that "Open phase" feels immediate to someone sitting on
+ * the page waiting for it, long enough to be two rows every quarter minute.
  */
-function isPhaseScheduleOpen(row: any | null): boolean {
-  if (!row) return false;
-  if (row.mode === 'Open') return true;
-  if (row.mode === 'Closed') return false;
-  const today = new Date().toISOString().slice(0, 10);
-  if (!row.start_date || !row.deadline_date) return false;
-  return today >= row.start_date && today <= row.deadline_date;
-}
+const PHASE_GATE_POLL_MS = 15_000;
+
 
 /**
  * Shown in place of the employee-only sections when the signed-in account is an
@@ -214,10 +215,7 @@ export const EmployeePage: React.FC<EmployeePageProps> = ({ currentUser, loginUs
   const [employeeEvaluations, setEmployeeEvaluations] = useState<any[]>([]);
   const [probationarySchedule, setProbationarySchedule] = useState<any | null>(null);
   // System-scope PM phase windows (regular employees). Probationary uses probationarySchedule.
-  const [systemSchedules, setSystemSchedules] = useState<{ target: any | null; rating: any | null }>({
-    target: null,
-    rating: null,
-  });
+  const [systemSchedules, setSystemSchedules] = useState<PhaseGate>(EMPTY_PHASE_GATE);
 
   // Office Accounts (department/office heads) oversee their team rather than
   // filing their own IPCR or training requests — those tabs stay visible but
@@ -238,7 +236,7 @@ export const EmployeePage: React.FC<EmployeePageProps> = ({ currentUser, loginUs
   }, [currentUser.supabaseId]);
 
   const isTargetSettingActive = useMemo(() => {
-    const systemOpen = isPhaseScheduleOpen(systemSchedules.target);
+    const systemOpen = isPhaseOpen(systemSchedules.target);
     if (probationarySchedule) {
       const nowStr = new Date().toISOString().slice(0, 10);
       const probOpen = nowStr >= probationarySchedule.target_start && nowStr <= probationarySchedule.target_end;
@@ -248,7 +246,7 @@ export const EmployeePage: React.FC<EmployeePageProps> = ({ currentUser, loginUs
   }, [probationarySchedule, systemSchedules]);
 
   const isAccomplishmentRatingActive = useMemo(() => {
-    const systemOpen = isPhaseScheduleOpen(systemSchedules.rating);
+    const systemOpen = isPhaseOpen(systemSchedules.rating);
     if (probationarySchedule) {
       const nowStr = new Date().toISOString().slice(0, 10);
       const probOpen = nowStr >= probationarySchedule.accomplishment_start && nowStr <= probationarySchedule.accomplishment_end;
@@ -490,14 +488,14 @@ export const EmployeePage: React.FC<EmployeePageProps> = ({ currentUser, loginUs
       }
 
       // Always load the phase windows so they act as a fallback (probationary
-      // employees OR these with their own schedule). Resolve the employee's
-      // OFFICE override if one exists, else the system default — so offices can
-      // sit on different phases (e.g. Legal stays in Phase 1 while every other
-      // office moves to Phase 2).
-      const scheduleFetchId = ++latestScheduleFetchId.current;
-      const schedules = await loadEffectiveSchedules(currentUser.supabaseId);
-      if (loadId !== latestEmployeeIpcrLoadId.current) return;
-      if (scheduleFetchId === latestScheduleFetchId.current) setSystemSchedules(schedules);
+      // employees OR these with their own schedule). Resolved through the
+      // shared gate helper so the office override is applied here and in the
+      // poll/realtime refresh identically — they used to disagree.
+      {
+        const gate = await fetchPhaseGate(currentUser.supabaseId ?? null);
+        if (loadId !== latestEmployeeIpcrLoadId.current) return;
+        setSystemSchedules(gate);
+      }
 
       // Phase 1 relational targets. If the active cycle resolves, load by cycle;
       // otherwise (e.g. performance_cycles not readable by the anon client due to
@@ -647,6 +645,37 @@ export const EmployeePage: React.FC<EmployeePageProps> = ({ currentUser, loginUs
     const schedules = await loadEffectiveSchedules(currentUser.supabaseId);
     if (scheduleFetchId === latestScheduleFetchId.current) setSystemSchedules(schedules);
   }, [currentUser.supabaseId]);
+
+  /**
+   * Poll the phase gate, because a realtime event arriving is not something the
+   * gate can depend on.
+   *
+   * PM pressing "Open phase" has to show up on this page without the employee
+   * being told to refresh — that was the reported fault: the admin said OPEN,
+   * the employee still saw CLOSED, and only reloading the page fixed it. A
+   * dropped socket, a backgrounded tab or a `supabase_realtime` publication
+   * that was never applied to this database all produce exactly that, and none
+   * of them are visible from here. The realtime subscription below stays as the
+   * fast path; this is the one that guarantees the gate converges.
+   *
+   * Two rows, so the query is cheap. It also runs on window focus, which is
+   * when an employee who has been waiting for the phase actually looks.
+   */
+  useEffect(() => {
+    if (!currentUser.supabaseId) return;
+    let cancelled = false;
+    const tick = () => {
+      if (cancelled || document.visibilityState === 'hidden') return;
+      void refreshPhaseSchedules();
+    };
+    const interval = window.setInterval(tick, PHASE_GATE_POLL_MS);
+    window.addEventListener('focus', tick);
+    return () => {
+      cancelled = true;
+      window.clearInterval(interval);
+      window.removeEventListener('focus', tick);
+    };
+  }, [currentUser.supabaseId, refreshPhaseSchedules]);
 
   // ── My IPCR Workspace (Phase 1 targets / Phase 2 accomplishments) ──────────
   const workspaceIdentity = () => ({

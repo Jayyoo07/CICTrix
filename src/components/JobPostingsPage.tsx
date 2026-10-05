@@ -288,14 +288,19 @@ export const JobPostingsPage = () => {
 
     const toStatus = (rawStatus: string): ReturnType<typeof getApplicants>[number]['status'] => {
       const normalized = normalizeText(rawStatus);
-      if (normalized.includes('recommend') || normalized.includes('qualified') || normalized.includes('hired') || normalized.includes('accepted')) {
-        return 'Recommended for Hiring';
+      // Rejection first: 'not qualified' contains 'qualified', so testing for
+      // qualification before it counted disqualified applicants as qualified.
+      if (normalized.includes('not qualified') || normalized.includes('disqual')) return 'Not Qualified';
+      if (normalized.includes('reject')) return 'Rejected';
+      // 'Recommended for Hiring' predates the split between screening and the
+      // post-evaluation decision; migration 20260926 resolves the stored rows.
+      if (normalized === 'recommended for hiring') return 'Recommended for Hiring';
+      if (normalized.includes('qualified') || normalized.includes('hired') || normalized.includes('accepted')) {
+        return 'Qualified';
       }
       if (normalized.includes('shortlist')) return 'Shortlisted';
       if (normalized.includes('interview')) return 'For Interview';
       if (normalized.includes('review') || normalized.includes('pending')) return 'Under Review';
-      if (normalized.includes('reject')) return 'Rejected';
-      if (normalized.includes('disqual')) return 'Not Qualified';
       return 'New Application';
     };
 

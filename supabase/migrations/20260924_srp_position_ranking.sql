@@ -134,19 +134,25 @@ insert into public.positions (
   name, department, salary_grade, min_education, min_education_field,
   required_eligibility, min_years_experience, min_training_hours
 )
+-- Every source column is cast to text before matching. These columns are not
+-- the same type in every environment — salary_grade is an integer in
+-- production and text elsewhere — and the regex operator does not accept an
+-- integer, so an uncast match fails outright with 42883. Casting to text first
+-- works for both, and keeps the guard meaningful where the column really is
+-- free text holding things like "N/A".
 select distinct on (lower(jp.title), lower(coalesce(jp.department, '')))
   jp.title,
   coalesce(jp.department, 'Unassigned'),
-  case when jp.salary_grade ~ '^[0-9]+$'
-         and jp.salary_grade::int between 1 and 33
-       then jp.salary_grade::smallint end,
+  case when jp.salary_grade::text ~ '^[0-9]+$'
+         and jp.salary_grade::text::int between 1 and 33
+       then jp.salary_grade::text::smallint end,
   jp.education_requirement,
   jp.education_field,
   jp.eligibility,
-  case when jp.experience_years ~ '^[0-9]+(\.[0-9]+)?$'
-       then jp.experience_years::numeric end,
-  case when jp.training_requirement ~ '^[0-9]+(\.[0-9]+)?$'
-       then jp.training_requirement::numeric end
+  case when jp.experience_years::text ~ '^[0-9]+(\.[0-9]+)?$'
+       then jp.experience_years::text::numeric end,
+  case when jp.training_requirement::text ~ '^[0-9]+(\.[0-9]+)?$'
+       then jp.training_requirement::text::numeric end
 from public.job_postings jp
 where coalesce(trim(jp.title), '') <> ''
 order by lower(jp.title), lower(coalesce(jp.department, '')), jp.created_at desc

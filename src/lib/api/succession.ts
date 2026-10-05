@@ -26,10 +26,14 @@ import {
   isDownwardMove,
   positionLevelRatio,
   educationBeyondMinimumRatio,
+  eligibilityScore,
+  meetsRequiredEligibility,
+  type EligibilityRecord,
+  type EligibilityTypePoints,
+  type EligibilityScore,
   evaluateQualifications,
   experienceScore,
   normalizeWeights,
-  tenureRatio,
   trainingBeyondMinimumRatio,
   type ExperiencePart,
   type RankingWeights,
@@ -180,13 +184,19 @@ export interface ReadinessScore {
   ipcrMax: number;
   training: number;
   trainingMax: number;
-  /** Relevant experience — quality, not only length of service. */
+  /** Relevant experience, including length of service. */
   experience: number;
   experienceMax: number;
-  /** Time in the organisation. Smallest weight of the five. */
-  tenure: number;
-  tenureMax: number;
-  /** Years since date_hired, shown alongside the tenure bar. */
+  /** Points from every valid eligibility the employee holds, capped (spec §D). */
+  eligibility: number;
+  eligibilityMax: number;
+  /** Which records counted, which expired, and which types are unconfigured. */
+  eligibilityDetail: EligibilityScore;
+  /**
+   * Years since date_hired. Shown as context and used as the years component of
+   * the experience score; it is NOT a criterion of its own. A separate tenure
+   * weight scored this same number a second time.
+   */
   tenureYears: number;
   /**
    * False when career progression could not be assessed because the candidate
@@ -197,8 +207,9 @@ export interface ReadinessScore {
   progressionAssessed: boolean;
   /** Inputs to the experience score, so a rank can be audited, not just read. */
   experienceParts: ExperiencePart[];
-  // Eligibility is a qualification gate, not a ranking criterion — it has no
-  // score here. eligibilityLabel below is still shown as context.
+  // Eligibility gates in stage A and scores in stage B, but only on the margin
+  // above the requirement — see eligibility/eligibilityMax above.
+  // eligibilityLabel below is the raw value, shown as context.
   /** Readiness tier from the total. */
   tier: SuccessionTier | null;
   // Raw context shown alongside the bars
@@ -355,8 +366,53 @@ async function cycleTitles(cycleIds: number[]): Promise<Map<number, string>> {
   return new Map((data ?? []).map((c: any) => [c.id, c.title as string]));
 }
 
-/** Roll one target setting's per-indicator Q/E/T up into a single overall score. */
-function overallFromMfoRows(mfoRows: any[]): number | null {
+/** Core/Strategic/Support split configured for a department, if any. */
+type FunctionWeights = { core: number; strategic: number; support: number };
+
+/**
+ * Active weighting schema per department, in one query.
+ *
+ * resolveOfficeWeights() in officeWeighting.ts answers this for a single
+ * office; succession scores a whole department at a time, so this batches
+ * rather than firing one request per employee.
+ */
+async function weightsByDepartment(departmentIds: (string | null)[]): Promise<Map<string, FunctionWeights>> {
+  const ids = [...new Set(departmentIds)].filter(Boolean) as string[];
+  const out = new Map<string, FunctionWeights>();
+  if (!ids.length) return out;
+
+  const { data } = await supabase
+    .from('department_weighting_configs')
+    .select('department_id, weighting_schema_options(core_weight, strategic_weight, support_weight)')
+    .in('department_id', ids)
+    .eq('is_active', true);
+
+  for (const row of (data ?? []) as any[]) {
+    const opt = row.weighting_schema_options;
+    if (!opt) continue;
+    out.set(String(row.department_id), {
+      core: Number(opt.core_weight) || 0,
+      strategic: Number(opt.strategic_weight) || 0,
+      support: Number(opt.support_weight) || 0,
+    });
+  }
+  return out;
+}
+
+/**
+ * Roll one target setting's per-indicator Q/E/T up into a single overall score.
+ *
+ * `weights` is the department's configured Core/Strategic/Support split. Pass
+ * null when the department has no active configuration — computeOverallScore
+ * then falls back to an unweighted mean, which is the documented behaviour
+ * rather than scoring against zeroes.
+ *
+ * Previously this always passed null, so every succession score used a plain
+ * average of the three function averages regardless of configuration. A
+ * department on schema B (Core 60 / Support 40) was effectively scored 50/50,
+ * and Performance is the heaviest ranking criterion at 30%.
+ */
+function overallFromMfoRows(mfoRows: any[], weights: FunctionWeights | null): number | null {
   const acc: Record<FunctionType, { q: number[]; e: number[]; t: number[] }> = {
     core: { q: [], e: [], t: [] },
     strategic: { q: [], e: [], t: [] },
@@ -384,9 +440,9 @@ function overallFromMfoRows(mfoRows: any[]): number | null {
       weight: null,
     });
   return computeOverallScore([
-    { average: cat('core'), weight: null },
-    { average: cat('strategic'), weight: null },
-    { average: cat('support'), weight: null },
+    { average: cat('core'), weight: weights ? weights.core : null },
+    { average: cat('strategic'), weight: weights ? weights.strategic : null },
+    { average: cat('support'), weight: weights ? weights.support : null },
   ]);
 }
 
@@ -446,8 +502,23 @@ export async function getLatestOverallScores(
     mfosBySetting.set(m.target_setting_id, list);
   }
 
+  // Each employee's score is weighted by their own department's configured
+  // Core/Strategic/Support split, so two employees with identical ratings in
+  // differently-configured offices score differently — which is the point of
+  // the configuration.
+  const { data: empDepts } = await supabase
+    .from('employees')
+    .select('id, department_id')
+    .in('id', [...latestByEmployee.keys()]);
+  const deptByEmployee = new Map<string, string | null>(
+    ((empDepts ?? []) as any[]).map((e) => [String(e.id), e.department_id ?? null]),
+  );
+  const weightsByDept = await weightsByDepartment([...deptByEmployee.values()]);
+
   for (const [employeeId, setting] of latestByEmployee) {
-    const overall = overallFromMfoRows(mfosBySetting.get(setting.id) ?? []);
+    const dept = deptByEmployee.get(employeeId) ?? null;
+    const weights = dept ? weightsByDept.get(dept) ?? null : null;
+    const overall = overallFromMfoRows(mfosBySetting.get(setting.id) ?? [], weights);
     if (overall === null) continue; // completed but unexpectedly empty → treat as unrated
     result.set(employeeId, {
       overallScore: overall,
@@ -1242,15 +1313,6 @@ function requiredEligibilityLevel(req: string | null | undefined): number {
   return 1; // generic "eligibility required" → at least sub-pro
 }
 
-/** Eligibility fit as a 0–1 ratio for scoring (gate check is stricter). */
-function eligibilityRatio(empElig: string | null, requiredElig: string | null): number {
-  const empLevel = eligibilityLevel(empElig);
-  if (empLevel === 0) return 0; // no record
-  const reqLevel = requiredEligibilityLevel(requiredElig);
-  if (reqLevel === 0) return 1; // no requirement → a recorded eligibility meets it
-  return empLevel >= reqLevel ? 1 : 0.5;
-}
-
 /**
  * Training subscore, out of W.training (default 30), measured relative to the
  * position's required training threshold:
@@ -1380,6 +1442,81 @@ function educationFieldMatches(empEdu: string | null, requiredEdu: string | null
   return reqFields.some((f) => empFields.has(f));
 }
 
+/**
+ * Every employee's eligibility records plus the configured points, in two
+ * queries rather than one per candidate.
+ *
+ * A failure here is not fatal to the ranking. Eligibility is one criterion of
+ * five; losing the table should cost those points and say so, not empty the
+ * succession slate.
+ */
+async function loadEligibilityScoring(employeeIds: string[]): Promise<{
+  eligibilityByEmployee: Map<string, EligibilityRecord[]>;
+  eligibilityTypes: EligibilityTypePoints[];
+  pointsForFullMarks: number;
+}> {
+  const byEmployee = new Map<string, EligibilityRecord[]>();
+  let types: EligibilityTypePoints[] = [];
+  let cap = 100;
+
+  if (employeeIds.length > 0) {
+    try {
+      const { data } = await supabase
+        .from('employee_eligibility')
+        .select('employee_id, eligibility_type, validity_date')
+        .in('employee_id', employeeIds);
+      for (const row of (data ?? []) as any[]) {
+        const key = String(row.employee_id ?? '');
+        if (!key) continue;
+        const list = byEmployee.get(key) ?? [];
+        list.push({
+          type: String(row.eligibility_type ?? '').trim(),
+          validUntil: row.validity_date ? String(row.validity_date).slice(0, 10) : null,
+        });
+        byEmployee.set(key, list);
+      }
+    } catch {
+      /* table unreadable — fall back to the legacy column per employee */
+    }
+  }
+
+  try {
+    const { data } = await supabase
+      .from('eligibility_types')
+      .select('name, points, is_active, points_for_full_marks');
+    const rows = (data ?? []) as any[];
+    types = rows.map((r) => ({
+      name: String(r.name ?? ''),
+      points: Number(r.points ?? 0),
+      isActive: r.is_active !== false,
+    }));
+    const firstCap = rows.find((r) => Number(r.points_for_full_marks) > 0);
+    if (firstCap) cap = Number(firstCap.points_for_full_marks);
+  } catch {
+    /* unconfigured — every record reports as unconfigured and scores zero */
+  }
+
+  return { eligibilityByEmployee: byEmployee, eligibilityTypes: types, pointsForFullMarks: cap };
+}
+
+/**
+ * An employee's eligibility records, falling back to the legacy single column.
+ *
+ * The fallback matters while records are still being entered: an employee with
+ * no rows yet would otherwise fail the eligibility gate outright, which is a
+ * data-entry state being reported as a disqualification.
+ */
+function eligibilityRecordsFor(
+  employeeId: string,
+  byEmployee: Map<string, EligibilityRecord[]>,
+  legacyLabel: string | null,
+): EligibilityRecord[] {
+  const rows = byEmployee.get(employeeId);
+  if (rows && rows.length > 0) return rows;
+  const label = String(legacyLabel ?? '').trim();
+  return label ? [{ type: label, validUntil: null }] : [];
+}
+
 /** Auto-suggested next step for a failed gate (Part 4 Required Actions). */
 
 
@@ -1392,6 +1529,11 @@ function computeReadinessScore(input: {
   requiredEducation: string | null;
   empEligibility: string | null;
   requiredEligibility: string | null;
+  /** Every eligibility the employee holds (spec §B–C), not just one. */
+  eligibilityRecords: EligibilityRecord[];
+  /** Points per type, configured by HR (spec §D). */
+  eligibilityTypes: EligibilityTypePoints[];
+  pointsForFullMarks: number;
   relevantTrainings: number;
   relevantTrainingHours: number;
   mostRecentTrainingDate: string | null;
@@ -1436,7 +1578,6 @@ function computeReadinessScore(input: {
     progressionSteps: input.progressionSteps,
   });
   const experience = w1(exp.ratio, input.W.experience);
-  const tenure = w1(tenureRatio(input.tenureYears), input.W.tenure);
   const training = scoreTraining({
     completed: input.relevantTrainings,
     hours: input.relevantTrainingHours,
@@ -1447,14 +1588,22 @@ function computeReadinessScore(input: {
     empCategories: input.empTrainingCategories,
     W: input.W,
   });
-  // Eligibility is a qualification gate, not a ranking criterion — no score.
+  // Eligibility (spec §D): points from every valid record the employee holds,
+  // summed and capped, with the points per type set by HR. Not the margin above
+  // the position's requirement — that could not see a second eligibility.
+  const eligibilityDetail = eligibilityScore(
+    input.eligibilityRecords,
+    input.eligibilityTypes,
+    input.pointsForFullMarks,
+  );
+  const eligibility = w1(eligibilityDetail.ratio, input.W.eligibility);
 
   // Performance is no longer a gate, so a candidate with no finalized IPCR is
   // still ranked; they simply score zero on that criterion. dataComplete now
   // reports whether the ranking is based on a full record, not whether the
   // candidate belongs in the pool at all.
   const dataComplete = input.ipcrScore != null;
-  const total = Number((education + ipcr + training + experience + tenure).toFixed(1));
+  const total = Number((education + ipcr + training + experience + eligibility).toFixed(1));
 
   // Stage-2 competency readiness. When the position lists required competencies,
   // it drives the tier (Ready Now = 100%); otherwise the weighted total does.
@@ -1497,8 +1646,9 @@ function computeReadinessScore(input: {
     trainingMax: input.W.training,
     experience,
     experienceMax: input.W.experience,
-    tenure,
-    tenureMax: input.W.tenure,
+    eligibility,
+    eligibilityMax: input.W.eligibility,
+    eligibilityDetail,
     tenureYears: input.tenureYears,
     progressionAssessed: exp.progressionAssessed,
     experienceParts: exp.parts,
@@ -1677,6 +1827,12 @@ export async function listAutoSuccessors(
       .in('employment_status', ['Regular', 'Permanent']);
     if (empErr) return { ok: false, error: empErr.message };
 
+    // Eligibility records and the configured points (spec §B–D). An employee
+    // may hold several; the single employees.eligibility column cannot express
+    // that and is used only as a fallback below.
+    const { eligibilityByEmployee, eligibilityTypes, pointsForFullMarks } =
+      await loadEligibilityScoring((empRows ?? []).map((e: any) => String(e.id)));
+
     const fullName = (e: any) =>
       [e.first_name, e.middle_name, e.last_name].filter(Boolean).join(' ').trim() || '(unknown)';
     const posTokens = positionTitle.toLowerCase().split(/[^a-z]+/).filter((t) => t.length > 3);
@@ -1795,12 +1951,16 @@ export async function listAutoSuccessors(
         }
       }
 
-      // Gate 4: Eligibility Match (strict Professional vs Sub-Professional)
+      // Gate 4: Eligibility Match (strict Professional vs Sub-Professional).
+      // Checked across every record the employee holds — somebody whose
+      // required eligibility was their second entry used to fail this gate,
+      // because only the single employees.eligibility column was read.
+      const empEligRecords = eligibilityRecordsFor(String(e.id), eligibilityByEmployee, e.eligibility ?? null);
       if (requiredEligibility) {
         const reqLevel = requiredEligibilityLevel(requiredEligibility);
-        const empLevel = eligibilityLevel(e.eligibility ?? null);
-        if (reqLevel > 0 && empLevel < reqLevel) {
-          const empEligLabel = e.eligibility ? `Eligibility: ${e.eligibility}` : 'No eligibility on file';
+        if (reqLevel > 0 && !meetsRequiredEligibility(empEligRecords, requiredEligibility)) {
+          const held = empEligRecords.map((r) => r.type).filter(Boolean);
+          const empEligLabel = held.length ? `Eligibility: ${held.join(', ')}` : 'No eligibility on file';
           const reqLabel = reqLevel === 2 ? 'Professional' : 'Sub-Professional';
           failedGates.push(`${empEligLabel} — requires ${reqLabel}`);
         }
@@ -1881,6 +2041,9 @@ export async function listAutoSuccessors(
         empEducation: e.highest_educational_attainment ?? null,
         requiredEducation,
         empEligibility: e.eligibility ?? null,
+        eligibilityRecords: empEligRecords,
+        eligibilityTypes,
+        pointsForFullMarks,
         requiredEligibility,
         relevantTrainings: agg.count,
         relevantTrainingHours: agg.hours,
@@ -1952,6 +2115,12 @@ export async function listAutoSuccessors(
         .eq('id', mcId)
         .maybeSingle();
       const mcScore = scores.get(mcId) ?? (await getLatestOverallScores([mcId])).get(mcId);
+      const mcEligibility = await loadEligibilityScoring([mcId]);
+      const mcEligibilityRecords = eligibilityRecordsFor(
+        mcId,
+        mcEligibility.eligibilityByEmployee,
+        mcEmp?.eligibility ?? null,
+      );
       const { data: mcTrain } = await supabase
         .from('employee_training')
         .select('id, training_title, training_type, number_of_hours, from_date')
@@ -1984,6 +2153,13 @@ export async function listAutoSuccessors(
         empEducation: mcEmp?.highest_educational_attainment ?? null,
         requiredEducation,
         empEligibility: mcEmp?.eligibility ?? null,
+        // Loaded on its own: this candidate was added by hand from outside the
+        // position-matched pool, so they are not in the batch fetched above.
+        // Without this they would score from the single legacy column while
+        // everyone else scored from their full record set.
+        eligibilityRecords: mcEligibilityRecords,
+        eligibilityTypes,
+        pointsForFullMarks,
         requiredEligibility,
         relevantTrainings: mcAgg.count,
         relevantTrainingHours: mcAgg.hours,

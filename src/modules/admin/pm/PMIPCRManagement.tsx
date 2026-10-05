@@ -11,6 +11,7 @@ import {
   ChevronLeft,
   ChevronRight,
   ClipboardCheck,
+  ListChecks,
   Lock,
   Unlock,
   RefreshCw,
@@ -32,9 +33,11 @@ import { computeOverallScore } from '../../../lib/api/ipcrWorkspace';
 import { resolveOfficeWeights } from '../../../lib/api/officeWeighting';
 import { loadEmployeeIpcrForReview } from '../../../lib/api/ipcrApproval';
 import { OfficeWeightingPanel } from './OfficeWeightingPanel';
+import { RatingScalePanel } from '../../../components/RatingScalePanel';
 import { getCurrentAdminEmail } from '../moduleUi';
 import { supabase as supabaseClient } from '../../../lib/supabase';
 import { getSystemPhaseStates, openPhase, closePhase } from '../../../lib/api/ipcrPhaseControl';
+import { getActiveCyclePeriod } from '../../../lib/api/compliance';
 import type { EffectiveState } from '../../../lib/api/phaseSchedules';
 
 const supabase = supabaseClient as any;
@@ -1075,7 +1078,12 @@ const ProbationaryPanel = ({
   const [search, setSearch] = useState('');
   const [officeFilter, setOfficeFilter] = useState('');
   const [showSchedule, setShowSchedule] = useState(false);
+  // The evaluation period this screen is acting on. It used to be set only by
+  // the Schedule dialog, so the panel read "No active period" on every load
+  // even when a cycle existed — and kept reading it while phase notifications
+  // went out stamped with the period the API resolved anyway.
   const [currentPeriod, setCurrentPeriod] = useState('');
+  const [periodScheduled, setPeriodScheduled] = useState(true);
 
   const [systemStates, setSystemStates] = useState<{ target_setting: EffectiveState; rating: EffectiveState }>({
     target_setting: 'Closed',
@@ -1089,8 +1097,10 @@ const ProbationaryPanel = ({
 
   const loadSystemStates = useCallback(async () => {
     try {
-      const states = await getSystemPhaseStates();
+      const [states, cycle] = await Promise.all([getSystemPhaseStates(), getActiveCyclePeriod()]);
       setSystemStates(states);
+      setCurrentPeriod(cycle.period);
+      setPeriodScheduled(cycle.isScheduled);
     } catch (err) {
       console.warn('Failed to load system phase states:', err);
     }
@@ -1182,6 +1192,11 @@ const ProbationaryPanel = ({
           <div>
             <p className="text-[9px] font-extrabold uppercase tracking-wider text-slate-400">Evaluation Period</p>
             <p className="text-xs font-bold text-slate-900 mt-0.5">{currentPeriod || 'No active period'}</p>
+            {currentPeriod && !periodScheduled && (
+              <p className="text-[9px] font-semibold text-amber-600 mt-0.5">
+                Not scheduled — phases will use this period
+              </p>
+            )}
           </div>
         </div>
 
@@ -1382,7 +1397,11 @@ const ProbationaryPanel = ({
           type="probationary"
           employees={employees}
           onClose={() => setShowSchedule(false)}
-          onScheduled={(p) => setCurrentPeriod(p)}
+          onScheduled={(p) => {
+            setCurrentPeriod(p);
+            // A cycle now exists, so the label is no longer the fallback.
+            setPeriodScheduled(true);
+          }}
         />
       )}
 
@@ -1425,11 +1444,13 @@ const ProbationaryPanel = ({
                   const res = await openPhase({ phase: 'phase1', openedBy: getCurrentAdminEmail() });
                   setActionBusy(false);
                   setShowConfirmOpen1(false);
-                  if (res.ok) {
-                    void loadSystemStates();
-                  } else {
-                    alert('error' in res ? res.error : 'Failed to open phase');
-                  }
+                  // Always re-read the switch, including on failure: the
+                  // schedule row may have flipped before a later step failed,
+                  // and a badge that disagrees with the database is how this
+                  // screen came to show CLOSED while employees were open.
+                  await loadSystemStates();
+                  if (res.ok === false) alert(res.error);
+                  else if (res.warning) alert(res.warning);
                 }}
                 disabled={actionBusy}
                 className="px-5 py-2 text-sm font-bold bg-[#363EE8] hover:bg-[#2931c5] text-white rounded-xl shadow-xs transition active:scale-95 disabled:opacity-50"
@@ -1480,11 +1501,13 @@ const ProbationaryPanel = ({
                   const res = await closePhase({ phase: 'phase1', closedBy: getCurrentAdminEmail() });
                   setActionBusy(false);
                   setShowConfirmClose1(false);
-                  if (res.ok) {
-                    void loadSystemStates();
-                  } else {
-                    alert('error' in res ? res.error : 'Failed to close phase');
-                  }
+                  // Always re-read the switch, including on failure: the
+                  // schedule row may have flipped before a later step failed,
+                  // and a badge that disagrees with the database is how this
+                  // screen came to show CLOSED while employees were open.
+                  await loadSystemStates();
+                  if (res.ok === false) alert(res.error);
+                  else if (res.warning) alert(res.warning);
                 }}
                 disabled={actionBusy}
                 className="px-5 py-2 text-sm font-bold bg-[#e11d48] hover:bg-[#be123c] text-white rounded-xl shadow-xs transition active:scale-95 disabled:opacity-50"
@@ -1535,11 +1558,13 @@ const ProbationaryPanel = ({
                   const res = await openPhase({ phase: 'phase2', openedBy: getCurrentAdminEmail() });
                   setActionBusy(false);
                   setShowConfirmOpen2(false);
-                  if (res.ok) {
-                    void loadSystemStates();
-                  } else {
-                    alert('error' in res ? res.error : 'Failed to open phase');
-                  }
+                  // Always re-read the switch, including on failure: the
+                  // schedule row may have flipped before a later step failed,
+                  // and a badge that disagrees with the database is how this
+                  // screen came to show CLOSED while employees were open.
+                  await loadSystemStates();
+                  if (res.ok === false) alert(res.error);
+                  else if (res.warning) alert(res.warning);
                 }}
                 disabled={actionBusy}
                 className="px-5 py-2 text-sm font-bold bg-[#363EE8] hover:bg-[#2931c5] text-white rounded-xl shadow-xs transition active:scale-95 disabled:opacity-50"
@@ -1590,11 +1615,13 @@ const ProbationaryPanel = ({
                   const res = await closePhase({ phase: 'phase2', closedBy: getCurrentAdminEmail() });
                   setActionBusy(false);
                   setShowConfirmClose2(false);
-                  if (res.ok) {
-                    void loadSystemStates();
-                  } else {
-                    alert('error' in res ? res.error : 'Failed to close phase');
-                  }
+                  // Always re-read the switch, including on failure: the
+                  // schedule row may have flipped before a later step failed,
+                  // and a badge that disagrees with the database is how this
+                  // screen came to show CLOSED while employees were open.
+                  await loadSystemStates();
+                  if (res.ok === false) alert(res.error);
+                  else if (res.warning) alert(res.warning);
                 }}
                 disabled={actionBusy}
                 className="px-5 py-2 text-sm font-bold bg-[#e11d48] hover:bg-[#be123c] text-white rounded-xl shadow-xs transition active:scale-95 disabled:opacity-50"
@@ -1624,7 +1651,12 @@ const RegularPanel = ({
 }) => {
   const [drillOffice, setDrillOffice] = useState<string | null>(null);
   const [showSchedule, setShowSchedule] = useState(false);
+  // The evaluation period this screen is acting on. It used to be set only by
+  // the Schedule dialog, so the panel read "No active period" on every load
+  // even when a cycle existed — and kept reading it while phase notifications
+  // went out stamped with the period the API resolved anyway.
   const [currentPeriod, setCurrentPeriod] = useState('');
+  const [periodScheduled, setPeriodScheduled] = useState(true);
 
   const [systemStates, setSystemStates] = useState<{ target_setting: EffectiveState; rating: EffectiveState }>({
     target_setting: 'Closed',
@@ -1638,8 +1670,10 @@ const RegularPanel = ({
 
   const loadSystemStates = useCallback(async () => {
     try {
-      const states = await getSystemPhaseStates();
+      const [states, cycle] = await Promise.all([getSystemPhaseStates(), getActiveCyclePeriod()]);
       setSystemStates(states);
+      setCurrentPeriod(cycle.period);
+      setPeriodScheduled(cycle.isScheduled);
     } catch (err) {
       console.warn('Failed to load system phase states:', err);
     }
@@ -1737,6 +1771,11 @@ const RegularPanel = ({
           <div>
             <p className="text-[9px] font-extrabold uppercase tracking-wider text-slate-400">Evaluation Period</p>
             <p className="text-xs font-bold text-slate-900 mt-0.5">{currentPeriod || 'No active period'}</p>
+            {currentPeriod && !periodScheduled && (
+              <p className="text-[9px] font-semibold text-amber-600 mt-0.5">
+                Not scheduled — phases will use this period
+              </p>
+            )}
           </div>
         </div>
 
@@ -1945,7 +1984,11 @@ const RegularPanel = ({
           type="regular"
           employees={employees}
           onClose={() => setShowSchedule(false)}
-          onScheduled={(p) => setCurrentPeriod(p)}
+          onScheduled={(p) => {
+            setCurrentPeriod(p);
+            // A cycle now exists, so the label is no longer the fallback.
+            setPeriodScheduled(true);
+          }}
         />
       )}
 
@@ -1967,11 +2010,13 @@ const RegularPanel = ({
                   const res = await openPhase({ phase: 'phase1', openedBy: getCurrentAdminEmail() });
                   setActionBusy(false);
                   setShowConfirmOpen1(false);
-                  if (res.ok) {
-                    void loadSystemStates();
-                  } else {
-                    alert('error' in res ? res.error : 'Failed to open phase');
-                  }
+                  // Always re-read the switch, including on failure: the
+                  // schedule row may have flipped before a later step failed,
+                  // and a badge that disagrees with the database is how this
+                  // screen came to show CLOSED while employees were open.
+                  await loadSystemStates();
+                  if (res.ok === false) alert(res.error);
+                  else if (res.warning) alert(res.warning);
                 }}
                 disabled={actionBusy}
                 className="px-4 py-2 text-xs font-bold bg-[#363EE8] text-white rounded-lg hover:bg-[#2931c5]"
@@ -2001,11 +2046,13 @@ const RegularPanel = ({
                   const res = await closePhase({ phase: 'phase1', closedBy: getCurrentAdminEmail() });
                   setActionBusy(false);
                   setShowConfirmClose1(false);
-                  if (res.ok) {
-                    void loadSystemStates();
-                  } else {
-                    alert('error' in res ? res.error : 'Failed to close phase');
-                  }
+                  // Always re-read the switch, including on failure: the
+                  // schedule row may have flipped before a later step failed,
+                  // and a badge that disagrees with the database is how this
+                  // screen came to show CLOSED while employees were open.
+                  await loadSystemStates();
+                  if (res.ok === false) alert(res.error);
+                  else if (res.warning) alert(res.warning);
                 }}
                 disabled={actionBusy}
                 className="px-4 py-2 text-xs font-bold bg-rose-600 text-white rounded-lg hover:bg-rose-700"
@@ -2035,11 +2082,13 @@ const RegularPanel = ({
                   const res = await openPhase({ phase: 'phase2', openedBy: getCurrentAdminEmail() });
                   setActionBusy(false);
                   setShowConfirmOpen2(false);
-                  if (res.ok) {
-                    void loadSystemStates();
-                  } else {
-                    alert('error' in res ? res.error : 'Failed to open phase');
-                  }
+                  // Always re-read the switch, including on failure: the
+                  // schedule row may have flipped before a later step failed,
+                  // and a badge that disagrees with the database is how this
+                  // screen came to show CLOSED while employees were open.
+                  await loadSystemStates();
+                  if (res.ok === false) alert(res.error);
+                  else if (res.warning) alert(res.warning);
                 }}
                 disabled={actionBusy}
                 className="px-4 py-2 text-xs font-bold bg-[#363EE8] text-white rounded-lg hover:bg-[#2931c5]"
@@ -2069,11 +2118,13 @@ const RegularPanel = ({
                   const res = await closePhase({ phase: 'phase2', closedBy: getCurrentAdminEmail() });
                   setActionBusy(false);
                   setShowConfirmClose2(false);
-                  if (res.ok) {
-                    void loadSystemStates();
-                  } else {
-                    alert('error' in res ? res.error : 'Failed to close phase');
-                  }
+                  // Always re-read the switch, including on failure: the
+                  // schedule row may have flipped before a later step failed,
+                  // and a badge that disagrees with the database is how this
+                  // screen came to show CLOSED while employees were open.
+                  await loadSystemStates();
+                  if (res.ok === false) alert(res.error);
+                  else if (res.warning) alert(res.warning);
                 }}
                 disabled={actionBusy}
                 className="px-4 py-2 text-xs font-bold bg-rose-600 text-white rounded-lg hover:bg-rose-700"
@@ -2109,6 +2160,9 @@ export const PMIPCRManagement = () => {
   // popup so the per-office Core/Strategic/Support split lives beside the IPCR
   // records it governs.
   const [showWeighting, setShowWeighting] = useState(false);
+  // Same treatment for the rating scale (spec §G): it governs the ratings on
+  // these records, so it opens beside them rather than from Settings.
+  const [showRatingScale, setShowRatingScale] = useState(false);
 
   const latestLoadId = useRef<number>(0);
 
@@ -2270,6 +2324,15 @@ export const PMIPCRManagement = () => {
           <Scale size={15} className="text-blue-600" />
           IPCR Weighting
         </button>
+        <button
+          type="button"
+          onClick={() => setShowRatingScale(true)}
+          className="flex shrink-0 items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50"
+          title="Set what each 1–5 rating means for employees"
+        >
+          <ListChecks size={15} className="text-blue-600" />
+          Rating Scale
+        </button>
       </div>
 
       {/* Subtabs */}
@@ -2332,6 +2395,28 @@ export const PMIPCRManagement = () => {
               <X size={18} />
             </button>
             <OfficeWeightingPanel />
+          </div>
+        </div>
+      )}
+
+      {showRatingScale && (
+        <div
+          className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/40 p-4 backdrop-blur-sm sm:p-8"
+          onClick={() => setShowRatingScale(false)}
+        >
+          <div
+            className="relative w-full max-w-5xl rounded-2xl bg-white p-6 shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              type="button"
+              onClick={() => setShowRatingScale(false)}
+              className="absolute right-4 top-4 rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+              title="Close"
+            >
+              <X size={18} />
+            </button>
+            <RatingScalePanel />
           </div>
         </div>
       )}

@@ -44,6 +44,7 @@ import {
   type QualificationDrift,
   type PositionQualifications,
 } from '../lib/api/succession';
+import { RANKING_WEIGHTS, type EligibilityScore } from '../lib/api/successionCriteria';
 
 // The Succession Planning view lives inside the RSP Portal, which is already
 // access-gated to the RSP admin. Management actions therefore key off "am I in
@@ -685,7 +686,7 @@ const CandidatesPanel = (props: CandidatesPanelProps) => {
       </div>
 
       <p className="!mb-0 text-xs text-[var(--text-secondary)]">
-        Two-stage model. Stage A — qualifications are minimum requirements, not weighted (Employment · Position Match · Education field-match · CSC Eligibility · Minimum Experience · Training): fail any one and the employee drops to "Not Yet Qualified" below, never ranked here. Stage B — only qualified employees are ranked, on Performance 30 + Relevant Experience 25 + Training 20 + Education beyond minimum 15 + Tenure 10. Education and Training count only what is above the minimum the filter already checked, so clearing the bar is not paid for twice. Performance is ranked but never gates: an unrated employee who meets the four minimums is still ranked, scoring zero on that criterion.
+        Two-stage model. Stage A — qualifications are minimum requirements, not weighted (Employment · Position Match · Education field-match · CSC Eligibility · Minimum Experience · Training): fail any one and the employee drops to "Not Yet Qualified" below, never ranked here. Stage B — only qualified employees are ranked, on Performance 30 + Relevant Experience including length of service 20 + Training 20 + Education beyond minimum 15 + Eligibility beyond minimum 15. Education and Training count only what is above the minimum the filter already checked, so clearing the bar is not paid for twice. Eligibility sums the points of every valid eligibility the employee holds, capped so a long list of minor credentials cannot reach full marks — the points per type are set in Eligibility Points. Length of service is inside Experience rather than a criterion of its own, because it is already that score's years component. Performance is ranked but never gates: an unrated employee who meets the four minimums is still ranked, scoring zero on that criterion.
       </p>
 
       {loading && <p className="text-sm text-[var(--text-secondary)]">Discovering eligible successors…</p>}
@@ -880,10 +881,6 @@ const AutoSuccessorRow = ({
                       partial
                     </span>
                   )}
-                </div>
-                <div className="flex items-center gap-1.5">
-                  <span className="text-[10px] font-medium uppercase tracking-wide text-[var(--text-secondary)]">Tenure</span>
-                  <ScoreBar value={r.tenure} max={r.tenureMax} color="#a855f7" />
                 </div>
               </div>
 
@@ -1219,6 +1216,7 @@ type OcboRow = {
   criteria: { key: string; label: string; value: number; max: number }[];
   /** Inputs to the experience score, shown when a candidate is expanded. */
   experienceParts: ExperiencePart[];
+  eligibility: EligibilityScore;
   status: string;
   statusTone: string;
   gapAnalysis: string[];
@@ -1227,15 +1225,19 @@ type OcboRow = {
 };
 
 /**
- * The five ranking criteria, in the order specification B lists them, with the
+ * The ranking criteria, in the order specification B lists them, with the
  * weight shown in the header so an admin never has to look it up elsewhere.
+ *
+ * Weights are read from the model rather than retyped here. A header that
+ * disagrees with the score it labels is worse than no header, and the figures
+ * on the /succession explainer had already drifted that way once.
  */
 const CRITERIA_COLUMNS = [
-  { key: 'ipcr', label: 'Performance', weight: 30 },
-  { key: 'experience', label: 'Experience', weight: 25 },
-  { key: 'training', label: 'Training', weight: 20 },
-  { key: 'education', label: 'Education', weight: 15 },
-  { key: 'tenure', label: 'Tenure', weight: 10 },
+  { key: 'ipcr', label: 'Performance', weight: RANKING_WEIGHTS.ipcr },
+  { key: 'experience', label: 'Experience + Tenure', weight: RANKING_WEIGHTS.experience },
+  { key: 'training', label: 'Training', weight: RANKING_WEIGHTS.training },
+  { key: 'education', label: 'Education', weight: RANKING_WEIGHTS.education },
+  { key: 'eligibility', label: 'Eligibility', weight: RANKING_WEIGHTS.eligibility },
 ] as const;
 
 /**
@@ -1290,12 +1292,13 @@ const buildOcboRows = (res: AutoSuccessorsResult | undefined): OcboRow[] => {
     // Ordered as specification B lists them.
     criteria: [
       { key: 'ipcr', label: 'Performance', value: c.readiness.ipcr, max: c.readiness.ipcrMax },
-      { key: 'experience', label: 'Experience', value: c.readiness.experience, max: c.readiness.experienceMax },
+      { key: 'experience', label: 'Experience + Tenure', value: c.readiness.experience, max: c.readiness.experienceMax },
       { key: 'training', label: 'Training', value: c.readiness.training, max: c.readiness.trainingMax },
       { key: 'education', label: 'Education', value: c.readiness.education, max: c.readiness.educationMax },
-      { key: 'tenure', label: 'Tenure', value: c.readiness.tenure, max: c.readiness.tenureMax },
+      { key: 'eligibility', label: 'Eligibility', value: c.readiness.eligibility, max: c.readiness.eligibilityMax },
     ],
     experienceParts: c.readiness.experienceParts,
+    eligibility: c.readiness.eligibilityDetail,
     status: c.readiness.tier ?? 'Developmental',
     statusTone: ocboStatusTone(c.readiness.tier ?? 'Developmental'),
     gapAnalysis: c.gapAnalysis,
@@ -1505,8 +1508,8 @@ const OcboTableView = ({ admin }: { admin: string }) => {
                                     </td>
                                     {r.criteria.map((c) => (
                                       <td key={c.key} className="px-3 py-2 text-right tabular-nums text-slate-700">
-                                        {/* Always a number, never blank: an absent record must read
-                                            as 0, not as a rendering fault. */}
+                                        {/* Always a number, never blank: an absent record must
+                                            read as 0, not as a rendering fault. */}
                                         {c.value.toFixed(1)}
                                         <span className="ml-0.5 text-[9px] text-slate-400">/{c.max}</span>
                                       </td>
@@ -1569,6 +1572,41 @@ const OcboTableView = ({ admin }: { admin: string }) => {
                                                   <span className="text-slate-400">· {part.detail}</span>
                                                 </li>
                                               ))}
+                                            </ul>
+
+                                            {/* Which eligibilities produced the score. A capped
+                                                sum is unreadable without its parts: two
+                                                candidates on the same number may hold entirely
+                                                different credentials. */}
+                                            <p className="!mb-1 mt-3 text-[10px] font-bold uppercase tracking-wide text-slate-500">
+                                              How Eligibility was scored
+                                            </p>
+                                            <ul className="!mb-0 space-y-0.5">
+                                              {r.eligibility.counted.map((c) => (
+                                                <li key={c.type} className="flex flex-wrap items-baseline gap-x-2 text-[10px]">
+                                                  <span className="text-slate-700">{c.type}</span>
+                                                  <span className="font-semibold tabular-nums text-slate-700">{c.points} pts</span>
+                                                </li>
+                                              ))}
+                                              {r.eligibility.counted.length === 0 && (
+                                                <li className="text-[10px] text-slate-400">No valid eligibility counted.</li>
+                                              )}
+                                              {r.eligibility.expired.map((t) => (
+                                                <li key={`x-${t}`} className="flex flex-wrap items-baseline gap-x-2 text-[10px]">
+                                                  <span className="text-slate-400">{t}</span>
+                                                  <span className="font-semibold text-amber-700">expired</span>
+                                                </li>
+                                              ))}
+                                              {/* Not "worth nothing" — nobody has configured it. */}
+                                              {r.eligibility.unconfigured.map((t) => (
+                                                <li key={`u-${t}`} className="flex flex-wrap items-baseline gap-x-2 text-[10px]">
+                                                  <span className="text-slate-400">{t}</span>
+                                                  <span className="font-semibold text-amber-700">no points configured</span>
+                                                </li>
+                                              ))}
+                                              <li className="pt-0.5 text-[10px] text-slate-400">
+                                                {r.eligibility.rawPoints} of {r.eligibility.pointsForFullMarks} points for full marks
+                                              </li>
                                             </ul>
                                           </div>
                                           <div>

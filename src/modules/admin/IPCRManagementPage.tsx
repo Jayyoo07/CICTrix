@@ -694,12 +694,14 @@ const SubmissionPhasePanel = ({
                   const res = await openPhase({ phase: phase === 'target' ? 'phase1' : 'phase2', openedBy: getCurrentAdminEmail() });
                   setActionBusy(false);
                   setShowConfirmOpen(false);
-                  if (res.ok) {
-                    flash(`✓ Phase ${phase === 'target' ? '1' : '2'} opened successfully.`);
-                    void reload();
-                  } else {
-                    setError('error' in res ? res.error : 'Failed to open phase');
-                  }
+                  // Always reload, including on failure: the schedule row may
+                  // have flipped before a later step failed, and a badge that
+                  // disagrees with the database is how this screen came to show
+                  // CLOSED while employees were open.
+                  await reload();
+                  if (res.ok === false) setError(res.error);
+                  else if (res.warning) setError(res.warning);
+                  else flash(`✓ Phase ${phase === 'target' ? '1' : '2'} opened successfully.`);
                 }}
                 disabled={actionBusy}
                 style={ui.primaryBtn}
@@ -729,12 +731,14 @@ const SubmissionPhasePanel = ({
                   const res = await closePhase({ phase: phase === 'target' ? 'phase1' : 'phase2', closedBy: getCurrentAdminEmail() });
                   setActionBusy(false);
                   setShowConfirmClose(false);
-                  if (res.ok) {
-                    flash(`✓ Phase ${phase === 'target' ? '1' : '2'} closed successfully.`);
-                    void reload();
-                  } else {
-                    setError('error' in res ? res.error : 'Failed to close phase');
-                  }
+                  // Always reload, including on failure: the schedule row may
+                  // have flipped before a later step failed, and a badge that
+                  // disagrees with the database is how this screen came to show
+                  // CLOSED while employees were open.
+                  await reload();
+                  if (res.ok === false) setError(res.error);
+                  else if (res.warning) setError(res.warning);
+                  else flash(`✓ Phase ${phase === 'target' ? '1' : '2'} closed successfully.`);
                 }}
                 disabled={actionBusy}
                 style={{ ...ui.primaryBtn, background: '#ef4444', borderColor: '#ef4444' }}

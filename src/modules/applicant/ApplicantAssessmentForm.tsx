@@ -6,6 +6,7 @@ import { POSITION_TO_DEPARTMENT_MAP } from '../../constants/positions';
 import { useDepartmentOptions } from '../../hooks/useDepartmentOptions';
 import { ensureRecruitmentSeedData, getAuthoritativeJobPostings, loadJobPostings } from '../../lib/recruitmentData';
 import type { ApplicantFormData, ValidationErrors } from '../../types/applicant.types';
+import { COURSE_GROUPS, OTHER_COURSE, isCanonicalCourse } from '../../lib/courses';
 
 interface ApplicantAssessmentFormProps {
   formData: ApplicantFormData;
@@ -186,6 +187,21 @@ export const ApplicantAssessmentForm: React.FC<ApplicantAssessmentFormProps> = (
     formData.education_attainment === 'College Graduate' ||
     formData.education_attainment === 'Masteral Units' ||
     formData.education_attainment === 'Graduate School';
+
+  // The course is picked from a standardised list so one degree stops being
+  // stored under four spellings. What is stored is still the course name
+  // itself, not a code, so nothing that reads education_degree has to change.
+  //
+  // An applicant can arrive with a value already saved — a resumed draft, or a
+  // record created before the list existed. If it is not on the list, the
+  // select shows "Others" and the free-text box holds what they had, so
+  // returning to the form never silently discards their answer.
+  const degreeIsListed = isCanonicalCourse(formData.education_degree);
+  const degreeIsOther = Boolean(formData.education_degree) && !degreeIsListed;
+  const [courseIsOther, setCourseIsOther] = useState(degreeIsOther);
+  useEffect(() => {
+    if (degreeIsOther) setCourseIsOther(true);
+  }, [degreeIsOther]);
 
   return (
     <>
@@ -450,6 +466,10 @@ export const ApplicantAssessmentForm: React.FC<ApplicantAssessmentFormProps> = (
                   next === 'Graduate School';
                 if (!needsDegree && formData.education_degree) {
                   onChange('education_degree', '');
+                  // Also drop the "Others" state, or coming back to a degree
+                  // attainment would reopen the free-text box with nothing in
+                  // it instead of the list.
+                  setCourseIsOther(false);
                 }
               }}
               className="af-control"
@@ -467,13 +487,50 @@ export const ApplicantAssessmentForm: React.FC<ApplicantAssessmentFormProps> = (
           </div>
 
           {educationNeedsDegree && (
-            <div className="af-field-full">
-              <Input
-                label="Degree / Course"
-                placeholder="e.g. Bachelor of Science in Information Technology"
-                value={formData.education_degree}
-                onChange={(e) => onChange('education_degree', e.target.value)}
-              />
+            <div className="af-field af-field-full">
+              <label htmlFor={`${idPrefix}-education-degree`} className="af-label">
+                Degree / Course
+              </label>
+              <select
+                id={`${idPrefix}-education-degree`}
+                value={courseIsOther ? OTHER_COURSE : formData.education_degree}
+                onChange={(e) => {
+                  const next = e.target.value;
+                  if (next === OTHER_COURSE) {
+                    // Clear the canonical value so the text box starts empty
+                    // rather than inheriting the course they just moved away
+                    // from, which would be stored as if they had typed it.
+                    setCourseIsOther(true);
+                    onChange('education_degree', '');
+                    return;
+                  }
+                  setCourseIsOther(false);
+                  onChange('education_degree', next);
+                }}
+                className="af-control"
+              >
+                <option value="">Select your course...</option>
+                {COURSE_GROUPS.map((group) => (
+                  <optgroup key={group.label} label={group.label}>
+                    {group.courses.map((course) => (
+                      <option key={course} value={course}>
+                        {course}
+                      </option>
+                    ))}
+                  </optgroup>
+                ))}
+                <option value={OTHER_COURSE}>{OTHER_COURSE} (not listed)</option>
+              </select>
+              {courseIsOther && (
+                <div style={{ marginTop: 12 }}>
+                  <Input
+                    label="Please specify your course"
+                    placeholder="e.g. Bachelor of Science in Marine Transportation"
+                    value={formData.education_degree}
+                    onChange={(e) => onChange('education_degree', e.target.value)}
+                  />
+                </div>
+              )}
             </div>
           )}
         </div>

@@ -32,7 +32,9 @@ import {
 import { QualifiedApplicantsSection } from '../../components/QualifiedApplicantsSection';
 import { ErrorBanner } from '../../components/ErrorBanner';
 import { getAdminEmail } from '../../lib/adminSession';
+import { funnelBucket, normalizeStatus, type FunnelBucket } from '../../lib/api/applicantStatus';
 import { SuccessionPlanningPage } from '../../components/SuccessionPlanningPage';
+import { EligibilityPointsPanel } from '../../components/EligibilityPointsPanel';
 import { useEffect, useMemo, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { AdminHeader } from '../../components/AdminHeader';
@@ -364,55 +366,31 @@ type FunnelStage = 'pending' | 'reviewed' | 'shortlisted' | 'qualified' | 'hired
 /**
  * Place an applicant in exactly ONE funnel stage.
  *
- * This used to be four independent substring tests (`includes('qualif')` and
- * friends), which mis-stated the pipeline badly: "Not Qualified" matched
- * 'qualif' and was counted as QUALIFIED, "New Application" matched nothing so
- * genuinely-pending applicants went uncounted, and anyone Hired or Recommended
- * for Hiring fell through every bucket and disappeared from the funnel
- * entirely. One applicant could also land in several bars at once.
+ * Delegates to the workflow module rather than matching substrings. The tests
+ * this used to do mis-stated the pipeline badly: "Not Qualified" matched
+ * 'qualif' and was counted as QUALIFIED, and "Hired" fell through every bucket
+ * and disappeared from the funnel entirely. Those cases are now pinned by
+ * tests in applicantStatus.test.ts against the values production really holds.
  *
- * Order matters below: the rejection check must run before the 'qualif' check,
- * and the hired check before 'recommended'. Statuses are matched loosely
- * because the live data carries values outside the ApplicantStatus union
- * (e.g. 'Reviewed', 'Pending', 'For Deliberation').
+ * The stage names here are the dashboard's own, kept because the bar labels and
+ * colours are keyed on them; funnelBucket's names are the workflow's.
  */
+const BUCKET_TO_STAGE: Record<FunnelBucket, FunnelStage> = {
+  pending: 'pending',
+  screening: 'reviewed',
+  assessment: 'shortlisted',
+  qualified: 'qualified',
+  selected: 'hired',
+  closed: 'notQualified',
+};
+
 const funnelStageOf = (rawStatus: string): FunnelStage => {
-  const status = String(rawStatus ?? '').trim().toLowerCase();
-
-  // Terminal: out of the running. Must precede the 'qualif' test below,
-  // otherwise "not qualified" reads as qualified.
-  if (status.includes('not qualified') || status.includes('disqualif') ||
-    status.includes('reject') || status.includes('withdraw') ||
-    status.includes('failed')) {
-    return 'notQualified';
-  }
-
-  // Terminal: made it all the way through.
-  if (status.includes('hired') && !status.includes('recommended')) return 'hired';
-  if (status.includes('deployed') || status.includes('onboard')) return 'hired';
-
-  // Cleared evaluation, awaiting/holding an offer.
-  if (status.includes('recommended') || status.includes('finalized') ||
-    status.includes('qualified') || status.includes('passed')) {
-    return 'qualified';
-  }
-
-  // In assessment: shortlisted through interview.
-  if (status.includes('shortlist') || status.includes('interview') ||
-    status.includes('exam') || status.includes('deliberation')) {
-    return 'shortlisted';
-  }
-
-  // Screening.
-  if (status.includes('review') || status.includes('verified') ||
-    status.includes('screening')) {
-    return 'reviewed';
-  }
-
-  // Everything else is still waiting on first touch — 'New Application',
-  // 'Pending', 'Action Required', and any status we don't recognise (better
-  // to show it as needing attention than to silently drop it).
-  return 'pending';
+  const status = normalizeStatus(rawStatus);
+  // An unmapped value still has to appear somewhere, or an applicant vanishes
+  // from a count that claims to total everyone. Showing it as awaiting first
+  // touch surfaces it for attention; it does not change what is stored.
+  if (status === null) return 'pending';
+  return BUCKET_TO_STAGE[funnelBucket(status)];
 };
 
 const mapRecruitmentPostingsToDashboardJobs = (rows: JobPosting[]): JobRecord[] => {
@@ -841,6 +819,9 @@ export const RSPDashboard = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const section = resolveSection(location.pathname, location.search);
+  // Which succession view is showing: the ranked plan, or the points that
+  // produce its Eligibility column.
+  const [successionView, setSuccessionView] = useState<'plan' | 'eligibility-points'>('plan');
 
   // Departments come from the canonical Supabase table, shared system-wide.
   const employeeDirectoryDepartments = useDepartmentNames();
@@ -5375,7 +5356,32 @@ export const RSPDashboard = () => {
             )}
 
             {section === 'succession' && (
-              <SuccessionPlanningPage />
+              <div className="space-y-5">
+                {/* The points behind the Eligibility column live here rather
+                    than in Settings: they are part of the succession model, and
+                    an admin reading a ranking is the one who needs to change
+                    them. */}
+                <div className="flex gap-2">
+                  {([
+                    { id: 'plan', label: 'Succession Plan' },
+                    { id: 'eligibility-points', label: 'Eligibility Points' },
+                  ] as const).map((t) => (
+                    <button
+                      key={t.id}
+                      type="button"
+                      onClick={() => setSuccessionView(t.id)}
+                      className={`rounded-lg px-3.5 py-1.5 text-sm font-semibold transition ${
+                        successionView === t.id
+                          ? 'bg-[#363EE8] text-white'
+                          : 'border border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
+                      }`}
+                    >
+                      {t.label}
+                    </button>
+                  ))}
+                </div>
+                {successionView === 'plan' ? <SuccessionPlanningPage /> : <EligibilityPointsPanel />}
+              </div>
             )}
 
             {section === 'settings' && (

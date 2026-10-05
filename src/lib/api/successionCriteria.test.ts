@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
+  eligibilityScore,
+  meetsRequiredEligibility,
+  PROGRESSION_FULL_STEPS,
   RANKING_WEIGHTS,
   actionForGate,
   compareRank,
@@ -10,7 +13,6 @@ import {
   experienceScore,
   normalizeWeights,
   rankingScore,
-  tenureRatio,
   trainingBeyondMinimumRatio,
   type QualificationInput,
 } from './successionCriteria';
@@ -147,34 +149,29 @@ describe('B. Education beyond the minimum', () => {
   });
 });
 
-describe('B. Tenure', () => {
-  it('rises with years but saturates so long service cannot dominate', () => {
-    expect(tenureRatio(0)).toBe(0);
-    expect(tenureRatio(5)).toBeGreaterThan(0);
-    expect(tenureRatio(15)).toBe(1);
-    expect(tenureRatio(40)).toBe(1);
-  });
-
+describe('B. Weights', () => {
   it('matches the weights given in specification E', () => {
     // Pinned so a future edit to the model is a deliberate, visible change
     // rather than a silent drift away from the document.
     expect(RANKING_WEIGHTS).toEqual({
-      ipcr: 30, experience: 25, training: 20, education: 15, tenure: 10,
+      ipcr: 30, experience: 20, training: 20, education: 15, eligibility: 15,
     });
     const total = Object.values(RANKING_WEIGHTS).reduce((a, b) => a + b, 0);
     expect(total).toBe(100);
   });
 
-  it('carries the smallest weight of the five criteria', () => {
-    const w = RANKING_WEIGHTS;
-    expect(w.tenure).toBeLessThan(w.ipcr);
-    expect(w.tenure).toBeLessThan(w.experience);
-    expect(w.tenure).toBeLessThan(w.training);
-    expect(w.tenure).toBeLessThan(w.education);
+  it('has no separate tenure criterion', () => {
+    // Length of service is the years component of the experience score. A
+    // standalone tenure weight scored the same number a second time.
+    expect((RANKING_WEIGHTS as unknown as Record<string, number>).tenure).toBeUndefined();
   });
 
-  it('treats missing hire data as zero rather than crediting it', () => {
-    expect(tenureRatio(null)).toBe(0);
+  it('ranks performance highest', () => {
+    const w = RANKING_WEIGHTS;
+    expect(w.ipcr).toBeGreaterThan(w.experience);
+    expect(w.ipcr).toBeGreaterThan(w.training);
+    expect(w.ipcr).toBeGreaterThan(w.education);
+    expect(w.ipcr).toBeGreaterThan(w.eligibility);
   });
 });
 
@@ -248,18 +245,18 @@ describe('Ranking score', () => {
 
   it('is 0–100 and sums its components', () => {
     const r = rankingScore({
-      ipcrRatio: 1, experience: exp, trainingRatio: 1, educationRatio: 1, tenureRatio: 1,
+      ipcrRatio: 1, experience: exp, trainingRatio: 1, educationRatio: 1, eligibilityRatio: 1,
       weights: RANKING_WEIGHTS,
     });
     expect(r.total).toBeCloseTo(
-      r.ipcr + r.experience + r.training + r.education + r.tenure, 2,
+      r.ipcr + r.experience + r.training + r.education + r.eligibility, 2,
     );
     expect(r.total).toBeLessThanOrEqual(100);
   });
 
   it('scores an unrated candidate at zero for performance without excluding them', () => {
     const r = rankingScore({
-      ipcrRatio: null, experience: exp, trainingRatio: 0.5, educationRatio: 0, tenureRatio: 0.5,
+      ipcrRatio: null, experience: exp, trainingRatio: 0.5, educationRatio: 0, eligibilityRatio: 0,
       weights: RANKING_WEIGHTS,
     });
     expect(r.ipcr).toBe(0);
@@ -268,11 +265,11 @@ describe('Ranking score', () => {
 
   it('ranks performance above tenure at equal ratios', () => {
     const strongPerformer = rankingScore({
-      ipcrRatio: 1, experience: exp, trainingRatio: 0, educationRatio: 0, tenureRatio: 0,
+      ipcrRatio: 1, experience: exp, trainingRatio: 0, educationRatio: 0, eligibilityRatio: 0,
       weights: RANKING_WEIGHTS,
     });
     const longServer = rankingScore({
-      ipcrRatio: 0, experience: exp, trainingRatio: 0, educationRatio: 0, tenureRatio: 1,
+      ipcrRatio: 0, experience: exp, trainingRatio: 0, educationRatio: 0, eligibilityRatio: 0,
       weights: RANKING_WEIGHTS,
     });
     expect(strongPerformer.total).toBeGreaterThan(longServer.total);
@@ -285,26 +282,36 @@ describe('normalizeWeights', () => {
     expect(normalizeWeights({})).toEqual(RANKING_WEIGHTS);
   });
 
-  it('migrates a legacy row that still carries an eligibility weight', () => {
-    // Eligibility is filter-only now. Its points must not disappear, or the row
-    // would silently stop summing to 100.
+  it('keeps a legacy row’s eligibility weight now that it scores again', () => {
+    // This value used to be discarded, because eligibility was filter-only.
+    // Eligibility above the position's minimum is a ranking criterion again, so
+    // the stored weight is honoured rather than dropped.
     const w = normalizeWeights({ ipcr: 35, training: 30, education: 20, eligibility: 15 });
-    const total = w.ipcr + w.experience + w.training + w.education + w.tenure;
+    expect(w.eligibility).toBeGreaterThan(0);
+    const total = w.ipcr + w.experience + w.training + w.education + w.eligibility;
     expect(total).toBeCloseTo(100, 1);
-    expect((w as unknown as Record<string, unknown>).eligibility).toBeUndefined();
   });
 
   it('renormalises a hand-edited row that does not total 100', () => {
-    const w = normalizeWeights({ ipcr: 10, experience: 10, training: 10, education: 10, tenure: 10 });
-    const total = w.ipcr + w.experience + w.training + w.education + w.tenure;
+    const w = normalizeWeights({ ipcr: 10, experience: 10, training: 10, education: 10, eligibility: 10 });
+    const total = w.ipcr + w.experience + w.training + w.education + w.eligibility;
     expect(total).toBeCloseTo(100, 1);
     expect(w.ipcr).toBeCloseTo(20, 1);
   });
 
+  it('folds a legacy tenure weight into experience rather than dropping it', () => {
+    // Those points were allocated to length of service, which experience now
+    // carries. Discarding them would shrink the position's achievable total.
+    const w = normalizeWeights({ ipcr: 30, experience: 20, training: 20, education: 15, eligibility: 10, tenure: 5 });
+    expect(w.experience).toBeCloseTo(25, 1);
+    const total = w.ipcr + w.experience + w.training + w.education + w.eligibility;
+    expect(total).toBeCloseTo(100, 1);
+  });
+
   it('falls back to defaults for negative or non-numeric entries', () => {
-    const w = normalizeWeights({ ipcr: -5, tenure: 'abc' });
+    const w = normalizeWeights({ ipcr: -5, education: 'abc' });
     expect(w.ipcr).toBeGreaterThan(0);
-    expect(w.tenure).toBeGreaterThan(0);
+    expect(w.education).toBeGreaterThan(0);
   });
 });
 
@@ -406,5 +413,169 @@ describe('C. System of Ranking Positions', () => {
       expect(positionLevelRatio(sg(null), sg(20))).toBeNull();
       expect(positionLevelRatio(sg(24), lvl(3))).toBeNull();
     });
+  });
+});
+
+describe('Eligibility from multiple records (spec §B–D)', () => {
+  const types = [
+    { name: 'CSC Professional', points: 40, isActive: true },
+    { name: 'PRC License', points: 40, isActive: true },
+    { name: "Professional Driver's License", points: 5, isActive: true },
+    { name: 'Retired Type', points: 30, isActive: false },
+  ];
+  const CAP = 100;
+  const rec = (type: string, validUntil: string | null = null) => ({ type, validUntil });
+
+  it('adds up every valid eligibility rather than reading one', () => {
+    // The whole point of §B: an employee may hold more than one.
+    const s = eligibilityScore([rec('CSC Professional'), rec('PRC License')], types, CAP, '2026-10-05');
+    expect(s.rawPoints).toBe(80);
+    expect(s.ratio).toBeCloseTo(0.8, 5);
+    expect(s.counted).toHaveLength(2);
+  });
+
+  it('caps at full marks so extra credentials cannot run away with it', () => {
+    // §D: "avoid simply giving unlimited points for every additional eligibility".
+    const many = [rec('CSC Professional'), rec('PRC License'), rec("Professional Driver's License")];
+    const s = eligibilityScore(many, types, CAP, '2026-10-05');
+    expect(s.rawPoints).toBe(85);
+    expect(s.ratio).toBeLessThanOrEqual(1);
+
+    const over = eligibilityScore(many, types, 50, '2026-10-05');
+    expect(over.ratio).toBe(1);
+    expect(over.rawPoints).toBe(85); // raw is still reported, so the cap is visible
+  });
+
+  it('excludes an expired record and says which', () => {
+    const s = eligibilityScore(
+      [rec('CSC Professional', '2020-01-01'), rec('PRC License', '2099-01-01')],
+      types, CAP, '2026-10-05',
+    );
+    expect(s.rawPoints).toBe(40);
+    expect(s.expired).toEqual(['CSC Professional']);
+  });
+
+  it('counts a record with no expiry date', () => {
+    expect(eligibilityScore([rec('CSC Professional', null)], types, CAP, '2026-10-05').rawPoints).toBe(40);
+  });
+
+  it('reports an unconfigured type instead of silently scoring it zero', () => {
+    // An unconfigured type is a gap in the configuration, not a judgement that
+    // the credential is worthless. HR has to be able to see the difference.
+    const s = eligibilityScore([rec('Barangay Eligibility')], types, CAP, '2026-10-05');
+    expect(s.rawPoints).toBe(0);
+    expect(s.unconfigured).toEqual(['Barangay Eligibility']);
+  });
+
+  it('treats a deactivated type as unconfigured', () => {
+    const s = eligibilityScore([rec('Retired Type')], types, CAP, '2026-10-05');
+    expect(s.rawPoints).toBe(0);
+    expect(s.unconfigured).toEqual(['Retired Type']);
+  });
+
+  it('does not pay twice for the same eligibility entered twice', () => {
+    const s = eligibilityScore([rec('CSC Professional'), rec('csc professional')], types, CAP, '2026-10-05');
+    expect(s.rawPoints).toBe(40);
+    expect(s.counted).toHaveLength(1);
+  });
+
+  it('ignores case and surrounding space when matching a type', () => {
+    expect(eligibilityScore([rec('  csc PROFESSIONAL ')], types, CAP, '2026-10-05').rawPoints).toBe(40);
+  });
+
+  it('scores nothing, and does not crash, with no records', () => {
+    const s = eligibilityScore([], types, CAP, '2026-10-05');
+    expect(s.ratio).toBe(0);
+    expect(s.counted).toEqual([]);
+  });
+
+  it('survives a cap of zero rather than returning Infinity', () => {
+    // A misconfigured cap must cost this one criterion, not corrupt every
+    // candidate's total with NaN.
+    const s = eligibilityScore([rec('CSC Professional')], types, 0, '2026-10-05');
+    expect(Number.isFinite(s.ratio)).toBe(true);
+    expect(s.ratio).toBeLessThanOrEqual(1);
+  });
+});
+
+describe('meetsRequiredEligibility', () => {
+  const rec = (type: string, validUntil: string | null = null) => ({ type, validUntil });
+
+  it('finds the required eligibility even when it is not the first record', () => {
+    // The bug this replaces: only employees.eligibility was read, so a second
+    // entry could not satisfy the gate.
+    const records = [rec("Professional Driver's License"), rec('CSC Professional')];
+    expect(meetsRequiredEligibility(records, 'Professional', '2026-10-05')).toBe(true);
+  });
+
+  it('rejects a candidate holding only a lower level', () => {
+    expect(meetsRequiredEligibility([rec('Sub-Professional')], 'Professional', '2026-10-05')).toBe(false);
+  });
+
+  it('does not accept an expired record', () => {
+    expect(meetsRequiredEligibility([rec('CSC Professional', '2020-01-01')], 'Professional', '2026-10-05')).toBe(false);
+  });
+
+  it('accepts any unexpired record when the position states no requirement', () => {
+    expect(meetsRequiredEligibility([rec('Barangay Eligibility')], null, '2026-10-05')).toBe(true);
+    expect(meetsRequiredEligibility([], null, '2026-10-05')).toBe(false);
+  });
+});
+
+describe('Ranking with eligibility', () => {
+  // Every experience component at full marks, so the totals below are the
+  // weights themselves and an absolute assertion means something.
+  const perfectExp = experienceScore({
+    relevantYears: 10,
+    requiredYears: 5,
+    positionLevelRatio: 1,
+    progressionSteps: PROGRESSION_FULL_STEPS,
+  });
+  const base = {
+    ipcrRatio: 1,
+    experience: perfectExp,
+    trainingRatio: 1,
+    educationRatio: 1,
+    weights: RANKING_WEIGHTS,
+  };
+
+  it('ranks a candidate with more eligibility points above one with fewer', () => {
+    const many = rankingScore({ ...base, eligibilityRatio: 1 });
+    const none = rankingScore({ ...base, eligibilityRatio: 0 });
+    expect(many.total).toBeGreaterThan(none.total);
+    expect(many.total - none.total).toBeCloseTo(RANKING_WEIGHTS.eligibility, 2);
+  });
+
+  it('scales a partial eligibility score by its weight', () => {
+    const half = rankingScore({ ...base, eligibilityRatio: 0.5 });
+    expect(half.eligibility).toBeCloseTo(RANKING_WEIGHTS.eligibility / 2, 2);
+  });
+
+  it('tops out at 100', () => {
+    expect(rankingScore({ ...base, eligibilityRatio: 1 }).total).toBeCloseTo(100, 2);
+  });
+});
+
+describe('Weights after the eligibility split', () => {
+  it('sums to 100', () => {
+    const w = RANKING_WEIGHTS;
+    expect(w.ipcr + w.experience + w.training + w.education + w.eligibility).toBe(100);
+  });
+
+  it('matches the figures in the specification table', () => {
+    expect(RANKING_WEIGHTS.ipcr).toBe(30);
+    expect(RANKING_WEIGHTS.experience).toBe(20);
+    expect(RANKING_WEIGHTS.training).toBe(20);
+    expect(RANKING_WEIGHTS.education).toBe(15);
+    expect(RANKING_WEIGHTS.eligibility).toBe(15);
+  });
+
+  it('keeps a legacy stored eligibility weight instead of discarding it', () => {
+    // Rows written under the old shape carried this value and it was dropped,
+    // because eligibility had no ranking weight. It counts again.
+    const w = normalizeWeights({ ipcr: 40, training: 20, education: 20, eligibility: 20 });
+    expect(w.eligibility).toBeGreaterThan(0);
+    const total = w.ipcr + w.experience + w.training + w.education + w.eligibility;
+    expect(total).toBeCloseTo(100, 1);
   });
 });

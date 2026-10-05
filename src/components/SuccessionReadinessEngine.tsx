@@ -57,20 +57,28 @@ const ArrowRightIcon = () => (
   </svg>
 );
 
+// This page explains the succession model; the model itself runs in Succession
+// Planning under the RSP dashboard. The tab names mirror its two stages.
+//
+// It used to describe a different system entirely — a four-stage "Position DNA
+// / Candidate Matrix" workflow scored by C4.5 Decision Tree and a 9-Box Talent
+// Matrix, weighted Education 20 / Experience 20 / Performance 30 /
+// Potential-RQ 30. None of that exists in the codebase, the weights are not the
+// ones the engine uses, and Potential/RQ is the leadership score the
+// specification explicitly removed. An explainer that describes a system
+// nobody built is worse than no explainer: it is read as a promise.
 const tabs = [
   { id: 'overview', label: 'Overview', icon: <GridIcon /> },
-  { id: 'position', label: 'Position DNA', icon: <LockIcon /> },
-  { id: 'candidate', label: 'Candidate Matrix', icon: <BranchIcon /> },
-  { id: 'system', label: 'System Intelligence', icon: <CircleIcon /> },
-  { id: 'scoring', label: 'Final Scoring', icon: <ChevronIcon /> },
+  { id: 'qualification', label: 'Qualification Filter', icon: <LockIcon /> },
+  { id: 'ranking', label: 'Weighted Ranking', icon: <ChevronIcon /> },
 ];
 
 const steps = [
   {
     num: 1,
-    label: 'Step 1:',
-    title: 'Position DNA',
-    desc: 'Define hard skills, decision authority, and critical workflows required for the vacant role.',
+    label: 'Stage 1:',
+    title: 'Qualification Filter',
+    desc: "Checks each employee against the position's minimum education, eligibility, experience and training. This is a filter, not a score — an employee who misses any one of them is not ranked.",
     bg: 'var(--status-warning-light)',
     border: 'var(--status-warning)',
     color: 'var(--status-warning)',
@@ -79,9 +87,9 @@ const steps = [
   },
   {
     num: 2,
-    label: 'Step 2:',
-    title: 'Candidate Matrix',
-    desc: 'Score 2-3 candidates across Technical, Business Logic, Leadership, and Strategic dimensions.',
+    label: 'Stage 2:',
+    title: 'Weighted Ranking',
+    desc: 'Everyone who clears the filter is ranked on a 100-point readiness score: Performance 30, Experience 25, Training 20, Education 15, Tenure 10.',
     bg: 'var(--status-pending-light)',
     border: 'var(--status-pending)',
     color: 'var(--status-pending)',
@@ -90,56 +98,72 @@ const steps = [
   },
   {
     num: 3,
-    label: 'Step 3:',
-    title: 'System Intelligence',
-    desc: 'Analyze candidates using C4.5 Decision Tree and 9-Box Talent Matrix classification methodology.',
+    label: 'Output:',
+    title: 'Ranked Slate',
+    desc: 'A ranked comparison with the score behind every row, each candidate’s readiness tier, and the gaps and required actions for anyone who did not clear the filter.',
     bg: 'var(--status-success-light)',
     border: 'var(--status-success)',
     color: 'var(--status-success)',
     iconBg: 'var(--status-success-light)',
     icon: <CircleIcon />,
   },
-  {
-    num: 4,
-    label: 'Step 4:',
-    title: 'Final Scoring',
-    desc: 'Combines Education, Experience, Performance, and Potential to generate Gap Reports.',
-    bg: 'var(--status-error-light)',
-    border: 'var(--status-error)',
-    color: 'var(--status-error)',
-    iconBg: 'var(--status-error-light)',
-    icon: <ChevronIcon />,
-  },
 ];
 
 const howItWorks = [
   {
     n: 1,
-    title: 'Objective Scoring:',
-    text: 'Each candidate is measured against defined competency benchmarks - not subjective impressions.',
+    title: 'A filter, then a score:',
+    text: "Minimum education, eligibility, experience and training are pass/fail. They are not weighted into the score, so strength in one cannot buy out a requirement the position actually sets.",
   },
   {
     n: 2,
-    title: 'Weighted Dimensions:',
-    text: 'Education (20%), Experience (20%), Performance Rating (30%), and Potential/RQ (30%) are combined into a composite score.',
+    title: 'Weighted dimensions:',
+    text: 'Performance (30%), Experience (25%), Training (20%), Education (15%) and Tenure (10%) make up the 100-point readiness score. There is no leadership or potential rating — every input is something already on record.',
   },
   {
     n: 3,
-    title: 'Data Analysis:',
-    text: 'The System Intelligence module uses C4.5 Decision Tree logic and 9-Box Talent Matrix to identify readiness tier and development gaps.',
+    title: 'Performance is the IPCR:',
+    text: "Taken from the employee's latest IPCR, weighted by their department's own Core / Strategic / Support split rather than a flat average.",
   },
   {
     n: 4,
-    title: 'Audit-Ready Output:',
-    text: 'Final Scoring generates a ranked succession slate with supporting evidence for every recommendation.',
+    title: 'Readiness tiers:',
+    text: 'Ready Now, Ready in 1–2 Years, or a longer horizon — derived from the same score, with the gaps and required actions shown for each candidate.',
+  },
+  {
+    n: 5,
+    title: 'Nothing is invented:',
+    text: 'An input with no data behind it is reported as not assessed rather than scored as zero, so a missing record never reads as a weak candidate.',
   },
 ];
 
-const timeline = [
-  { phase: 1, title: 'Position Setup', desc: 'Configure Position DNA and scoring weights.', time: '1-2 days' },
-  { phase: 2, title: 'Candidate Enrollment', desc: 'Nominate and profile all candidates.', time: '2-3 days' },
-  { phase: 3, title: 'Assessment & Analysis', desc: 'Conduct scoring; system generates intelligence reports.', time: '3-5 days' },
-  { phase: 4, title: 'Final Scoring & Decision', desc: 'Review ranked slate and approve succession decision.', time: '1-2 days' },
+// What has to be in place before the engine can rank anybody. These are data
+// dependencies, not a schedule — the ranking itself is computed on demand.
+const prerequisites = [
+  {
+    phase: 1,
+    title: 'Position requirements',
+    desc: "The critical position's minimum education, eligibility, experience and training, from the System of Ranking Positions.",
+    time: 'Required',
+  },
+  {
+    phase: 2,
+    title: 'Employee records',
+    desc: 'Education, eligibility, training hours and service dates on each employee profile.',
+    time: 'Required',
+  },
+  {
+    phase: 3,
+    title: 'IPCR on record',
+    desc: "A scored IPCR for the period, plus the department's function weighting. Without it, Performance is reported as not assessed.",
+    time: 'Required',
+  },
+  {
+    phase: 4,
+    title: 'Work experience',
+    desc: 'Position history on the employee record. Career progression is only assessed where this exists.',
+    time: 'Optional',
+  },
 ];
 
 export default function SuccessionReadinessEngine() {
@@ -240,7 +264,7 @@ export default function SuccessionReadinessEngine() {
                 color: 'var(--text-primary)',
               }}
             >
-              Evaluation Process
+              How succession ranking works
             </h2>
           </div>
 
@@ -253,9 +277,12 @@ export default function SuccessionReadinessEngine() {
               fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
             }}
           >
-            This evaluation system uses objective criteria to assess candidates for <span style={{ color: 'var(--accent-primary)', fontWeight: 500 }}>promotion</span> and{' '}
-            <span style={{ color: 'var(--accent-primary)', fontWeight: 500 }}>succession planning</span>. The process includes position definition, candidate scoring, data-driven{' '}
-            <span style={{ color: 'var(--accent-primary)', fontWeight: 500 }}>analysis</span>, and final <span style={{ color: 'var(--accent-primary)', fontWeight: 500 }}>scoring</span>.
+            Candidates for <span style={{ color: 'var(--accent-primary)', fontWeight: 500 }}>promotion</span> and{' '}
+            <span style={{ color: 'var(--accent-primary)', fontWeight: 500 }}>succession</span> are assessed from records the
+            system already holds. Two stages: a{' '}
+            <span style={{ color: 'var(--accent-primary)', fontWeight: 500 }}>qualification filter</span> that decides who is
+            eligible at all, then a <span style={{ color: 'var(--accent-primary)', fontWeight: 500 }}>weighted ranking</span>{' '}
+            of everyone who clears it. No subjective rating is entered anywhere.
           </p>
 
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 16, marginBottom: 36 }}>
@@ -296,7 +323,7 @@ export default function SuccessionReadinessEngine() {
                 marginBottom: 20,
               }}
             >
-              How the Evaluation Works
+              What the score is made of
             </h3>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
               {howItWorks.map((item) => (
@@ -320,10 +347,10 @@ export default function SuccessionReadinessEngine() {
                 marginBottom: 20,
               }}
             >
-              Evaluation Timeline
+              Before the engine can rank
             </h3>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
-              {timeline.map((item, i) => (
+              {prerequisites.map((item, i) => (
                 <div
                   key={item.phase}
                   style={{
@@ -331,7 +358,7 @@ export default function SuccessionReadinessEngine() {
                     alignItems: 'center',
                     gap: 14,
                     padding: '14px 0',
-                    borderBottom: i < timeline.length - 1 ? `1px solid var(--border-subtle)` : 'none',
+                    borderBottom: i < prerequisites.length - 1 ? `1px solid var(--border-subtle)` : 'none',
                   }}
                 >
                   <div className="num-badge" style={{ background: 'var(--status-pending-light)' }}>
@@ -383,16 +410,20 @@ export default function SuccessionReadinessEngine() {
               </span>
             </div>
             <p style={{ fontSize: 13.5, color: 'var(--status-warning)', lineHeight: 1.65, fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" }}>
-              Ensure you have organizational approval and HR data access before launching the evaluation. All candidate data is strictly confidential. Evaluators must complete all four
-              stages for a valid succession recommendation.
+              The ranking is only as good as the records behind it. A candidate missing an IPCR, training hours or
+              service dates is not penalised — those inputs are reported as not assessed — but their score is
+              built on less evidence than the rest of the slate, and the detail panel says which inputs those were.
+              All candidate data is confidential.
             </p>
           </div>
 
           <div style={{ display: 'flex', justifyContent: 'center' }}>
-            <button className="start-btn">
-              Start Evaluation
+            {/* Was a button with no handler: it looked like the entry point to
+                a workflow that does not exist. It now goes to the engine. */}
+            <a className="start-btn" href="/admin/rsp/succession" style={{ textDecoration: 'none' }}>
+              Open Succession Planning
               <ArrowRightIcon />
-            </button>
+            </a>
           </div>
         </div>
       </div>

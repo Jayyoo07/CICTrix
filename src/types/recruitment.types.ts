@@ -87,13 +87,28 @@ export interface JobPosting {
   qualifiedCount: number;
 }
 
+/**
+ * Legacy status strings still present in the database and in local recruitment
+ * data. The workflow itself lives in lib/api/applicantStatus.ts; read through
+ * normalizeStatus rather than matching these by hand.
+ *
+ * 'Qualified' is here because the two stages that both wrote 'Recommended for
+ * Hiring' have been separated: document screening now stores 'Shortlisted', and
+ * only a decision taken after the interview and exam stores 'Qualified'.
+ *
+ * 'Pending' is the specification's name for an application that cannot proceed
+ * until something is resubmitted or corrected. It replaces 'Action Required',
+ * which stays listed for rows written before the rename.
+ */
 export type ApplicantStatus =
   | 'New Application'
   | 'Under Review'
   | 'Shortlisted'
+  | 'Pending'
   | 'For Interview'
   | 'Interview Scheduled'
   | 'Interview Completed'
+  | 'Qualified'
   | 'Recommended for Hiring'
   | 'Not Qualified'
   | 'Rejected'

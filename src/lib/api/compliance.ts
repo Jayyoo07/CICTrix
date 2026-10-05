@@ -44,8 +44,26 @@ function defaultPeriod(): string {
   return n.getMonth() < 6 ? `January–June ${y}` : `July–December ${y}`;
 }
 
-/** Resolve the active (or latest) performance cycle → { cycleId, period }. */
-export async function getActiveCyclePeriod(): Promise<{ cycleId: number | null; period: string }> {
+/**
+ * Resolve the active (or latest) performance cycle → { cycleId, period }.
+ *
+ * `period` is never empty: with no cycle configured it falls back to the
+ * calendar half-year, because the label is written into notifications and used
+ * to key submission tracking, and an empty string there produces notices that
+ * read "for period: " and tracker queries that match nothing.
+ *
+ * `isScheduled` says whether a real `performance_cycles` row backed it, so a
+ * screen can show the label it will actually use while still being honest that
+ * nobody has scheduled a cycle. Without that distinction the fallback is
+ * indistinguishable from a configured period.
+ */
+export interface ActiveCyclePeriod {
+  cycleId: number | null;
+  period: string;
+  isScheduled: boolean;
+}
+
+export async function getActiveCyclePeriod(): Promise<ActiveCyclePeriod> {
   try {
     const { data: active } = await supabase
       .from('performance_cycles')
@@ -62,10 +80,12 @@ export async function getActiveCyclePeriod(): Promise<{ cycleId: number | null; 
         .maybeSingle();
       cycle = latest;
     }
-    if (cycle) return { cycleId: cycle.id ?? null, period: cycle.title || defaultPeriod() };
-    return { cycleId: null, period: defaultPeriod() };
+    if (cycle) {
+      return { cycleId: cycle.id ?? null, period: cycle.title || defaultPeriod(), isScheduled: true };
+    }
+    return { cycleId: null, period: defaultPeriod(), isScheduled: false };
   } catch {
-    return { cycleId: null, period: defaultPeriod() };
+    return { cycleId: null, period: defaultPeriod(), isScheduled: false };
   }
 }
 

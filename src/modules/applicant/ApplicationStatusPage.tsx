@@ -3,7 +3,14 @@ import { useEffect, useRef, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import { ATTACHMENTS_BUCKET, supabase } from '../../lib/supabase';
 import { getApplicants, saveApplicants } from '../../lib/recruitmentData';
-import { parseDisqualificationReason, getDisqualificationReasonLabel } from '../../lib/applicationActivity';
+import {
+  FAILURE_TO_ATTEND,
+  failureToAttendMessage,
+  getDisqualificationReasonLabel,
+  parseDisqualificationReason,
+  type MissedActivityType,
+} from '../../lib/applicationActivity';
+import { APPLICANT_MESSAGES, normalizeStatus } from '../../lib/api/applicantStatus';
 import { fetchApplicantSlotLinks, fetchSlotsByJobPosting } from '../../lib/plantillaSlots';
 import { plantillaLabel } from '../../lib/plantillaRules';
 import type { ApplicationSlotStatus, PlantillaSlot } from '../../types/recruitment.types';
@@ -44,6 +51,11 @@ interface ApplicationRecord {
   disqualification_reason_category: string | null;
   disqualification_message: string | null;
   disqualification_message_visible: boolean;
+  // Spec §8: the activity a no-show applicant missed, frozen at the moment of
+  // disqualification.
+  missed_activity_type: string | null;
+  missed_activity_date: string | null;
+  missed_activity_time: string | null;
 }
 
 interface AttachmentRow {
@@ -74,10 +86,23 @@ type BadgeTone = 'approved' | 'in-review' | 'rejected' | 'new';
 
 const STATUS_BADGE: Record<string, { label: string; tone: BadgeTone }> = {
   'New Application': { label: 'New', tone: 'new' },
-  'Pending': { label: 'New', tone: 'new' },
+  // Spec §7: Pending means the office is waiting on the applicant, not that
+  // the application is new. Labelling it 'New' told someone who needed to
+  // resubmit a document that there was nothing for them to do.
+  'Pending': { label: 'Action Required', tone: 'new' },
   'Under Review': { label: 'Under Evaluation', tone: 'in-review' },
   'Reviewed': { label: 'Under Evaluation', tone: 'in-review' },
-  'Shortlisted': { label: 'Additional Documents Requested', tone: 'in-review' },
+  // Passing the screening, not a request for documents — that is 'Action
+  // Required'. This badge said "Additional Documents Requested", which told a
+  // shortlisted applicant to act when there was nothing for them to do.
+  'Shortlisted': { label: 'Shortlisted', tone: 'in-review' },
+  'Interview/Exam Scheduled': { label: 'In Review', tone: 'in-review' },
+  'For Evaluation': { label: 'In Review', tone: 'in-review' },
+  'Qualified': { label: 'Qualified', tone: 'in-review' },
+  'Selected': { label: 'Selected', tone: 'approved' },
+  'Not Selected': { label: 'Not Selected', tone: 'rejected' },
+  'Submitted': { label: 'New', tone: 'new' },
+  'Under Initial Screening': { label: 'Under Evaluation', tone: 'in-review' },
   'For Interview': { label: 'In Review', tone: 'in-review' },
   'Interview Scheduled': { label: 'In Review', tone: 'in-review' },
   'Interview Completed': { label: 'In Review', tone: 'in-review' },
@@ -144,37 +169,26 @@ interface ApplicantPhase {
 
 // The single thing the applicant is told about their application.
 //
-// 'Recommended for Hiring' is what RSP's "Qualify" button writes: it means the
-// documents were validated and the applicant may now be scheduled. It is NOT a
-// final decision, so it must never show the congratulations block — only the
-// terminal 'Hired'/'Accepted' does. Order matters here: several live statuses
-// share substrings, and these checks run top-down.
-const resolvePhase = (rawStatus: string, hasSchedule: boolean): ApplicantPhase => {
-  const s = (rawStatus ?? '').toLowerCase();
+// Driven by the workflow module so the applicant and the RSP dashboard agree on
+// what a status means; the wording comes from APPLICANT_MESSAGES, which is
+// written for the applicant rather than the office.
+//
+// 'Recommended for Hiring' is handled before normalisation. Nothing writes it
+// any more — document screening now stores Shortlisted and the post-evaluation
+// decision stores Qualified — but rows written before that split are still
+// there until migration 20260926 resolves them against the evaluations table.
+// Until then they keep the wording that is true either way: documents
+// validated, scheduling may follow.
+const PENDING_PHASE: ApplicantPhase = {
+  headline: 'Pending Review',
+  detail: 'Your application has been received. We will begin reviewing it shortly.',
+  tone: 'new', showSchedule: false, showCongrats: false,
+};
 
-  if (s.includes('disqual') || s.includes('not qualified') || s.includes('reject') || s.includes('failed')) {
-    return {
-      headline: 'Disqualified',
-      detail: 'Your application will no longer proceed in the selection process. For further inquiries, please contact the Recruitment Office.',
-      tone: 'rejected', showSchedule: false, showCongrats: false,
-    };
-  }
-  // 'hiring' does not contain 'hired', so 'Recommended for Hiring' falls through.
-  if (s.includes('hired') || s.includes('accept')) {
-    return {
-      headline: 'Qualified',
-      detail: 'You have been selected for this position.',
-      tone: 'approved', showSchedule: false, showCongrats: true,
-    };
-  }
-  if (s.includes('interview completed')) {
-    return {
-      headline: 'Application Under Final Review',
-      detail: 'Your examination and interview are complete. Your application is now undergoing final review.',
-      tone: 'in-review', showSchedule: false, showCongrats: false,
-    };
-  }
-  if (s.includes('recommend') || s.includes('document verified')) {
+const resolvePhase = (rawStatus: string, hasSchedule: boolean): ApplicantPhase => {
+  const raw = String(rawStatus ?? '').trim().toLowerCase();
+
+  if (raw === 'recommended for hiring' || raw === 'document verified') {
     return hasSchedule
       ? {
           headline: 'Scheduled for Exam & Interview',
@@ -187,32 +201,83 @@ const resolvePhase = (rawStatus: string, hasSchedule: boolean): ApplicantPhase =
           tone: 'in-review', showSchedule: false, showCongrats: false,
         };
   }
-  if (s.includes('interview') || hasSchedule) {
-    return {
-      headline: 'Scheduled for Exam & Interview',
-      detail: 'Your schedule is shown below. Please arrive at the venue on time.',
-      tone: 'in-review', showSchedule: true, showCongrats: false,
-    };
+
+  const status = normalizeStatus(rawStatus);
+  // An unrecognised value is shown as awaiting review rather than guessed at.
+  if (status === null) return PENDING_PHASE;
+
+  switch (status) {
+    case 'Submitted':
+      return PENDING_PHASE;
+
+    case 'Under Initial Screening':
+      return {
+        headline: 'Under Evaluation',
+        detail: APPLICANT_MESSAGES[status],
+        tone: 'in-review', showSchedule: false, showCongrats: false,
+      };
+
+    case 'Pending':
+      return {
+        headline: 'Additional Documents Requested',
+        detail: APPLICANT_MESSAGES[status],
+        tone: 'action', showSchedule: false, showCongrats: false,
+      };
+
+    // Passing the screening is not a request for documents. This previously
+    // read "Additional Documents Requested", which told a shortlisted
+    // applicant to act when there was nothing for them to do.
+    case 'Shortlisted':
+      return {
+        headline: 'Shortlisted — Awaiting Exam & Interview Schedule',
+        detail: APPLICANT_MESSAGES[status],
+        tone: 'in-review', showSchedule: hasSchedule, showCongrats: false,
+      };
+
+    case 'Interview/Exam Scheduled':
+      return {
+        headline: 'Scheduled for Exam & Interview',
+        detail: 'Your schedule is shown below. Please arrive at the venue on time.',
+        tone: 'in-review', showSchedule: true, showCongrats: false,
+      };
+
+    case 'For Evaluation':
+      return {
+        headline: 'Application Under Final Review',
+        detail: APPLICANT_MESSAGES[status],
+        tone: 'in-review', showSchedule: false, showCongrats: false,
+      };
+
+    // Qualified is not an appointment, so no congratulations block here — only
+    // Selected gets that.
+    case 'Qualified':
+      return {
+        headline: 'Qualified',
+        detail: APPLICANT_MESSAGES[status],
+        tone: 'in-review', showSchedule: false, showCongrats: false,
+      };
+
+    case 'Selected':
+      return {
+        headline: 'Selected',
+        detail: APPLICANT_MESSAGES[status],
+        tone: 'approved', showSchedule: false, showCongrats: true,
+      };
+
+    case 'Disqualified':
+      return {
+        headline: 'Disqualified',
+        detail: 'Your application will no longer proceed in the selection process. For further inquiries, please contact the Recruitment Office.',
+        tone: 'rejected', showSchedule: false, showCongrats: false,
+      };
+
+    case 'Not Selected':
+      return {
+        headline: 'Not Selected',
+        detail: APPLICANT_MESSAGES[status],
+        tone: 'rejected', showSchedule: false, showCongrats: false,
+      };
   }
-  if (s.includes('action required') || s.includes('shortlist')) {
-    return {
-      headline: 'Additional Documents Requested',
-      detail: 'The RSP Office needs one or more documents resubmitted before your application can proceed.',
-      tone: 'action', showSchedule: false, showCongrats: false,
-    };
-  }
-  if (s.includes('under review') || s.includes('reviewed') || s.includes('reviewing')) {
-    return {
-      headline: 'Under Evaluation',
-      detail: 'Your application and uploaded documents are currently being reviewed by our recruitment team.',
-      tone: 'in-review', showSchedule: false, showCongrats: false,
-    };
-  }
-  return {
-    headline: 'Pending Review',
-    detail: 'Your application has been received. We will begin reviewing it shortly.',
-    tone: 'new', showSchedule: false, showCongrats: false,
-  };
 };
 
 const formatDate = (iso: string | null) => {
@@ -303,6 +368,9 @@ export const ApplicationStatusPage = () => {
     disqualification_reason_category: row.disqualification_reason_category ? String(row.disqualification_reason_category) : null,
     disqualification_message: row.disqualification_message ? String(row.disqualification_message) : null,
     disqualification_message_visible: Boolean(row.disqualification_message_visible),
+    missed_activity_type: row.missed_activity_type ? String(row.missed_activity_type) : null,
+    missed_activity_date: row.missed_activity_date ? String(row.missed_activity_date) : null,
+    missed_activity_time: row.missed_activity_time ? String(row.missed_activity_time) : null,
   });
 
   const fetchAttachments = async (applicantId: string) => {
@@ -823,6 +891,23 @@ export const ApplicationStatusPage = () => {
                     <p className="text-sm text-rose-700">
                       <span className="font-semibold">Reason:</span> {getDisqualificationReasonLabel(record.disqualification_reason_category)}
                     </p>
+                    {/* Spec §9 Option A. Shown from the reason and the recorded
+                        activity, not from the admin's note — the note can be
+                        kept internal, and this is the one thing the applicant
+                        must be told either way. */}
+                    {record.disqualification_reason_category === FAILURE_TO_ATTEND && (
+                      <p className="text-sm text-rose-700">
+                        {failureToAttendMessage(
+                          record.missed_activity_type
+                            ? {
+                                type: record.missed_activity_type as MissedActivityType,
+                                date: formatDate(record.missed_activity_date),
+                                time: formatTime12h(record.missed_activity_time) || null,
+                              }
+                            : null,
+                        )}
+                      </p>
+                    )}
                     {record.disqualification_message_visible && record.disqualification_message && (
                       <p className="text-sm text-rose-700">
                         <span className="font-semibold">Note:</span> {record.disqualification_message}

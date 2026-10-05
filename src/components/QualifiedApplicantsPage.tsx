@@ -218,9 +218,15 @@ const STATUS_COLORS: Record<ApplicantStatus, string> = {
   'New Application': 'bg-amber-100 text-amber-800',
   'Under Review': 'bg-blue-100 text-blue-800',
   Shortlisted: 'bg-emerald-100 text-emerald-800',
+  // Awaiting a resubmission or correction — an action for the applicant, so it
+  // reads as attention-needed rather than progress.
+  Pending: 'bg-amber-100 text-amber-800',
   'For Interview': 'bg-violet-100 text-violet-800',
   'Interview Scheduled': 'bg-purple-100 text-purple-800',
   'Interview Completed': 'bg-teal-100 text-teal-800',
+  Qualified: 'bg-green-100 text-green-800',
+  // Kept for rows written before the screening and post-ranking stages were
+  // separated; migration 20260926 resolves them.
   'Recommended for Hiring': 'bg-green-100 text-green-800',
   'Not Qualified': 'bg-rose-100 text-rose-800',
   Rejected: 'bg-slate-200 text-slate-800',
@@ -312,13 +318,21 @@ const toApplicantStatus = (rawStatus: string, hasCompletedEval: boolean): Applic
   if (normalized.includes('reject') || normalized.includes('disqual') || normalized === 'not qualified') {
     return normalized.includes('reject') ? 'Rejected' : 'Not Qualified';
   }
-  if (normalized.includes('recommend') || normalized.includes('qualified') || normalized.includes('accepted') || normalized.includes('hired')) {
-    return 'Recommended for Hiring';
+  // 'Qualified' is the stored value for a completed selection process.
+  // 'Recommended for Hiring' is the pre-split string and is shown as-is until
+  // migration 20260926 resolves it.
+  if (normalized === 'recommended for hiring') return 'Recommended for Hiring';
+  if (normalized.includes('qualified') || normalized.includes('accepted') || normalized.includes('hired')) {
+    return 'Qualified';
   }
   if (normalized.includes('shortlist')) return 'Shortlisted';
+  // Awaiting a resubmission or correction (spec §7). Must come before the
+  // 'review' test, which used to swallow 'pending' and report it as Under
+  // Review — hiding the fact that the office is waiting on the applicant.
+  if (normalized === 'pending' || normalized.includes('action required')) return 'Pending';
   if (normalized.includes('interview scheduled')) return 'Interview Scheduled';
   if (normalized.includes('for interview')) return 'For Interview';
-  if (normalized.includes('review') || normalized === 'reviewed' || normalized === 'pending') {
+  if (normalized.includes('review') || normalized === 'reviewed') {
     return hasCompletedEval ? 'Interview Completed' : 'Under Review';
   }
   if (normalized.includes('new')) return 'New Application';
@@ -1215,7 +1229,7 @@ export const QualifiedApplicantsPage = () => {
       // Build database update payload
       // Note: Convert UI status to backend status format for database storage
       let dbStatusValue: string = nextStatus;
-      if (nextStatus === 'Recommended for Hiring') {
+      if (nextStatus === 'Qualified' || nextStatus === 'Recommended for Hiring') {
         dbStatusValue = 'qualified';
       } else if (nextStatus === 'Not Qualified') {
         dbStatusValue = 'disqualified';
@@ -1369,7 +1383,9 @@ export const QualifiedApplicantsPage = () => {
     setPendingStatusAction({
       applicantId,
       action: 'qualify',
-      nextStatus: 'Recommended for Hiring',
+      // This page acts on applicants whose evaluation is done, so qualifying
+      // here means the selection process is complete.
+      nextStatus: 'Qualified',
     });
   };
 

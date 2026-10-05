@@ -9,14 +9,14 @@
  *      pool, or fails one and does not.
  *
  *   B. CRITERIA (ranking). Only qualified employees are ranked, on Performance,
- *      Tenure, Education beyond the minimum, Relevant Training and Relevant
- *      Experience.
+ *      Relevant Experience (which includes length of service), Relevant
+ *      Training, Education beyond the minimum, and Eligibility beyond the
+ *      minimum.
  *
  * The distinction matters: a criterion that gates must never also be scored on
- * whether it gates, or clearing the bar gets paid for twice. Education and
- * Training appear in both stages, but the ranking counts only what is ABOVE the
- * minimum the filter already checked. Eligibility appears only in the filter —
- * it is binary, so there is nothing to rank once it has been met.
+ * whether it gates, or clearing the bar gets paid for twice. Education,
+ * Training and Eligibility appear in both stages, but the ranking counts only
+ * what is ABOVE the minimum the filter already checked.
  *
  * Kept separate from succession.ts so the rules are testable without a database
  * and reviewable on their own.
@@ -29,23 +29,31 @@
 export interface RankingWeights {
   /** Performance relevant to the target position. */
   ipcr: number;
-  /** Relevant experience — quality, not only length of service. */
+  /**
+   * Relevant experience INCLUDING length of service. One criterion, because
+   * years of service is already the years component of the experience score —
+   * a separate tenure weight paid for the same number twice.
+   */
   experience: number;
   /** Relevant training beyond the minimum. */
   training: number;
   /** Education above the minimum, and only when relevant. */
   education: number;
-  /** Time in the organisation. Deliberately the smallest weight. */
-  tenure: number;
+  /** Eligibility above the level the position requires. */
+  eligibility: number;
 }
 
 /**
  * Default ranking weights (sum 100), as given in section E of the succession
  * specification.
  *
- * Tenure is lowest on purpose: the spec is explicit that longer service alone
- * does not make somebody more qualified, so it can break a tie without
- * outweighing performance or relevant experience.
+ * There is no separate tenure weight. Length of service is scored inside
+ * `experience`, where it is already the years component — a standalone tenure
+ * criterion paid for the same number a second time, which is exactly the
+ * double-count this module's two-stage split exists to prevent. The spec is
+ * also explicit that longer service alone does not make somebody more
+ * qualified, so it belongs as one input to experience, not as a criterion of
+ * its own.
  *
  * The spec calls these "proposed initial weights" to be validated by HR or
  * derived through a method such as AHP, so treat them as a starting point
@@ -54,21 +62,21 @@ export interface RankingWeights {
  */
 export const RANKING_WEIGHTS: RankingWeights = {
   ipcr: 30,
-  experience: 25,
+  experience: 20,
   training: 20,
   education: 15,
-  tenure: 10,
+  eligibility: 15,
 };
 
 /**
  * Coerce a stored weight object into the current shape.
  *
  * Positions configured before this model carry `{ipcr, training, education,
- * eligibility}` — eligibility is now filter-only and has no ranking weight, so
- * its points would otherwise vanish and the row would silently stop summing to
- * 100. Any missing criterion falls back to its default, `eligibility` is
- * dropped, and the result is renormalised so a hand-edited row that does not
- * total 100 still produces comparable scores.
+ * eligibility}`. That eligibility weight used to be discarded, because
+ * eligibility was filter-only; it is meaningful again and is now kept. Any
+ * missing criterion falls back to its default, and the result is renormalised
+ * so a hand-edited row that does not total 100 still produces comparable
+ * scores.
  */
 export function normalizeWeights(stored: unknown): RankingWeights {
   const raw = (stored ?? {}) as Record<string, unknown>;
@@ -77,15 +85,21 @@ export function normalizeWeights(stored: unknown): RankingWeights {
     return Number.isFinite(n) && n >= 0 ? n : fallback;
   };
 
+  // A stored `tenure` weight is folded into experience rather than dropped.
+  // Tenure is no longer its own criterion, but the points a position allocated
+  // to it were allocated to length of service, which experience now carries.
+  // Discarding them would silently shrink that position's achievable total.
+  const storedTenure = raw.tenure === undefined ? 0 : num(raw.tenure, 0);
+
   const merged: RankingWeights = {
     ipcr: num(raw.ipcr, RANKING_WEIGHTS.ipcr),
-    experience: num(raw.experience, RANKING_WEIGHTS.experience),
+    experience: num(raw.experience, RANKING_WEIGHTS.experience) + storedTenure,
     training: num(raw.training, RANKING_WEIGHTS.training),
     education: num(raw.education, RANKING_WEIGHTS.education),
-    tenure: num(raw.tenure, RANKING_WEIGHTS.tenure),
+    eligibility: num(raw.eligibility, RANKING_WEIGHTS.eligibility),
   };
 
-  const total = merged.ipcr + merged.experience + merged.training + merged.education + merged.tenure;
+  const total = merged.ipcr + merged.experience + merged.training + merged.education + merged.eligibility;
   if (total <= 0) return { ...RANKING_WEIGHTS };
   if (Math.abs(total - 100) < 0.01) return merged;
 
@@ -95,7 +109,7 @@ export function normalizeWeights(stored: unknown): RankingWeights {
     experience: Number((merged.experience * scale).toFixed(2)),
     training: Number((merged.training * scale).toFixed(2)),
     education: Number((merged.education * scale).toFixed(2)),
-    tenure: Number((merged.tenure * scale).toFixed(2)),
+    eligibility: Number((merged.eligibility * scale).toFixed(2)),
   };
 }
 
@@ -142,6 +156,9 @@ export interface QualificationResult {
   reasons: string[];
 }
 
+/** Top of the CSC scale: Professional, or an RA 1080 equivalent. */
+const PROFESSIONAL_LEVEL = 2;
+
 function eligibilityLevel(label: string | null | undefined): number {
   const s = String(label ?? '').trim().toLowerCase();
   if (!s) return 0;
@@ -161,6 +178,133 @@ function requiredEligibilityLevel(req: string | null | undefined): number {
   if (s.includes('sub-professional') || s.includes('sub professional')) return 1;
   if (s.includes('professional')) return 2;
   return 1;
+}
+
+/**
+ * One of an employee's eligibility records, as the scorer needs it.
+ *
+ * Mirrors the columns `employee_eligibility` has today. Supporting document and
+ * verification status are deliberately absent: those belong to the Personal
+ * Data Sheet work and are being added there, so a record counts as valid on its
+ * expiry date alone until that lands.
+ */
+export interface EligibilityRecord {
+  type: string;
+  /** ISO date, or null when the record never expires. */
+  validUntil: string | null;
+}
+
+/** Points configured for one eligibility type (succession spec §D). */
+export interface EligibilityTypePoints {
+  name: string;
+  points: number;
+  isActive: boolean;
+}
+
+export interface EligibilityScore {
+  /** 0–1. Multiply by the Eligibility weight for the contribution. */
+  ratio: number;
+  /** Raw points before the cap, so a score can be audited rather than read. */
+  rawPoints: number;
+  pointsForFullMarks: number;
+  /** Records that counted, with the points each contributed. */
+  counted: { type: string; points: number }[];
+  /** Records excluded because they had expired. */
+  expired: string[];
+  /**
+   * Record types with no row in eligibility_types. They score nothing, and
+   * naming them is the point: an unconfigured type is a gap in the
+   * configuration, not a judgement that the credential is worthless.
+   */
+  unconfigured: string[];
+}
+
+const eligibilityKey = (name: string) => String(name ?? '').trim().toLowerCase();
+
+/**
+ * Eligibility as a 0–1 ratio, from however many records the employee holds.
+ *
+ * Specification §D: multiple valid eligibilities raise the score, but "the
+ * system should avoid simply giving unlimited points for every additional
+ * eligibility". So the points sum and are then capped at
+ * `pointsForFullMarks` — a long list of minor credentials approaches full
+ * marks without ever passing a single major one plus the cap.
+ *
+ * Points come from the configuration rather than from this function, because
+ * the spec puts them in the administrator's hands.
+ */
+export function eligibilityScore(
+  records: EligibilityRecord[],
+  types: EligibilityTypePoints[],
+  pointsForFullMarks: number,
+  today: string = new Date().toISOString().slice(0, 10),
+): EligibilityScore {
+  const byName = new Map<string, EligibilityTypePoints>();
+  for (const t of types) byName.set(eligibilityKey(t.name), t);
+
+  const counted: { type: string; points: number }[] = [];
+  const expired: string[] = [];
+  const unconfigured: string[] = [];
+  const seen = new Set<string>();
+
+  for (const r of records) {
+    const name = String(r.type ?? '').trim();
+    if (!name) continue;
+    const key = eligibilityKey(name);
+
+    // The same eligibility entered twice is one credential, not two. Without
+    // this a duplicated PDS row would quietly double somebody's score.
+    if (seen.has(key)) continue;
+    seen.add(key);
+
+    if (r.validUntil && r.validUntil < today) {
+      expired.push(name);
+      continue;
+    }
+
+    const config = byName.get(key);
+    if (!config || config.isActive === false) {
+      unconfigured.push(name);
+      continue;
+    }
+    if (config.points > 0) counted.push({ type: name, points: config.points });
+  }
+
+  const rawPoints = counted.reduce((sum, c) => sum + c.points, 0);
+  // Guarded: a cap of zero would make every ratio Infinity or NaN and silently
+  // corrupt the whole ranking rather than one criterion.
+  const cap = Number.isFinite(pointsForFullMarks) && pointsForFullMarks > 0 ? pointsForFullMarks : 1;
+
+  return {
+    ratio: Math.min(rawPoints / cap, 1),
+    rawPoints,
+    pointsForFullMarks: cap,
+    counted,
+    expired,
+    unconfigured,
+  };
+}
+
+/**
+ * Does the employee hold the eligibility the position requires?
+ *
+ * Checks every record rather than one field. Somebody whose required
+ * eligibility is their second entry used to fail the filter, because only
+ * `employees.eligibility` was read.
+ */
+export function meetsRequiredEligibility(
+  records: EligibilityRecord[],
+  requiredEligibility: string | null | undefined,
+  today: string = new Date().toISOString().slice(0, 10),
+): boolean {
+  const required = requiredEligibilityLevel(requiredEligibility);
+  if (required === 0) {
+    // No stated requirement: any unexpired record satisfies it.
+    return records.some((r) => !r.validUntil || r.validUntil >= today);
+  }
+  return records.some(
+    (r) => (!r.validUntil || r.validUntil >= today) && eligibilityLevel(r.type) >= required,
+  );
 }
 
 /**
@@ -226,21 +370,6 @@ export function evaluateQualifications(input: QualificationInput): Qualification
 // ─────────────────────────────────────────────────────────────────────────────
 // B. CRITERIA — the ranking
 // ─────────────────────────────────────────────────────────────────────────────
-
-/** Years of tenure at which the tenure component is full. */
-export const TENURE_FULL_YEARS = 15;
-
-/**
- * Tenure as a 0–1 ratio, saturating at TENURE_FULL_YEARS.
- *
- * Saturating rather than growing without limit is the point: the spec wants
- * long service to add something, not to let a thirty-year record outrank a
- * stronger candidate on length alone.
- */
-export function tenureRatio(years: number | null): number {
-  if (years == null || !Number.isFinite(years) || years <= 0) return 0;
-  return Math.min(years / TENURE_FULL_YEARS, 1);
-}
 
 /**
  * Education ABOVE the minimum, as a 0–1 ratio, and only when relevant.
@@ -425,7 +554,8 @@ export interface RankingBreakdown {
   experience: number;
   training: number;
   education: number;
-  tenure: number;
+  eligibility: number;
+  /** The points each criterion could have earned. */
   max: RankingWeights;
   /** Mirrors ExperienceScore — the ranking is partial when this is false. */
   progressionAssessed: boolean;
@@ -440,10 +570,12 @@ export interface RankingBreakdown {
  */
 export function rankingScore(input: {
   ipcrRatio: number | null;
+  /** Includes length of service — there is no separate tenure criterion. */
   experience: ExperienceScore;
   trainingRatio: number;
   educationRatio: number;
-  tenureRatio: number;
+  /** From eligibilityScore(): the capped 0–1 share of the eligibility weight. */
+  eligibilityRatio: number;
   weights: RankingWeights;
 }): RankingBreakdown {
   const W = input.weights;
@@ -453,15 +585,16 @@ export function rankingScore(input: {
   const experience = at(input.experience.ratio, W.experience);
   const training = at(input.trainingRatio, W.training);
   const education = at(input.educationRatio, W.education);
-  const tenure = at(input.tenureRatio, W.tenure);
+
+  const eligibility = at(input.eligibilityRatio, W.eligibility);
 
   return {
-    total: Number((ipcr + experience + training + education + tenure).toFixed(2)),
+    total: Number((ipcr + experience + training + education + eligibility).toFixed(2)),
     ipcr,
     experience,
     training,
     education,
-    tenure,
+    eligibility,
     max: W,
     progressionAssessed: input.experience.progressionAssessed,
   };

@@ -21,6 +21,7 @@ import {
   type Phase2Status,
 } from '../../lib/api/ipcrRatings';
 import { markEmployeeNotificationsRead } from '../../lib/api/employeeNotifications';
+import { DEFAULT_RATING_SCALE, getRatingScale, type RatingScaleEntry } from '../../lib/api/ipcrRatingScale';
 
 const LOCKED_NOTICE =
   'Notice: Your targets have been finalized and locked for this rating period. You will be able to encode your accomplishments and self-ratings for each Success Indicator here, but the submission opens during the rating period (about 4–5 months from now). We will notify you as soon as the IPCR self-rating submission is open.';
@@ -37,7 +38,11 @@ const FUNCTION_GROUPS = [
 
 const LIKERT = [1, 2, 3, 4, 5];
 
-type Entry = { accomplishment: string; quality: number | null; efficiency: number | null; timeliness: number | null };
+/** Spec §G: what each rating means, shown while Phase 2 is being filled in. */
+const ratingLabel = (scale: RatingScaleEntry[], value: number | null): RatingScaleEntry | null =>
+  value == null ? null : (scale.find((s) => s.rating === value) ?? null);
+
+type Entry = { accomplishment: string; remarks: string; quality: number | null; efficiency: number | null; timeliness: number | null };
 
 const avgOf = (nums: Array<number | null>): number | null => {
   const f = nums.filter((n): n is number => typeof n === 'number' && !Number.isNaN(n));
@@ -51,6 +56,15 @@ export const EmployeePhase2: React.FC<{ employeeId: string | null; phaseOpen?: b
   const [loading, setLoading] = useState(true);
   const [sheet, setSheet] = useState<EmployeeRatingSheet | null>(null);
   const [status, setStatus] = useState<Phase2Status>('locked');
+  // The rating scale the employee is rating themselves against (§G). Starts
+  // on the built-in wording so the legend is never briefly empty while the
+  // configured scale loads.
+  const [ratingScale, setRatingScale] = useState<RatingScaleEntry[]>(DEFAULT_RATING_SCALE);
+  useEffect(() => {
+    let cancelled = false;
+    void getRatingScale().then((s) => { if (!cancelled) setRatingScale(s); });
+    return () => { cancelled = true; };
+  }, []);
   const [entries, setEntries] = useState<Record<string, Entry>>({});
   const [saving, setSaving] = useState(false);
   const [notice, setNotice] = useState<{ tone: 'ok' | 'err'; text: string } | null>(null);
@@ -65,6 +79,7 @@ export const EmployeePhase2: React.FC<{ employeeId: string | null; phaseOpen?: b
         if (!e) continue;
         if (
           (e.accomplishment ?? '') !== (si.accomplishment ?? '') ||
+          e.remarks !== si.remarks ||
           (e.quality ?? null) !== (si.quality ?? null) ||
           (e.efficiency ?? null) !== (si.efficiency ?? null) ||
           (e.timeliness ?? null) !== (si.timeliness ?? null)
@@ -90,7 +105,7 @@ export const EmployeePhase2: React.FC<{ employeeId: string | null; phaseOpen?: b
         setStatus(s.phase2Status);
         const init: Record<string, Entry> = {};
         for (const m of s.mfos) for (const si of m.indicators)
-          init[si.successIndicatorId] = { accomplishment: si.accomplishment, quality: si.quality, efficiency: si.efficiency, timeliness: si.timeliness };
+          init[si.successIndicatorId] = { accomplishment: si.accomplishment, remarks: si.remarks, quality: si.quality, efficiency: si.efficiency, timeliness: si.timeliness };
 
         // Restore any unsaved draft from sessionStorage so edits survive refresh.
         let merged = init;
@@ -108,6 +123,7 @@ export const EmployeePhase2: React.FC<{ employeeId: string | null; phaseOpen?: b
                 const dr = draft[id];
                 if (
                   (dr.accomplishment ?? '') !== (db.accomplishment ?? '') ||
+                  (dr.remarks ?? '') !== (db.remarks ?? '') ||
                   (dr.quality ?? null) !== (db.quality ?? null) ||
                   (dr.efficiency ?? null) !== (db.efficiency ?? null) ||
                   (dr.timeliness ?? null) !== (db.timeliness ?? null)
@@ -215,6 +231,7 @@ export const EmployeePhase2: React.FC<{ employeeId: string | null; phaseOpen?: b
       entries: allIds.map((id) => ({
         successIndicatorId: id,
         accomplishment: entries[id]?.accomplishment ?? '',
+        remarks: entries[id]?.remarks ?? '',
         quality: entries[id]?.quality ?? null,
         efficiency: entries[id]?.efficiency ?? null,
         timeliness: entries[id]?.timeliness ?? null,
@@ -345,6 +362,7 @@ export const EmployeePhase2: React.FC<{ employeeId: string | null; phaseOpen?: b
             <tr className="bg-slate-50 text-left text-[11px] font-bold text-slate-600">
               <th className="w-2/5 border-b px-3 py-2" style={{ borderColor: '#C8D1FF' }}>Success Indicator (frozen)</th>
               <th className="border-b px-3 py-2" style={{ borderColor: '#C8D1FF' }}>Achievement</th>
+              <th className="border-b px-3 py-2" style={{ borderColor: '#C8D1FF' }}>Remarks</th>
               <th className="border-b px-2 py-2 text-center" style={{ borderColor: '#C8D1FF' }}>Q</th>
               <th className="border-b px-2 py-2 text-center" style={{ borderColor: '#C8D1FF' }}>E</th>
               <th className="border-b px-2 py-2 text-center" style={{ borderColor: '#C8D1FF' }}>T</th>
@@ -367,7 +385,7 @@ export const EmployeePhase2: React.FC<{ employeeId: string | null; phaseOpen?: b
                         <td colSpan={6} className="bg-slate-50/70 px-3 py-1 text-[11px] font-semibold text-slate-600">{m.title || '(untitled MFO)'}</td>
                       </tr>
                       {m.indicators.map((si) => {
-                        const e = entries[si.successIndicatorId] ?? { accomplishment: '', quality: null, efficiency: null, timeliness: null };
+                        const e = entries[si.successIndicatorId] ?? { accomplishment: '', remarks: '', quality: null, efficiency: null, timeliness: null };
                         const a = avgOf([e.quality, e.efficiency, e.timeliness]);
                         return (
                           <tr key={si.successIndicatorId} className="align-top">
@@ -385,6 +403,20 @@ export const EmployeePhase2: React.FC<{ employeeId: string | null; phaseOpen?: b
                                 className="w-full rounded-lg border px-2 py-1.5 text-[11px] text-slate-700 focus:outline-none focus:ring-1 focus:ring-[#363EE8] disabled:bg-slate-100 disabled:text-slate-500 disabled:border-slate-200 disabled:cursor-default"
                               />
                             </td>
+                            <td className="border-b px-3 py-2" style={{ borderColor: '#EEF0FD' }}>
+                              {/* Spec §F. The employee's own note on this row —
+                                  why the rating is what it is — not a reviewer's
+                                  comment, which belongs to the amendment flow. */}
+                              <textarea
+                                value={e.remarks}
+                                onChange={(ev) => setField(si.successIndicatorId, 'remarks', ev.target.value)}
+                                disabled={!editable}
+                                placeholder="e.g. Submitted ahead of deadline"
+                                rows={2}
+                                style={{ borderColor: '#C8D1FF' }}
+                                className="w-full rounded-lg border px-2 py-1.5 text-[11px] text-slate-700 focus:outline-none focus:ring-1 focus:ring-[#363EE8] disabled:bg-slate-100 disabled:text-slate-500 disabled:border-slate-200 disabled:cursor-default"
+                              />
+                            </td>
                             {(['quality', 'efficiency', 'timeliness'] as const).map((dim) => (
                               <td key={dim} className="border-b px-1 py-2 text-center" style={{ borderColor: '#EEF0FD' }}>
                                 <select
@@ -397,6 +429,20 @@ export const EmployeePhase2: React.FC<{ employeeId: string | null; phaseOpen?: b
                                   <option value="">—</option>
                                   {LIKERT.map((n) => (<option key={n} value={n}>{n}</option>))}
                                 </select>
+                                {/* §G: the meaning of the value just chosen, against
+                                    the field itself, so the scale does not have to be
+                                    held in the head while filling the row in. */}
+                                {(() => {
+                                  const meaning = ratingLabel(ratingScale, e[dim]);
+                                  return meaning ? (
+                                    <div
+                                      className="mt-1 text-[9px] leading-tight text-slate-500"
+                                      title={meaning.description}
+                                    >
+                                      {meaning.label}
+                                    </div>
+                                  ) : null;
+                                })()}
                               </td>
                             ))}
                             <td className="border-b px-2 py-2 text-center font-bold text-slate-700" style={{ borderColor: '#EEF0FD' }}>{a != null ? a.toFixed(2) : '—'}</td>
@@ -410,6 +456,25 @@ export const EmployeePhase2: React.FC<{ employeeId: string | null; phaseOpen?: b
             })}
           </tbody>
         </table>
+      </div>
+
+      {/* §G: the scale itself, below the ratings. Employees should not have to
+          guess what a rating means, and the wording is the PM Administrator's
+          to set — this falls back to the built-in text if none is configured,
+          because an empty legend reads as a fault rather than an explanation. */}
+      <div className="mt-3 rounded-lg border px-3 py-2.5" style={{ borderColor: '#EEF0FD', background: '#F8FAFF' }}>
+        <p className="!mb-1.5 text-[10px] font-bold uppercase tracking-wide text-slate-500">
+          What each rating means
+        </p>
+        <ul className="!mb-0 space-y-0.5">
+          {ratingScale.map((r) => (
+            <li key={r.rating} className="flex gap-2 text-[10px] leading-snug">
+              <span className="shrink-0 font-bold tabular-nums text-slate-700">{r.rating}</span>
+              <span className="shrink-0 font-semibold text-slate-700">{r.label}</span>
+              <span className="text-slate-500">{r.description}</span>
+            </li>
+          ))}
+        </ul>
       </div>
 
       {readOnly ? (
