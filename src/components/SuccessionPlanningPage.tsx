@@ -686,7 +686,7 @@ const CandidatesPanel = (props: CandidatesPanelProps) => {
       </div>
 
       <p className="!mb-0 text-xs text-[var(--text-secondary)]">
-        Two-stage model. Stage A — qualifications are minimum requirements, not weighted (Employment · Position Match · Education field-match · CSC Eligibility · Minimum Experience · Training): fail any one and the employee drops to "Not Yet Qualified" below, never ranked here. Stage B — only qualified employees are ranked, on Performance 30 + Relevant Experience 25 + Training 20 + Education beyond minimum 15 + Eligibility beyond minimum 5 + Tenure 5. Education, Training and Eligibility count only what is above the minimum the filter already checked, so clearing the bar is not paid for twice. A position that already requires the highest eligibility shows n/a for that column, because nothing can exceed it. Performance is ranked but never gates: an unrated employee who meets the four minimums is still ranked, scoring zero on that criterion.
+        Two-stage model. Stage A — qualifications are minimum requirements, not weighted (Employment · Position Match · Education field-match · CSC Eligibility · Minimum Experience · Training): fail any one and the employee drops to "Not Yet Qualified" below, never ranked here. Stage B — only qualified employees are ranked, on Performance 30 + Relevant Experience including length of service 20 + Training 20 + Education beyond minimum 15 + Eligibility beyond minimum 15. Education, Training and Eligibility count only what is above the minimum the filter already checked, so clearing the bar is not paid for twice. Length of service is inside Experience rather than a criterion of its own, because it is already that score's years component. A position that already requires the highest eligibility shows n/a for that column, because nothing can exceed it. Performance is ranked but never gates: an unrated employee who meets the four minimums is still ranked, scoring zero on that criterion.
       </p>
 
       {loading && <p className="text-sm text-[var(--text-secondary)]">Discovering eligible successors…</p>}
@@ -881,10 +881,6 @@ const AutoSuccessorRow = ({
                       partial
                     </span>
                   )}
-                </div>
-                <div className="flex items-center gap-1.5">
-                  <span className="text-[10px] font-medium uppercase tracking-wide text-[var(--text-secondary)]">Tenure</span>
-                  <ScoreBar value={r.tenure} max={r.tenureMax} color="#a855f7" />
                 </div>
               </div>
 
@@ -1237,11 +1233,10 @@ type OcboRow = {
  */
 const CRITERIA_COLUMNS = [
   { key: 'ipcr', label: 'Performance', weight: RANKING_WEIGHTS.ipcr },
-  { key: 'experience', label: 'Experience', weight: RANKING_WEIGHTS.experience },
+  { key: 'experience', label: 'Experience + Tenure', weight: RANKING_WEIGHTS.experience },
   { key: 'training', label: 'Training', weight: RANKING_WEIGHTS.training },
   { key: 'education', label: 'Education', weight: RANKING_WEIGHTS.education },
   { key: 'eligibility', label: 'Eligibility', weight: RANKING_WEIGHTS.eligibility },
-  { key: 'tenure', label: 'Tenure', weight: RANKING_WEIGHTS.tenure },
 ] as const;
 
 /**
@@ -1296,13 +1291,12 @@ const buildOcboRows = (res: AutoSuccessorsResult | undefined): OcboRow[] => {
     // Ordered as specification B lists them.
     criteria: [
       { key: 'ipcr', label: 'Performance', value: c.readiness.ipcr, max: c.readiness.ipcrMax },
-      { key: 'experience', label: 'Experience', value: c.readiness.experience, max: c.readiness.experienceMax },
+      { key: 'experience', label: 'Experience + Tenure', value: c.readiness.experience, max: c.readiness.experienceMax },
       { key: 'training', label: 'Training', value: c.readiness.training, max: c.readiness.trainingMax },
       { key: 'education', label: 'Education', value: c.readiness.education, max: c.readiness.educationMax },
       // max is 0 when the position already requires the top of the scale, which
       // the cell renders as not assessed rather than as a zero score.
       { key: 'eligibility', label: 'Eligibility', value: c.readiness.eligibility, max: c.readiness.eligibilityMax },
-      { key: 'tenure', label: 'Tenure', value: c.readiness.tenure, max: c.readiness.tenureMax },
     ],
     experienceParts: c.readiness.experienceParts,
     status: c.readiness.tier ?? 'Developmental',

@@ -2,7 +2,7 @@
 title: Score eligibility above the position's minimum
 date: 2026-10-05
 status: Done
-summary: Add a 5-point eligibility criterion to the succession ranking, scoring only the margin above the position's required level, taken from tenure.
+summary: Score eligibility above the position's minimum at 15%, and merge tenure into experience as one 20% criterion.
 spec: Succession specification section E (ranking criteria and initial weights)
 ---
 
@@ -85,3 +85,28 @@ and pass through `normalizeWeights`, so HR can retune without a code change.
 - `npx tsc --noEmit`
 - `npx vitest run`
 - `npm run build`
+
+## Correction, 2026-10-05
+
+The weights above were proposed rather than taken from the specification, and
+they were wrong. The spec table gives:
+
+| Criterion | Weight |
+|---|---|
+| Performance / IPCR | 30 |
+| Experience + Tenure | 20 |
+| Training | 20 |
+| Education | 15 |
+| Eligibility | 15 |
+
+So eligibility is 15, not 5, and tenure is not a criterion at all — it is part
+of experience.
+
+Merging tenure into experience also removed a double-count. `tenureYears` was
+already the years component of the experience score *and* the whole of the
+standalone tenure criterion, so the same number was scored twice. That is the
+double-count the module's two-stage split exists to prevent.
+
+`tenureRatio` and `TENURE_FULL_YEARS` are deleted; nothing calls them now.
+`normalizeWeights` folds a stored `tenure` weight into experience rather than
+dropping it, since those points were allocated to length of service.

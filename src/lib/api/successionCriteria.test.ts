@@ -12,7 +12,6 @@ import {
   experienceScore,
   normalizeWeights,
   rankingScore,
-  tenureRatio,
   trainingBeyondMinimumRatio,
   type QualificationInput,
 } from './successionCriteria';
@@ -149,36 +148,29 @@ describe('B. Education beyond the minimum', () => {
   });
 });
 
-describe('B. Tenure', () => {
-  it('rises with years but saturates so long service cannot dominate', () => {
-    expect(tenureRatio(0)).toBe(0);
-    expect(tenureRatio(5)).toBeGreaterThan(0);
-    expect(tenureRatio(15)).toBe(1);
-    expect(tenureRatio(40)).toBe(1);
-  });
-
+describe('B. Weights', () => {
   it('matches the weights given in specification E', () => {
     // Pinned so a future edit to the model is a deliberate, visible change
     // rather than a silent drift away from the document.
-    // Eligibility was added later and funded from tenure (10 -> 5); the four
-    // the spec names are unchanged.
     expect(RANKING_WEIGHTS).toEqual({
-      ipcr: 30, experience: 25, training: 20, education: 15, eligibility: 5, tenure: 5,
+      ipcr: 30, experience: 20, training: 20, education: 15, eligibility: 15,
     });
     const total = Object.values(RANKING_WEIGHTS).reduce((a, b) => a + b, 0);
     expect(total).toBe(100);
   });
 
-  it('carries the smallest weight of the five criteria', () => {
-    const w = RANKING_WEIGHTS;
-    expect(w.tenure).toBeLessThan(w.ipcr);
-    expect(w.tenure).toBeLessThan(w.experience);
-    expect(w.tenure).toBeLessThan(w.training);
-    expect(w.tenure).toBeLessThan(w.education);
+  it('has no separate tenure criterion', () => {
+    // Length of service is the years component of the experience score. A
+    // standalone tenure weight scored the same number a second time.
+    expect((RANKING_WEIGHTS as unknown as Record<string, number>).tenure).toBeUndefined();
   });
 
-  it('treats missing hire data as zero rather than crediting it', () => {
-    expect(tenureRatio(null)).toBe(0);
+  it('ranks performance highest', () => {
+    const w = RANKING_WEIGHTS;
+    expect(w.ipcr).toBeGreaterThan(w.experience);
+    expect(w.ipcr).toBeGreaterThan(w.training);
+    expect(w.ipcr).toBeGreaterThan(w.education);
+    expect(w.ipcr).toBeGreaterThan(w.eligibility);
   });
 });
 
@@ -252,18 +244,18 @@ describe('Ranking score', () => {
 
   it('is 0–100 and sums its components', () => {
     const r = rankingScore({
-      ipcrRatio: 1, experience: exp, trainingRatio: 1, educationRatio: 1, eligibilityRatio: 1, tenureRatio: 1,
+      ipcrRatio: 1, experience: exp, trainingRatio: 1, educationRatio: 1, eligibilityRatio: 1,
       weights: RANKING_WEIGHTS,
     });
     expect(r.total).toBeCloseTo(
-      r.ipcr + r.experience + r.training + r.education + r.eligibility + r.tenure, 2,
+      r.ipcr + r.experience + r.training + r.education + r.eligibility, 2,
     );
     expect(r.total).toBeLessThanOrEqual(100);
   });
 
   it('scores an unrated candidate at zero for performance without excluding them', () => {
     const r = rankingScore({
-      ipcrRatio: null, experience: exp, trainingRatio: 0.5, educationRatio: 0, eligibilityRatio: 0, tenureRatio: 0.5,
+      ipcrRatio: null, experience: exp, trainingRatio: 0.5, educationRatio: 0, eligibilityRatio: 0,
       weights: RANKING_WEIGHTS,
     });
     expect(r.ipcr).toBe(0);
@@ -272,11 +264,11 @@ describe('Ranking score', () => {
 
   it('ranks performance above tenure at equal ratios', () => {
     const strongPerformer = rankingScore({
-      ipcrRatio: 1, experience: exp, trainingRatio: 0, educationRatio: 0, eligibilityRatio: 0, tenureRatio: 0,
+      ipcrRatio: 1, experience: exp, trainingRatio: 0, educationRatio: 0, eligibilityRatio: 0,
       weights: RANKING_WEIGHTS,
     });
     const longServer = rankingScore({
-      ipcrRatio: 0, experience: exp, trainingRatio: 0, educationRatio: 0, eligibilityRatio: 0, tenureRatio: 1,
+      ipcrRatio: 0, experience: exp, trainingRatio: 0, educationRatio: 0, eligibilityRatio: 0,
       weights: RANKING_WEIGHTS,
     });
     expect(strongPerformer.total).toBeGreaterThan(longServer.total);
@@ -295,21 +287,30 @@ describe('normalizeWeights', () => {
     // the stored weight is honoured rather than dropped.
     const w = normalizeWeights({ ipcr: 35, training: 30, education: 20, eligibility: 15 });
     expect(w.eligibility).toBeGreaterThan(0);
-    const total = w.ipcr + w.experience + w.training + w.education + w.eligibility + w.tenure;
+    const total = w.ipcr + w.experience + w.training + w.education + w.eligibility;
     expect(total).toBeCloseTo(100, 1);
   });
 
   it('renormalises a hand-edited row that does not total 100', () => {
-    const w = normalizeWeights({ ipcr: 10, experience: 10, training: 10, education: 10, eligibility: 10, tenure: 10 });
-    const total = w.ipcr + w.experience + w.training + w.education + w.eligibility + w.tenure;
+    const w = normalizeWeights({ ipcr: 10, experience: 10, training: 10, education: 10, eligibility: 10 });
+    const total = w.ipcr + w.experience + w.training + w.education + w.eligibility;
     expect(total).toBeCloseTo(100, 1);
-    expect(w.ipcr).toBeCloseTo(100 / 6, 1);
+    expect(w.ipcr).toBeCloseTo(20, 1);
+  });
+
+  it('folds a legacy tenure weight into experience rather than dropping it', () => {
+    // Those points were allocated to length of service, which experience now
+    // carries. Discarding them would shrink the position's achievable total.
+    const w = normalizeWeights({ ipcr: 30, experience: 20, training: 20, education: 15, eligibility: 10, tenure: 5 });
+    expect(w.experience).toBeCloseTo(25, 1);
+    const total = w.ipcr + w.experience + w.training + w.education + w.eligibility;
+    expect(total).toBeCloseTo(100, 1);
   });
 
   it('falls back to defaults for negative or non-numeric entries', () => {
-    const w = normalizeWeights({ ipcr: -5, tenure: 'abc' });
+    const w = normalizeWeights({ ipcr: -5, education: 'abc' });
     expect(w.ipcr).toBeGreaterThan(0);
-    expect(w.tenure).toBeGreaterThan(0);
+    expect(w.education).toBeGreaterThan(0);
   });
 });
 
@@ -465,7 +466,6 @@ describe('Ranking with eligibility', () => {
     experience: perfectExp,
     trainingRatio: 1,
     educationRatio: 1,
-    tenureRatio: 1,
     weights: RANKING_WEIGHTS,
   };
 
@@ -493,16 +493,15 @@ describe('Ranking with eligibility', () => {
 describe('Weights after the eligibility split', () => {
   it('sums to 100', () => {
     const w = RANKING_WEIGHTS;
-    expect(w.ipcr + w.experience + w.training + w.education + w.eligibility + w.tenure).toBe(100);
+    expect(w.ipcr + w.experience + w.training + w.education + w.eligibility).toBe(100);
   });
 
-  it('took its points from tenure, not from the approved four', () => {
+  it('matches the figures in the specification table', () => {
     expect(RANKING_WEIGHTS.ipcr).toBe(30);
-    expect(RANKING_WEIGHTS.experience).toBe(25);
+    expect(RANKING_WEIGHTS.experience).toBe(20);
     expect(RANKING_WEIGHTS.training).toBe(20);
     expect(RANKING_WEIGHTS.education).toBe(15);
-    expect(RANKING_WEIGHTS.eligibility).toBe(5);
-    expect(RANKING_WEIGHTS.tenure).toBe(5);
+    expect(RANKING_WEIGHTS.eligibility).toBe(15);
   });
 
   it('keeps a legacy stored eligibility weight instead of discarding it', () => {
@@ -510,11 +509,7 @@ describe('Weights after the eligibility split', () => {
     // because eligibility had no ranking weight. It counts again.
     const w = normalizeWeights({ ipcr: 40, training: 20, education: 20, eligibility: 20 });
     expect(w.eligibility).toBeGreaterThan(0);
-    const total = w.ipcr + w.experience + w.training + w.education + w.eligibility + w.tenure;
+    const total = w.ipcr + w.experience + w.training + w.education + w.eligibility;
     expect(total).toBeCloseTo(100, 1);
-  });
-
-  it('still ranks performance above tenure at equal ratios', () => {
-    expect(RANKING_WEIGHTS.ipcr).toBeGreaterThan(RANKING_WEIGHTS.tenure);
   });
 });

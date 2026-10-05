@@ -30,7 +30,6 @@ import {
   evaluateQualifications,
   experienceScore,
   normalizeWeights,
-  tenureRatio,
   trainingBeyondMinimumRatio,
   type ExperiencePart,
   type RankingWeights,
@@ -181,7 +180,7 @@ export interface ReadinessScore {
   ipcrMax: number;
   training: number;
   trainingMax: number;
-  /** Relevant experience — quality, not only length of service. */
+  /** Relevant experience, including length of service. */
   experience: number;
   experienceMax: number;
   /** Eligibility above the level the position requires. */
@@ -193,10 +192,11 @@ export interface ReadinessScore {
    * out of the maximum rather than scored zero.
    */
   eligibilityAssessed: boolean;
-  /** Time in the organisation. Smallest weight. */
-  tenure: number;
-  tenureMax: number;
-  /** Years since date_hired, shown alongside the tenure bar. */
+  /**
+   * Years since date_hired. Shown as context and used as the years component of
+   * the experience score; it is NOT a criterion of its own. A separate tenure
+   * weight scored this same number a second time.
+   */
   tenureYears: number;
   /**
    * False when career progression could not be assessed because the candidate
@@ -1498,7 +1498,6 @@ function computeReadinessScore(input: {
     progressionSteps: input.progressionSteps,
   });
   const experience = w1(exp.ratio, input.W.experience);
-  const tenure = w1(tenureRatio(input.tenureYears), input.W.tenure);
   const training = scoreTraining({
     completed: input.relevantTrainings,
     hours: input.relevantTrainingHours,
@@ -1521,7 +1520,7 @@ function computeReadinessScore(input: {
   // reports whether the ranking is based on a full record, not whether the
   // candidate belongs in the pool at all.
   const dataComplete = input.ipcrScore != null;
-  const total = Number((education + ipcr + training + experience + eligibility + tenure).toFixed(1));
+  const total = Number((education + ipcr + training + experience + eligibility).toFixed(1));
 
   // Stage-2 competency readiness. When the position lists required competencies,
   // it drives the tier (Ready Now = 100%); otherwise the weighted total does.
@@ -1567,8 +1566,6 @@ function computeReadinessScore(input: {
     eligibility,
     eligibilityMax: eligibilityAssessed ? input.W.eligibility : 0,
     eligibilityAssessed,
-    tenure,
-    tenureMax: input.W.tenure,
     tenureYears: input.tenureYears,
     progressionAssessed: exp.progressionAssessed,
     experienceParts: exp.parts,
