@@ -1425,11 +1425,13 @@ const ProbationaryPanel = ({
                   const res = await openPhase({ phase: 'phase1', openedBy: getCurrentAdminEmail() });
                   setActionBusy(false);
                   setShowConfirmOpen1(false);
-                  if (res.ok) {
-                    void loadSystemStates();
-                  } else {
-                    alert('error' in res ? res.error : 'Failed to open phase');
-                  }
+                  // Always re-read the switch, including on failure: the
+                  // schedule row may have flipped before a later step failed,
+                  // and a badge that disagrees with the database is how this
+                  // screen came to show CLOSED while employees were open.
+                  await loadSystemStates();
+                  if (res.ok === false) alert(res.error);
+                  else if (res.warning) alert(res.warning);
                 }}
                 disabled={actionBusy}
                 className="px-5 py-2 text-sm font-bold bg-[#363EE8] hover:bg-[#2931c5] text-white rounded-xl shadow-xs transition active:scale-95 disabled:opacity-50"
@@ -1480,11 +1482,13 @@ const ProbationaryPanel = ({
                   const res = await closePhase({ phase: 'phase1', closedBy: getCurrentAdminEmail() });
                   setActionBusy(false);
                   setShowConfirmClose1(false);
-                  if (res.ok) {
-                    void loadSystemStates();
-                  } else {
-                    alert('error' in res ? res.error : 'Failed to close phase');
-                  }
+                  // Always re-read the switch, including on failure: the
+                  // schedule row may have flipped before a later step failed,
+                  // and a badge that disagrees with the database is how this
+                  // screen came to show CLOSED while employees were open.
+                  await loadSystemStates();
+                  if (res.ok === false) alert(res.error);
+                  else if (res.warning) alert(res.warning);
                 }}
                 disabled={actionBusy}
                 className="px-5 py-2 text-sm font-bold bg-[#e11d48] hover:bg-[#be123c] text-white rounded-xl shadow-xs transition active:scale-95 disabled:opacity-50"
@@ -1535,11 +1539,13 @@ const ProbationaryPanel = ({
                   const res = await openPhase({ phase: 'phase2', openedBy: getCurrentAdminEmail() });
                   setActionBusy(false);
                   setShowConfirmOpen2(false);
-                  if (res.ok) {
-                    void loadSystemStates();
-                  } else {
-                    alert('error' in res ? res.error : 'Failed to open phase');
-                  }
+                  // Always re-read the switch, including on failure: the
+                  // schedule row may have flipped before a later step failed,
+                  // and a badge that disagrees with the database is how this
+                  // screen came to show CLOSED while employees were open.
+                  await loadSystemStates();
+                  if (res.ok === false) alert(res.error);
+                  else if (res.warning) alert(res.warning);
                 }}
                 disabled={actionBusy}
                 className="px-5 py-2 text-sm font-bold bg-[#363EE8] hover:bg-[#2931c5] text-white rounded-xl shadow-xs transition active:scale-95 disabled:opacity-50"
@@ -1590,11 +1596,13 @@ const ProbationaryPanel = ({
                   const res = await closePhase({ phase: 'phase2', closedBy: getCurrentAdminEmail() });
                   setActionBusy(false);
                   setShowConfirmClose2(false);
-                  if (res.ok) {
-                    void loadSystemStates();
-                  } else {
-                    alert('error' in res ? res.error : 'Failed to close phase');
-                  }
+                  // Always re-read the switch, including on failure: the
+                  // schedule row may have flipped before a later step failed,
+                  // and a badge that disagrees with the database is how this
+                  // screen came to show CLOSED while employees were open.
+                  await loadSystemStates();
+                  if (res.ok === false) alert(res.error);
+                  else if (res.warning) alert(res.warning);
                 }}
                 disabled={actionBusy}
                 className="px-5 py-2 text-sm font-bold bg-[#e11d48] hover:bg-[#be123c] text-white rounded-xl shadow-xs transition active:scale-95 disabled:opacity-50"
@@ -1967,11 +1975,13 @@ const RegularPanel = ({
                   const res = await openPhase({ phase: 'phase1', openedBy: getCurrentAdminEmail() });
                   setActionBusy(false);
                   setShowConfirmOpen1(false);
-                  if (res.ok) {
-                    void loadSystemStates();
-                  } else {
-                    alert('error' in res ? res.error : 'Failed to open phase');
-                  }
+                  // Always re-read the switch, including on failure: the
+                  // schedule row may have flipped before a later step failed,
+                  // and a badge that disagrees with the database is how this
+                  // screen came to show CLOSED while employees were open.
+                  await loadSystemStates();
+                  if (res.ok === false) alert(res.error);
+                  else if (res.warning) alert(res.warning);
                 }}
                 disabled={actionBusy}
                 className="px-4 py-2 text-xs font-bold bg-[#363EE8] text-white rounded-lg hover:bg-[#2931c5]"
@@ -2001,11 +2011,13 @@ const RegularPanel = ({
                   const res = await closePhase({ phase: 'phase1', closedBy: getCurrentAdminEmail() });
                   setActionBusy(false);
                   setShowConfirmClose1(false);
-                  if (res.ok) {
-                    void loadSystemStates();
-                  } else {
-                    alert('error' in res ? res.error : 'Failed to close phase');
-                  }
+                  // Always re-read the switch, including on failure: the
+                  // schedule row may have flipped before a later step failed,
+                  // and a badge that disagrees with the database is how this
+                  // screen came to show CLOSED while employees were open.
+                  await loadSystemStates();
+                  if (res.ok === false) alert(res.error);
+                  else if (res.warning) alert(res.warning);
                 }}
                 disabled={actionBusy}
                 className="px-4 py-2 text-xs font-bold bg-rose-600 text-white rounded-lg hover:bg-rose-700"
@@ -2035,11 +2047,13 @@ const RegularPanel = ({
                   const res = await openPhase({ phase: 'phase2', openedBy: getCurrentAdminEmail() });
                   setActionBusy(false);
                   setShowConfirmOpen2(false);
-                  if (res.ok) {
-                    void loadSystemStates();
-                  } else {
-                    alert('error' in res ? res.error : 'Failed to open phase');
-                  }
+                  // Always re-read the switch, including on failure: the
+                  // schedule row may have flipped before a later step failed,
+                  // and a badge that disagrees with the database is how this
+                  // screen came to show CLOSED while employees were open.
+                  await loadSystemStates();
+                  if (res.ok === false) alert(res.error);
+                  else if (res.warning) alert(res.warning);
                 }}
                 disabled={actionBusy}
                 className="px-4 py-2 text-xs font-bold bg-[#363EE8] text-white rounded-lg hover:bg-[#2931c5]"
@@ -2069,11 +2083,13 @@ const RegularPanel = ({
                   const res = await closePhase({ phase: 'phase2', closedBy: getCurrentAdminEmail() });
                   setActionBusy(false);
                   setShowConfirmClose2(false);
-                  if (res.ok) {
-                    void loadSystemStates();
-                  } else {
-                    alert('error' in res ? res.error : 'Failed to close phase');
-                  }
+                  // Always re-read the switch, including on failure: the
+                  // schedule row may have flipped before a later step failed,
+                  // and a badge that disagrees with the database is how this
+                  // screen came to show CLOSED while employees were open.
+                  await loadSystemStates();
+                  if (res.ok === false) alert(res.error);
+                  else if (res.warning) alert(res.warning);
                 }}
                 disabled={actionBusy}
                 className="px-4 py-2 text-xs font-bold bg-rose-600 text-white rounded-lg hover:bg-rose-700"
