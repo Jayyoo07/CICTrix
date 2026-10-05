@@ -1,7 +1,7 @@
 ---
 title: Score multiple eligibilities, with configurable points per type
 date: 2026-10-05
-status: Approved
+status: Done
 summary: Replace the single-field eligibility score with one computed from an employee's eligibility records, using points per type that RSP/HR configures, capped at the 15% weight.
 spec: Succession specification sections B, C and D
 ---

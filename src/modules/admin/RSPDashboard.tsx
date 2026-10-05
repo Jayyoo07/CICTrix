@@ -34,6 +34,7 @@ import { ErrorBanner } from '../../components/ErrorBanner';
 import { getAdminEmail } from '../../lib/adminSession';
 import { funnelBucket, normalizeStatus, type FunnelBucket } from '../../lib/api/applicantStatus';
 import { SuccessionPlanningPage } from '../../components/SuccessionPlanningPage';
+import { EligibilityPointsPanel } from '../../components/EligibilityPointsPanel';
 import { useEffect, useMemo, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { AdminHeader } from '../../components/AdminHeader';
@@ -818,6 +819,9 @@ export const RSPDashboard = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const section = resolveSection(location.pathname, location.search);
+  // Which succession view is showing: the ranked plan, or the points that
+  // produce its Eligibility column.
+  const [successionView, setSuccessionView] = useState<'plan' | 'eligibility-points'>('plan');
 
   // Departments come from the canonical Supabase table, shared system-wide.
   const employeeDirectoryDepartments = useDepartmentNames();
@@ -5352,7 +5356,32 @@ export const RSPDashboard = () => {
             )}
 
             {section === 'succession' && (
-              <SuccessionPlanningPage />
+              <div className="space-y-5">
+                {/* The points behind the Eligibility column live here rather
+                    than in Settings: they are part of the succession model, and
+                    an admin reading a ranking is the one who needs to change
+                    them. */}
+                <div className="flex gap-2">
+                  {([
+                    { id: 'plan', label: 'Succession Plan' },
+                    { id: 'eligibility-points', label: 'Eligibility Points' },
+                  ] as const).map((t) => (
+                    <button
+                      key={t.id}
+                      type="button"
+                      onClick={() => setSuccessionView(t.id)}
+                      className={`rounded-lg px-3.5 py-1.5 text-sm font-semibold transition ${
+                        successionView === t.id
+                          ? 'bg-[#363EE8] text-white'
+                          : 'border border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
+                      }`}
+                    >
+                      {t.label}
+                    </button>
+                  ))}
+                </div>
+                {successionView === 'plan' ? <SuccessionPlanningPage /> : <EligibilityPointsPanel />}
+              </div>
             )}
 
             {section === 'settings' && (
