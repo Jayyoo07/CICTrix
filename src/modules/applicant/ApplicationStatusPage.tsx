@@ -3,7 +3,13 @@ import { useEffect, useRef, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import { ATTACHMENTS_BUCKET, supabase } from '../../lib/supabase';
 import { getApplicants, saveApplicants } from '../../lib/recruitmentData';
-import { parseDisqualificationReason, getDisqualificationReasonLabel } from '../../lib/applicationActivity';
+import {
+  FAILURE_TO_ATTEND,
+  failureToAttendMessage,
+  getDisqualificationReasonLabel,
+  parseDisqualificationReason,
+  type MissedActivityType,
+} from '../../lib/applicationActivity';
 import { APPLICANT_MESSAGES, normalizeStatus } from '../../lib/api/applicantStatus';
 import { fetchApplicantSlotLinks, fetchSlotsByJobPosting } from '../../lib/plantillaSlots';
 import { plantillaLabel } from '../../lib/plantillaRules';
@@ -45,6 +51,11 @@ interface ApplicationRecord {
   disqualification_reason_category: string | null;
   disqualification_message: string | null;
   disqualification_message_visible: boolean;
+  // Spec §8: the activity a no-show applicant missed, frozen at the moment of
+  // disqualification.
+  missed_activity_type: string | null;
+  missed_activity_date: string | null;
+  missed_activity_time: string | null;
 }
 
 interface AttachmentRow {
@@ -354,6 +365,9 @@ export const ApplicationStatusPage = () => {
     disqualification_reason_category: row.disqualification_reason_category ? String(row.disqualification_reason_category) : null,
     disqualification_message: row.disqualification_message ? String(row.disqualification_message) : null,
     disqualification_message_visible: Boolean(row.disqualification_message_visible),
+    missed_activity_type: row.missed_activity_type ? String(row.missed_activity_type) : null,
+    missed_activity_date: row.missed_activity_date ? String(row.missed_activity_date) : null,
+    missed_activity_time: row.missed_activity_time ? String(row.missed_activity_time) : null,
   });
 
   const fetchAttachments = async (applicantId: string) => {
@@ -874,6 +888,23 @@ export const ApplicationStatusPage = () => {
                     <p className="text-sm text-rose-700">
                       <span className="font-semibold">Reason:</span> {getDisqualificationReasonLabel(record.disqualification_reason_category)}
                     </p>
+                    {/* Spec §9 Option A. Shown from the reason and the recorded
+                        activity, not from the admin's note — the note can be
+                        kept internal, and this is the one thing the applicant
+                        must be told either way. */}
+                    {record.disqualification_reason_category === FAILURE_TO_ATTEND && (
+                      <p className="text-sm text-rose-700">
+                        {failureToAttendMessage(
+                          record.missed_activity_type
+                            ? {
+                                type: record.missed_activity_type as MissedActivityType,
+                                date: formatDate(record.missed_activity_date),
+                                time: formatTime12h(record.missed_activity_time) || null,
+                              }
+                            : null,
+                        )}
+                      </p>
+                    )}
                     {record.disqualification_message_visible && record.disqualification_message && (
                       <p className="text-sm text-rose-700">
                         <span className="font-semibold">Note:</span> {record.disqualification_message}

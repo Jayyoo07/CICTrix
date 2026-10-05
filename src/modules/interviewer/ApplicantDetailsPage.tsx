@@ -27,7 +27,14 @@ import { mockDatabase } from '../../lib/mockDatabase';
 import { sendEmail } from '../../lib/email';
 import { getApplicants, getAuthoritativeJobPostings, saveApplicants } from '../../lib/recruitmentData';
 import { ATTACHMENTS_BUCKET, isMockModeEnabled, supabase } from '../../lib/supabase';
-import { DISQUALIFICATION_REASON_OPTIONS, buildDisqualificationActivityDescription } from '../../lib/applicationActivity';
+import {
+  DISQUALIFICATION_REASON_OPTIONS,
+  FAILURE_TO_ATTEND,
+  MISSED_ACTIVITY_LABELS,
+  buildDisqualificationActivityDescription,
+  type MissedActivity,
+  type MissedActivityType,
+} from '../../lib/applicationActivity';
 import type { Applicant, JobPosting } from '../../types/recruitment.types';
 
 type ApplicantRecord = {
@@ -46,6 +53,13 @@ type ApplicantRecord = {
   application_type?: 'job' | 'promotion' | string;
   employee_id?: string | null;
   created_at?: string;
+  // Schedule columns, used to offer the activity a no-show applicant missed.
+  exam_date?: string | null;
+  exam_time?: string | null;
+  oral_exam_date?: string | null;
+  oral_exam_time?: string | null;
+  interview_date?: string | null;
+  interview_time?: string | null;
 };
 
 type AttachmentRecord = {
@@ -743,6 +757,9 @@ export function ApplicantDetailsPage() {
   const [confirmReasonCategory, setConfirmReasonCategory] = useState('');
   const [confirmReason, setConfirmReason] = useState('');
   const [confirmMessageVisible, setConfirmMessageVisible] = useState(false);
+  // Which scheduled activity the applicant failed to attend (spec §8). Only
+  // meaningful when the reason is failure_to_attend.
+  const [missedActivityKey, setMissedActivityKey] = useState('');
   const [confirmSubmitting, setConfirmSubmitting] = useState(false);
 
   const [applicant, setApplicant] = useState<ApplicantRecord | null>(null);
@@ -1328,7 +1345,12 @@ export function ApplicantDetailsPage() {
 
   const persistStatus = async (
     action: 'shortlist' | 'unshortlist' | 'qualified' | 'disqualify' | 'document_verified' | 'action_required' | 'under_review',
-    disqualifyDetails?: { reasonCategory: string; message: string; messageVisible: boolean },
+    disqualifyDetails?: {
+      reasonCategory: string;
+      message: string;
+      messageVisible: boolean;
+      missedActivity?: MissedActivity | null;
+    },
   ) => {
     // Only `applicant` (the ApplicantRecord from DB) is required. The richer
     // `recruitmentApplicant` (Applicant with notes/timeline/etc) may be null for
@@ -1390,8 +1412,24 @@ export function ApplicantDetailsPage() {
         dbUpdate.disqualification_reason = reason || null;
         dbUpdate.disqualified_at = new Date().toISOString();
         dbUpdate.disqualification_reason_category = disqualifyDetails?.reasonCategory ?? null;
-        dbUpdate.disqualification_message = disqualifyDetails?.message?.trim() || null;
         dbUpdate.disqualification_message_visible = disqualifyDetails?.messageVisible ?? false;
+
+        // Spec §8: the activity a no-show missed is frozen onto the applicant
+        // now. Reading it back off exam_date/interview_date when it is shown
+        // would let a later schedule edit rewrite the record of what happened.
+        const missed = disqualifyDetails?.missedActivity ?? null;
+        const isNoShowReason = disqualifyDetails?.reasonCategory === FAILURE_TO_ATTEND;
+        dbUpdate.missed_activity_type = isNoShowReason && missed ? missed.type : null;
+        dbUpdate.missed_activity_date = isNoShowReason && missed ? missed.date : null;
+        dbUpdate.missed_activity_time = isNoShowReason && missed ? missed.time : null;
+
+        // The admin's note stays the admin's note. Spec §9 Option A — telling
+        // the applicant they were disqualified for not attending — is rendered
+        // by the tracker from the reason category and the recorded activity,
+        // which are always visible. Folding that sentence in here would have
+        // hidden it whenever the admin left the visibility box unticked, which
+        // is the one case where the applicant most needs the reason.
+        dbUpdate.disqualification_message = disqualifyDetails?.message?.trim() || null;
         dbUpdate.is_final = true;
         try {
           const { data: userData } = await (supabase as any).auth.getUser();
@@ -2841,7 +2879,34 @@ export function ApplicantDetailsPage() {
 
         {confirmAction && (() => {
           const isDisqualify = confirmAction === 'disqualify';
-          const canConfirm = !confirmSubmitting && (!isDisqualify || confirmReasonCategory.trim().length > 0);
+          const isNoShow = isDisqualify && confirmReasonCategory === FAILURE_TO_ATTEND;
+
+          // The activities this applicant was actually scheduled for. Offering
+          // only these means the recorded date is one the office really set,
+          // not one retyped from memory at the moment of disqualification.
+          const scheduledActivities: Array<{ key: string; activity: MissedActivity }> = (
+            [
+              ['interview', applicant?.interview_date, applicant?.interview_time],
+              ['written_exam', applicant?.exam_date, applicant?.exam_time],
+              ['oral_exam', applicant?.oral_exam_date, applicant?.oral_exam_time],
+            ] as Array<[MissedActivityType, string | null | undefined, string | null | undefined]>
+          )
+            .filter(([, date]) => Boolean(date))
+            .map(([type, date, time]) => ({
+              key: type,
+              activity: { type, date: String(date), time: time ? String(time) : null },
+            }));
+
+          const missedActivity =
+            scheduledActivities.find((a) => a.key === missedActivityKey)?.activity ?? null;
+
+          // A no-show needs the activity recorded, so it cannot be confirmed
+          // without one. An applicant with nothing scheduled cannot have failed
+          // to attend; the dialog says so rather than accepting a blank record.
+          const canConfirm =
+            !confirmSubmitting &&
+            (!isDisqualify || confirmReasonCategory.trim().length > 0) &&
+            (!isNoShow || missedActivity !== null);
           return (
             <div
               className="fixed inset-0 z-[250] flex items-center justify-center bg-black/50 p-4"
@@ -2878,7 +2943,12 @@ export function ApplicantDetailsPage() {
                       </label>
                       <select
                         value={confirmReasonCategory}
-                        onChange={(event) => setConfirmReasonCategory(event.target.value)}
+                        onChange={(event) => {
+                          setConfirmReasonCategory(event.target.value);
+                          // Drop any activity picked under a previous reason so
+                          // it cannot be saved against an unrelated one.
+                          setMissedActivityKey('');
+                        }}
                         className="w-full rounded-xl border border-rose-300 bg-white px-3 py-2 text-sm text-slate-700 focus:border-rose-500 focus:outline-none focus:ring-2 focus:ring-rose-100"
                       >
                         <option value="">Select a reason…</option>
@@ -2887,6 +2957,37 @@ export function ApplicantDetailsPage() {
                         ))}
                       </select>
                     </div>
+                    {isNoShow && (
+                      <div>
+                        <label className="mb-1.5 block text-sm font-semibold text-slate-700">
+                          Scheduled activity not attended <span className="text-rose-500">*</span>
+                        </label>
+                        {scheduledActivities.length === 0 ? (
+                          <p className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+                            No interview or examination is scheduled for this applicant, so there is nothing
+                            they could have failed to attend. Set a schedule first, or choose a different reason.
+                          </p>
+                        ) : (
+                          <select
+                            value={missedActivityKey}
+                            onChange={(event) => setMissedActivityKey(event.target.value)}
+                            className="w-full rounded-xl border border-rose-300 bg-white px-3 py-2 text-sm text-slate-700 focus:border-rose-500 focus:outline-none focus:ring-2 focus:ring-rose-100"
+                          >
+                            <option value="">Select the activity…</option>
+                            {scheduledActivities.map(({ key, activity }) => (
+                              <option key={key} value={key}>
+                                {MISSED_ACTIVITY_LABELS[activity.type]} — {activity.date}
+                                {activity.time ? ` at ${activity.time}` : ''}
+                              </option>
+                            ))}
+                          </select>
+                        )}
+                        <p className="mt-1.5 text-xs text-slate-500">
+                          Recorded with the disqualification, so it still says what it said today even if the
+                          schedule is changed later.
+                        </p>
+                      </div>
+                    )}
                     <div>
                       <label className="mb-1.5 block text-sm font-semibold text-slate-700">
                         Message to applicant <span className="text-slate-400 font-normal">(optional)</span>
@@ -2932,13 +3033,19 @@ export function ApplicantDetailsPage() {
                         await persistStatus(
                           confirmAction,
                           isDisqualify
-                            ? { reasonCategory: confirmReasonCategory, message: confirmReason, messageVisible: confirmMessageVisible }
+                            ? {
+                                reasonCategory: confirmReasonCategory,
+                                message: confirmReason,
+                                messageVisible: confirmMessageVisible,
+                                missedActivity,
+                              }
                             : undefined,
                         );
                         setConfirmAction(null);
                         setConfirmReason('');
                         setConfirmReasonCategory('');
                         setConfirmMessageVisible(false);
+                        setMissedActivityKey('');
                       } finally {
                         setConfirmSubmitting(false);
                       }
