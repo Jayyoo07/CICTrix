@@ -42,7 +42,7 @@ const LIKERT = [1, 2, 3, 4, 5];
 const ratingLabel = (scale: RatingScaleEntry[], value: number | null): RatingScaleEntry | null =>
   value == null ? null : (scale.find((s) => s.rating === value) ?? null);
 
-type Entry = { accomplishment: string; quality: number | null; efficiency: number | null; timeliness: number | null };
+type Entry = { accomplishment: string; remarks: string; quality: number | null; efficiency: number | null; timeliness: number | null };
 
 const avgOf = (nums: Array<number | null>): number | null => {
   const f = nums.filter((n): n is number => typeof n === 'number' && !Number.isNaN(n));
@@ -79,6 +79,7 @@ export const EmployeePhase2: React.FC<{ employeeId: string | null; phaseOpen?: b
         if (!e) continue;
         if (
           (e.accomplishment ?? '') !== (si.accomplishment ?? '') ||
+          e.remarks !== si.remarks ||
           (e.quality ?? null) !== (si.quality ?? null) ||
           (e.efficiency ?? null) !== (si.efficiency ?? null) ||
           (e.timeliness ?? null) !== (si.timeliness ?? null)
@@ -104,7 +105,7 @@ export const EmployeePhase2: React.FC<{ employeeId: string | null; phaseOpen?: b
         setStatus(s.phase2Status);
         const init: Record<string, Entry> = {};
         for (const m of s.mfos) for (const si of m.indicators)
-          init[si.successIndicatorId] = { accomplishment: si.accomplishment, quality: si.quality, efficiency: si.efficiency, timeliness: si.timeliness };
+          init[si.successIndicatorId] = { accomplishment: si.accomplishment, remarks: si.remarks, quality: si.quality, efficiency: si.efficiency, timeliness: si.timeliness };
 
         // Restore any unsaved draft from sessionStorage so edits survive refresh.
         let merged = init;
@@ -122,6 +123,7 @@ export const EmployeePhase2: React.FC<{ employeeId: string | null; phaseOpen?: b
                 const dr = draft[id];
                 if (
                   (dr.accomplishment ?? '') !== (db.accomplishment ?? '') ||
+                  (dr.remarks ?? '') !== (db.remarks ?? '') ||
                   (dr.quality ?? null) !== (db.quality ?? null) ||
                   (dr.efficiency ?? null) !== (db.efficiency ?? null) ||
                   (dr.timeliness ?? null) !== (db.timeliness ?? null)
@@ -229,6 +231,7 @@ export const EmployeePhase2: React.FC<{ employeeId: string | null; phaseOpen?: b
       entries: allIds.map((id) => ({
         successIndicatorId: id,
         accomplishment: entries[id]?.accomplishment ?? '',
+        remarks: entries[id]?.remarks ?? '',
         quality: entries[id]?.quality ?? null,
         efficiency: entries[id]?.efficiency ?? null,
         timeliness: entries[id]?.timeliness ?? null,
@@ -359,6 +362,7 @@ export const EmployeePhase2: React.FC<{ employeeId: string | null; phaseOpen?: b
             <tr className="bg-slate-50 text-left text-[11px] font-bold text-slate-600">
               <th className="w-2/5 border-b px-3 py-2" style={{ borderColor: '#C8D1FF' }}>Success Indicator (frozen)</th>
               <th className="border-b px-3 py-2" style={{ borderColor: '#C8D1FF' }}>Achievement</th>
+              <th className="border-b px-3 py-2" style={{ borderColor: '#C8D1FF' }}>Remarks</th>
               <th className="border-b px-2 py-2 text-center" style={{ borderColor: '#C8D1FF' }}>Q</th>
               <th className="border-b px-2 py-2 text-center" style={{ borderColor: '#C8D1FF' }}>E</th>
               <th className="border-b px-2 py-2 text-center" style={{ borderColor: '#C8D1FF' }}>T</th>
@@ -381,7 +385,7 @@ export const EmployeePhase2: React.FC<{ employeeId: string | null; phaseOpen?: b
                         <td colSpan={6} className="bg-slate-50/70 px-3 py-1 text-[11px] font-semibold text-slate-600">{m.title || '(untitled MFO)'}</td>
                       </tr>
                       {m.indicators.map((si) => {
-                        const e = entries[si.successIndicatorId] ?? { accomplishment: '', quality: null, efficiency: null, timeliness: null };
+                        const e = entries[si.successIndicatorId] ?? { accomplishment: '', remarks: '', quality: null, efficiency: null, timeliness: null };
                         const a = avgOf([e.quality, e.efficiency, e.timeliness]);
                         return (
                           <tr key={si.successIndicatorId} className="align-top">
@@ -394,6 +398,20 @@ export const EmployeePhase2: React.FC<{ employeeId: string | null; phaseOpen?: b
                                 onChange={(ev) => setField(si.successIndicatorId, 'accomplishment', ev.target.value)}
                                 disabled={!editable}
                                 placeholder="Detail your achievement matching this target..."
+                                rows={2}
+                                style={{ borderColor: '#C8D1FF' }}
+                                className="w-full rounded-lg border px-2 py-1.5 text-[11px] text-slate-700 focus:outline-none focus:ring-1 focus:ring-[#363EE8] disabled:bg-slate-100 disabled:text-slate-500 disabled:border-slate-200 disabled:cursor-default"
+                              />
+                            </td>
+                            <td className="border-b px-3 py-2" style={{ borderColor: '#EEF0FD' }}>
+                              {/* Spec §F. The employee's own note on this row —
+                                  why the rating is what it is — not a reviewer's
+                                  comment, which belongs to the amendment flow. */}
+                              <textarea
+                                value={e.remarks}
+                                onChange={(ev) => setField(si.successIndicatorId, 'remarks', ev.target.value)}
+                                disabled={!editable}
+                                placeholder="e.g. Submitted ahead of deadline"
                                 rows={2}
                                 style={{ borderColor: '#C8D1FF' }}
                                 className="w-full rounded-lg border px-2 py-1.5 text-[11px] text-slate-700 focus:outline-none focus:ring-1 focus:ring-[#363EE8] disabled:bg-slate-100 disabled:text-slate-500 disabled:border-slate-200 disabled:cursor-default"

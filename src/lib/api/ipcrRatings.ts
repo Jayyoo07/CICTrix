@@ -46,6 +46,8 @@ export interface RatingIndicator {
   successIndicatorId: string;
   description: string;
   accomplishment: string;
+  /** The employee's own note on this row (spec §F). Not reviewer remarks. */
+  remarks: string;
   quality: number | null;
   efficiency: number | null;
   timeliness: number | null;
@@ -242,6 +244,7 @@ export async function loadRatingSheet(targetSettingId: string): Promise<Result<R
               successIndicatorId: si.id,
               description: si.description ?? '',
               accomplishment: r?.accomplishment ?? '',
+              remarks: r?.remarks ?? '',
               quality: r?.quality ?? null,
               efficiency: r?.efficiency ?? null,
               timeliness: r?.timeliness ?? null,
@@ -585,7 +588,7 @@ export async function loadEmployeeRatingSheet(
 export async function saveEmployeeRatings(params: {
   targetSettingId: string;
   employeeId: string;
-  entries: Array<RatingInput & { accomplishment: string }>;
+  entries: Array<RatingInput & { accomplishment: string; remarks?: string }>;
   submit: boolean;
 }): Promise<Result<{ phase2Status: Phase2Status; overallScore: number | null; adjectival: string | null }>> {
   const { targetSettingId, employeeId, entries, submit } = params;
@@ -612,6 +615,9 @@ export async function saveEmployeeRatings(params: {
     const rows = entries.map((e) => ({
       success_indicator_id: e.successIndicatorId,
       accomplishment: e.accomplishment?.trim() || null,
+      // Blank stored as null, like accomplishment: an empty string and "never
+      // written" are the same thing to a reader, and only one of them is true.
+      remarks: e.remarks?.trim() || null,
       quality: clamp15(e.quality),
       efficiency: clamp15(e.efficiency),
       timeliness: clamp15(e.timeliness),
@@ -863,6 +869,7 @@ export async function listPendingRatingApprovals(
               successIndicatorId: si.id,
               description: si.description ?? '',
               accomplishment: r?.accomplishment ?? '',
+              remarks: r?.remarks ?? '',
               quality: r?.quality ?? null,
               efficiency: r?.efficiency ?? null,
               timeliness: r?.timeliness ?? null,
