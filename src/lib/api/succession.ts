@@ -355,8 +355,53 @@ async function cycleTitles(cycleIds: number[]): Promise<Map<number, string>> {
   return new Map((data ?? []).map((c: any) => [c.id, c.title as string]));
 }
 
-/** Roll one target setting's per-indicator Q/E/T up into a single overall score. */
-function overallFromMfoRows(mfoRows: any[]): number | null {
+/** Core/Strategic/Support split configured for a department, if any. */
+type FunctionWeights = { core: number; strategic: number; support: number };
+
+/**
+ * Active weighting schema per department, in one query.
+ *
+ * resolveOfficeWeights() in officeWeighting.ts answers this for a single
+ * office; succession scores a whole department at a time, so this batches
+ * rather than firing one request per employee.
+ */
+async function weightsByDepartment(departmentIds: (string | null)[]): Promise<Map<string, FunctionWeights>> {
+  const ids = [...new Set(departmentIds)].filter(Boolean) as string[];
+  const out = new Map<string, FunctionWeights>();
+  if (!ids.length) return out;
+
+  const { data } = await supabase
+    .from('department_weighting_configs')
+    .select('department_id, weighting_schema_options(core_weight, strategic_weight, support_weight)')
+    .in('department_id', ids)
+    .eq('is_active', true);
+
+  for (const row of (data ?? []) as any[]) {
+    const opt = row.weighting_schema_options;
+    if (!opt) continue;
+    out.set(String(row.department_id), {
+      core: Number(opt.core_weight) || 0,
+      strategic: Number(opt.strategic_weight) || 0,
+      support: Number(opt.support_weight) || 0,
+    });
+  }
+  return out;
+}
+
+/**
+ * Roll one target setting's per-indicator Q/E/T up into a single overall score.
+ *
+ * `weights` is the department's configured Core/Strategic/Support split. Pass
+ * null when the department has no active configuration — computeOverallScore
+ * then falls back to an unweighted mean, which is the documented behaviour
+ * rather than scoring against zeroes.
+ *
+ * Previously this always passed null, so every succession score used a plain
+ * average of the three function averages regardless of configuration. A
+ * department on schema B (Core 60 / Support 40) was effectively scored 50/50,
+ * and Performance is the heaviest ranking criterion at 30%.
+ */
+function overallFromMfoRows(mfoRows: any[], weights: FunctionWeights | null): number | null {
   const acc: Record<FunctionType, { q: number[]; e: number[]; t: number[] }> = {
     core: { q: [], e: [], t: [] },
     strategic: { q: [], e: [], t: [] },
@@ -384,9 +429,9 @@ function overallFromMfoRows(mfoRows: any[]): number | null {
       weight: null,
     });
   return computeOverallScore([
-    { average: cat('core'), weight: null },
-    { average: cat('strategic'), weight: null },
-    { average: cat('support'), weight: null },
+    { average: cat('core'), weight: weights ? weights.core : null },
+    { average: cat('strategic'), weight: weights ? weights.strategic : null },
+    { average: cat('support'), weight: weights ? weights.support : null },
   ]);
 }
 
@@ -446,8 +491,23 @@ export async function getLatestOverallScores(
     mfosBySetting.set(m.target_setting_id, list);
   }
 
+  // Each employee's score is weighted by their own department's configured
+  // Core/Strategic/Support split, so two employees with identical ratings in
+  // differently-configured offices score differently — which is the point of
+  // the configuration.
+  const { data: empDepts } = await supabase
+    .from('employees')
+    .select('id, department_id')
+    .in('id', [...latestByEmployee.keys()]);
+  const deptByEmployee = new Map<string, string | null>(
+    ((empDepts ?? []) as any[]).map((e) => [String(e.id), e.department_id ?? null]),
+  );
+  const weightsByDept = await weightsByDepartment([...deptByEmployee.values()]);
+
   for (const [employeeId, setting] of latestByEmployee) {
-    const overall = overallFromMfoRows(mfosBySetting.get(setting.id) ?? []);
+    const dept = deptByEmployee.get(employeeId) ?? null;
+    const weights = dept ? weightsByDept.get(dept) ?? null : null;
+    const overall = overallFromMfoRows(mfosBySetting.get(setting.id) ?? [], weights);
     if (overall === null) continue; // completed but unexpectedly empty → treat as unrated
     result.set(employeeId, {
       overallScore: overall,
