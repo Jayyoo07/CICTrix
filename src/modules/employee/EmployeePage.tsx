@@ -402,6 +402,9 @@ export const EmployeePage: React.FC<EmployeePageProps> = ({ currentUser, loginUs
   };
 
   const latestEmployeeIpcrLoadId = useRef(0);
+  // Shared by the full load and refreshPhaseSchedules so an older phase-window
+  // fetch never overwrites a newer one (each resolve is several round trips).
+  const latestScheduleFetchId = useRef(0);
 
   const loadIPCRData = useCallback(async (isSilent = false) => {
     if (!currentUser.supabaseId) return;
@@ -491,9 +494,10 @@ export const EmployeePage: React.FC<EmployeePageProps> = ({ currentUser, loginUs
       // OFFICE override if one exists, else the system default — so offices can
       // sit on different phases (e.g. Legal stays in Phase 1 while every other
       // office moves to Phase 2).
+      const scheduleFetchId = ++latestScheduleFetchId.current;
       const schedules = await loadEffectiveSchedules(currentUser.supabaseId);
       if (loadId !== latestEmployeeIpcrLoadId.current) return;
-      setSystemSchedules(schedules);
+      if (scheduleFetchId === latestScheduleFetchId.current) setSystemSchedules(schedules);
 
       // Phase 1 relational targets. If the active cycle resolves, load by cycle;
       // otherwise (e.g. performance_cycles not readable by the anon client due to
@@ -631,14 +635,17 @@ export const EmployeePage: React.FC<EmployeePageProps> = ({ currentUser, loginUs
   /**
    * Lightweight phase-gate refresh: re-resolves the two phase windows (office
    * override first, else system default, same as the full load) and updates
-   * systemSchedules without touching any form state. Called unconditionally from the realtime onChange so that
-   * isTargetSettingActive / isAccomplishmentRatingActive flip instantly
-   * for every employee when the PM opens or closes a phase — even when
-   * the full loadIPCRData reload is deferred due to a dirty form.
+   * systemSchedules without touching any form state. Called unconditionally
+   * from the realtime onChange so that isTargetSettingActive /
+   * isAccomplishmentRatingActive flip instantly for every employee when the
+   * PM opens or closes a phase — even when the full loadIPCRData reload is
+   * deferred due to a dirty form.
    */
   const refreshPhaseSchedules = useCallback(async () => {
     if (!currentUser.supabaseId) return;
-    setSystemSchedules(await loadEffectiveSchedules(currentUser.supabaseId));
+    const scheduleFetchId = ++latestScheduleFetchId.current;
+    const schedules = await loadEffectiveSchedules(currentUser.supabaseId);
+    if (scheduleFetchId === latestScheduleFetchId.current) setSystemSchedules(schedules);
   }, [currentUser.supabaseId]);
 
   // ── My IPCR Workspace (Phase 1 targets / Phase 2 accomplishments) ──────────

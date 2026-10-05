@@ -2,10 +2,11 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 // Per-table result queues; each query chain resolves to the next queued result
 // (or throws it, when the queued value is an Error).
-const { fromMock, results, orMock, calls } = vi.hoisted(() => {
+const { fromMock, results, orMock, eqMock, calls } = vi.hoisted(() => {
   const results: Record<string, Array<{ data?: unknown; error?: unknown } | Error>> = {};
   const calls: string[] = [];
   const orMock = vi.fn();
+  const eqMock = vi.fn();
   const fromMock = vi.fn((table: string) => {
     calls.push(table);
     const next = async () => {
@@ -15,7 +16,10 @@ const { fromMock, results, orMock, calls } = vi.hoisted(() => {
     };
     const chain: any = {
       select: () => chain,
-      eq: () => chain,
+      eq: (column: string, value: unknown) => {
+        eqMock(table, column, value);
+        return chain;
+      },
       or: (filter: string) => {
         orMock(filter);
         return next();
@@ -24,7 +28,7 @@ const { fromMock, results, orMock, calls } = vi.hoisted(() => {
     };
     return chain;
   });
-  return { fromMock, results, orMock, calls };
+  return { fromMock, results, orMock, eqMock, calls };
 });
 
 vi.mock('../supabase', () => ({ supabase: { from: fromMock } }));
@@ -53,6 +57,7 @@ beforeEach(() => {
   for (const k of Object.keys(results)) delete results[k];
   calls.length = 0;
   orMock.mockClear();
+  eqMock.mockClear();
   fromMock.mockClear();
   vi.spyOn(console, 'warn').mockImplementation(() => {});
 });
@@ -69,6 +74,10 @@ describe('loadEffectiveSchedules', () => {
     expect(out.rating?.id).toBe('legal-r');
     expect(out.rating?.mode).toBe('Closed');
     expect(out.target?.id).toBe('sys-t');
+    expect(eqMock.mock.calls).toEqual([
+      ['employees_with_department', 'id', 'emp-1'],
+      ['departments', 'name', 'Legal'],
+    ]);
     expect(orMock).toHaveBeenCalledWith('scope.eq.system,office_id.eq.dep-legal');
   });
 
