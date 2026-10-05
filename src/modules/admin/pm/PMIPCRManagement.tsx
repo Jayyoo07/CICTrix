@@ -35,6 +35,7 @@ import { OfficeWeightingPanel } from './OfficeWeightingPanel';
 import { getCurrentAdminEmail } from '../moduleUi';
 import { supabase as supabaseClient } from '../../../lib/supabase';
 import { getSystemPhaseStates, openPhase, closePhase } from '../../../lib/api/ipcrPhaseControl';
+import { getActiveCyclePeriod } from '../../../lib/api/compliance';
 import type { EffectiveState } from '../../../lib/api/phaseSchedules';
 
 const supabase = supabaseClient as any;
@@ -1075,7 +1076,12 @@ const ProbationaryPanel = ({
   const [search, setSearch] = useState('');
   const [officeFilter, setOfficeFilter] = useState('');
   const [showSchedule, setShowSchedule] = useState(false);
+  // The evaluation period this screen is acting on. It used to be set only by
+  // the Schedule dialog, so the panel read "No active period" on every load
+  // even when a cycle existed — and kept reading it while phase notifications
+  // went out stamped with the period the API resolved anyway.
   const [currentPeriod, setCurrentPeriod] = useState('');
+  const [periodScheduled, setPeriodScheduled] = useState(true);
 
   const [systemStates, setSystemStates] = useState<{ target_setting: EffectiveState; rating: EffectiveState }>({
     target_setting: 'Closed',
@@ -1089,8 +1095,10 @@ const ProbationaryPanel = ({
 
   const loadSystemStates = useCallback(async () => {
     try {
-      const states = await getSystemPhaseStates();
+      const [states, cycle] = await Promise.all([getSystemPhaseStates(), getActiveCyclePeriod()]);
       setSystemStates(states);
+      setCurrentPeriod(cycle.period);
+      setPeriodScheduled(cycle.isScheduled);
     } catch (err) {
       console.warn('Failed to load system phase states:', err);
     }
@@ -1182,6 +1190,11 @@ const ProbationaryPanel = ({
           <div>
             <p className="text-[9px] font-extrabold uppercase tracking-wider text-slate-400">Evaluation Period</p>
             <p className="text-xs font-bold text-slate-900 mt-0.5">{currentPeriod || 'No active period'}</p>
+            {currentPeriod && !periodScheduled && (
+              <p className="text-[9px] font-semibold text-amber-600 mt-0.5">
+                Not scheduled — phases will use this period
+              </p>
+            )}
           </div>
         </div>
 
@@ -1382,7 +1395,11 @@ const ProbationaryPanel = ({
           type="probationary"
           employees={employees}
           onClose={() => setShowSchedule(false)}
-          onScheduled={(p) => setCurrentPeriod(p)}
+          onScheduled={(p) => {
+            setCurrentPeriod(p);
+            // A cycle now exists, so the label is no longer the fallback.
+            setPeriodScheduled(true);
+          }}
         />
       )}
 
@@ -1632,7 +1649,12 @@ const RegularPanel = ({
 }) => {
   const [drillOffice, setDrillOffice] = useState<string | null>(null);
   const [showSchedule, setShowSchedule] = useState(false);
+  // The evaluation period this screen is acting on. It used to be set only by
+  // the Schedule dialog, so the panel read "No active period" on every load
+  // even when a cycle existed — and kept reading it while phase notifications
+  // went out stamped with the period the API resolved anyway.
   const [currentPeriod, setCurrentPeriod] = useState('');
+  const [periodScheduled, setPeriodScheduled] = useState(true);
 
   const [systemStates, setSystemStates] = useState<{ target_setting: EffectiveState; rating: EffectiveState }>({
     target_setting: 'Closed',
@@ -1646,8 +1668,10 @@ const RegularPanel = ({
 
   const loadSystemStates = useCallback(async () => {
     try {
-      const states = await getSystemPhaseStates();
+      const [states, cycle] = await Promise.all([getSystemPhaseStates(), getActiveCyclePeriod()]);
       setSystemStates(states);
+      setCurrentPeriod(cycle.period);
+      setPeriodScheduled(cycle.isScheduled);
     } catch (err) {
       console.warn('Failed to load system phase states:', err);
     }
@@ -1745,6 +1769,11 @@ const RegularPanel = ({
           <div>
             <p className="text-[9px] font-extrabold uppercase tracking-wider text-slate-400">Evaluation Period</p>
             <p className="text-xs font-bold text-slate-900 mt-0.5">{currentPeriod || 'No active period'}</p>
+            {currentPeriod && !periodScheduled && (
+              <p className="text-[9px] font-semibold text-amber-600 mt-0.5">
+                Not scheduled — phases will use this period
+              </p>
+            )}
           </div>
         </div>
 
@@ -1953,7 +1982,11 @@ const RegularPanel = ({
           type="regular"
           employees={employees}
           onClose={() => setShowSchedule(false)}
-          onScheduled={(p) => setCurrentPeriod(p)}
+          onScheduled={(p) => {
+            setCurrentPeriod(p);
+            // A cycle now exists, so the label is no longer the fallback.
+            setPeriodScheduled(true);
+          }}
         />
       )}
 
