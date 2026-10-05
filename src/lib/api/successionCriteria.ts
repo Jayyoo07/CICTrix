@@ -9,14 +9,13 @@
  *      pool, or fails one and does not.
  *
  *   B. CRITERIA (ranking). Only qualified employees are ranked, on Performance,
- *      Tenure, Education beyond the minimum, Relevant Training and Relevant
- *      Experience.
+ *      Relevant Experience, Relevant Training, Education beyond the minimum,
+ *      Eligibility beyond the minimum, and Tenure.
  *
  * The distinction matters: a criterion that gates must never also be scored on
- * whether it gates, or clearing the bar gets paid for twice. Education and
- * Training appear in both stages, but the ranking counts only what is ABOVE the
- * minimum the filter already checked. Eligibility appears only in the filter —
- * it is binary, so there is nothing to rank once it has been met.
+ * whether it gates, or clearing the bar gets paid for twice. Education,
+ * Training and Eligibility appear in both stages, but the ranking counts only
+ * what is ABOVE the minimum the filter already checked.
  *
  * Kept separate from succession.ts so the rules are testable without a database
  * and reviewable on their own.
@@ -35,6 +34,8 @@ export interface RankingWeights {
   training: number;
   /** Education above the minimum, and only when relevant. */
   education: number;
+  /** Eligibility above the level the position requires. */
+  eligibility: number;
   /** Time in the organisation. Deliberately the smallest weight. */
   tenure: number;
 }
@@ -45,7 +46,9 @@ export interface RankingWeights {
  *
  * Tenure is lowest on purpose: the spec is explicit that longer service alone
  * does not make somebody more qualified, so it can break a tie without
- * outweighing performance or relevant experience.
+ * outweighing performance or relevant experience. That is also why eligibility
+ * above the minimum was funded from tenure rather than from the criteria that
+ * measure what a candidate can actually do.
  *
  * The spec calls these "proposed initial weights" to be validated by HR or
  * derived through a method such as AHP, so treat them as a starting point
@@ -57,18 +60,21 @@ export const RANKING_WEIGHTS: RankingWeights = {
   experience: 25,
   training: 20,
   education: 15,
-  tenure: 10,
+  // Eligibility's 5 points were taken from tenure, which started at 10. The
+  // other four are the weights the spec gives and HR approved, unchanged.
+  eligibility: 5,
+  tenure: 5,
 };
 
 /**
  * Coerce a stored weight object into the current shape.
  *
  * Positions configured before this model carry `{ipcr, training, education,
- * eligibility}` — eligibility is now filter-only and has no ranking weight, so
- * its points would otherwise vanish and the row would silently stop summing to
- * 100. Any missing criterion falls back to its default, `eligibility` is
- * dropped, and the result is renormalised so a hand-edited row that does not
- * total 100 still produces comparable scores.
+ * eligibility}`. That eligibility weight used to be discarded, because
+ * eligibility was filter-only; it is meaningful again and is now kept. Any
+ * missing criterion falls back to its default, and the result is renormalised
+ * so a hand-edited row that does not total 100 still produces comparable
+ * scores.
  */
 export function normalizeWeights(stored: unknown): RankingWeights {
   const raw = (stored ?? {}) as Record<string, unknown>;
@@ -82,10 +88,12 @@ export function normalizeWeights(stored: unknown): RankingWeights {
     experience: num(raw.experience, RANKING_WEIGHTS.experience),
     training: num(raw.training, RANKING_WEIGHTS.training),
     education: num(raw.education, RANKING_WEIGHTS.education),
+    eligibility: num(raw.eligibility, RANKING_WEIGHTS.eligibility),
     tenure: num(raw.tenure, RANKING_WEIGHTS.tenure),
   };
 
-  const total = merged.ipcr + merged.experience + merged.training + merged.education + merged.tenure;
+  const total =
+    merged.ipcr + merged.experience + merged.training + merged.education + merged.eligibility + merged.tenure;
   if (total <= 0) return { ...RANKING_WEIGHTS };
   if (Math.abs(total - 100) < 0.01) return merged;
 
@@ -95,6 +103,7 @@ export function normalizeWeights(stored: unknown): RankingWeights {
     experience: Number((merged.experience * scale).toFixed(2)),
     training: Number((merged.training * scale).toFixed(2)),
     education: Number((merged.education * scale).toFixed(2)),
+    eligibility: Number((merged.eligibility * scale).toFixed(2)),
     tenure: Number((merged.tenure * scale).toFixed(2)),
   };
 }
@@ -142,6 +151,9 @@ export interface QualificationResult {
   reasons: string[];
 }
 
+/** Top of the CSC scale: Professional, or an RA 1080 equivalent. */
+const PROFESSIONAL_LEVEL = 2;
+
 function eligibilityLevel(label: string | null | undefined): number {
   const s = String(label ?? '').trim().toLowerCase();
   if (!s) return 0;
@@ -161,6 +173,34 @@ function requiredEligibilityLevel(req: string | null | undefined): number {
   if (s.includes('sub-professional') || s.includes('sub professional')) return 1;
   if (s.includes('professional')) return 2;
   return 1;
+}
+
+/**
+ * Eligibility above what the position requires, as a 0–1 ratio.
+ *
+ * The filter has already rejected anyone below the requirement, so scoring
+ * "meets the requirement" would give every ranked candidate the same points and
+ * differentiate nobody. What is scored is the margin above it, which is also
+ * the rule education and training follow: the filter checks the minimum, the
+ * ranking counts only what is above it.
+ *
+ * Returns null when there is nothing to exceed — a position that already
+ * requires Professional, the top of the scale. Scoring those candidates 0 would
+ * quietly shrink their achievable total and make them look weaker than
+ * candidates for a lower-graded post, so eligibility is reported as not
+ * assessed instead and left out of the denominator.
+ */
+export function eligibilityBeyondMinimumRatio(
+  employeeEligibility: string | null | undefined,
+  requiredEligibility: string | null | undefined,
+): number | null {
+  const required = requiredEligibilityLevel(requiredEligibility);
+  if (required >= PROFESSIONAL_LEVEL) return null;
+
+  const held = eligibilityLevel(employeeEligibility);
+  const margin = held - required;
+  if (margin <= 0) return 0;
+  return Math.min(1, margin / (PROFESSIONAL_LEVEL - required));
 }
 
 /**
@@ -425,10 +465,19 @@ export interface RankingBreakdown {
   experience: number;
   training: number;
   education: number;
+  eligibility: number;
   tenure: number;
+  /**
+   * The points each criterion could have earned for THIS candidate. Normally
+   * the configured weights; eligibility drops to 0 when the position already
+   * requires the top of the scale, so totals stay comparable between a
+   * candidate who could not exceed it and one who did not.
+   */
   max: RankingWeights;
   /** Mirrors ExperienceScore — the ranking is partial when this is false. */
   progressionAssessed: boolean;
+  /** False when the position already requires Professional. */
+  eligibilityAssessed: boolean;
 }
 
 /**
@@ -443,6 +492,8 @@ export function rankingScore(input: {
   experience: ExperienceScore;
   trainingRatio: number;
   educationRatio: number;
+  /** null when the position already requires the top of the eligibility scale. */
+  eligibilityRatio: number | null;
   tenureRatio: number;
   weights: RankingWeights;
 }): RankingBreakdown {
@@ -455,15 +506,23 @@ export function rankingScore(input: {
   const education = at(input.educationRatio, W.education);
   const tenure = at(input.tenureRatio, W.tenure);
 
+  // Nothing to exceed: the criterion is removed from this candidate's maximum
+  // rather than scored zero, so their total is not depressed by a bar the
+  // position itself made unexceedable.
+  const eligibilityAssessed = input.eligibilityRatio !== null;
+  const eligibility = eligibilityAssessed ? at(input.eligibilityRatio as number, W.eligibility) : 0;
+
   return {
-    total: Number((ipcr + experience + training + education + tenure).toFixed(2)),
+    total: Number((ipcr + experience + training + education + eligibility + tenure).toFixed(2)),
     ipcr,
     experience,
     training,
     education,
+    eligibility,
     tenure,
-    max: W,
+    max: eligibilityAssessed ? W : { ...W, eligibility: 0 },
     progressionAssessed: input.experience.progressionAssessed,
+    eligibilityAssessed,
   };
 }
 

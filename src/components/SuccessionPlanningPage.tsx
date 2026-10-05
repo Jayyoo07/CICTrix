@@ -44,6 +44,7 @@ import {
   type QualificationDrift,
   type PositionQualifications,
 } from '../lib/api/succession';
+import { RANKING_WEIGHTS } from '../lib/api/successionCriteria';
 
 // The Succession Planning view lives inside the RSP Portal, which is already
 // access-gated to the RSP admin. Management actions therefore key off "am I in
@@ -685,7 +686,7 @@ const CandidatesPanel = (props: CandidatesPanelProps) => {
       </div>
 
       <p className="!mb-0 text-xs text-[var(--text-secondary)]">
-        Two-stage model. Stage A — qualifications are minimum requirements, not weighted (Employment · Position Match · Education field-match · CSC Eligibility · Minimum Experience · Training): fail any one and the employee drops to "Not Yet Qualified" below, never ranked here. Stage B — only qualified employees are ranked, on Performance 30 + Relevant Experience 25 + Training 20 + Education beyond minimum 15 + Tenure 10. Education and Training count only what is above the minimum the filter already checked, so clearing the bar is not paid for twice. Performance is ranked but never gates: an unrated employee who meets the four minimums is still ranked, scoring zero on that criterion.
+        Two-stage model. Stage A — qualifications are minimum requirements, not weighted (Employment · Position Match · Education field-match · CSC Eligibility · Minimum Experience · Training): fail any one and the employee drops to "Not Yet Qualified" below, never ranked here. Stage B — only qualified employees are ranked, on Performance 30 + Relevant Experience 25 + Training 20 + Education beyond minimum 15 + Eligibility beyond minimum 5 + Tenure 5. Education, Training and Eligibility count only what is above the minimum the filter already checked, so clearing the bar is not paid for twice. A position that already requires the highest eligibility shows n/a for that column, because nothing can exceed it. Performance is ranked but never gates: an unrated employee who meets the four minimums is still ranked, scoring zero on that criterion.
       </p>
 
       {loading && <p className="text-sm text-[var(--text-secondary)]">Discovering eligible successors…</p>}
@@ -1227,15 +1228,20 @@ type OcboRow = {
 };
 
 /**
- * The five ranking criteria, in the order specification B lists them, with the
+ * The ranking criteria, in the order specification B lists them, with the
  * weight shown in the header so an admin never has to look it up elsewhere.
+ *
+ * Weights are read from the model rather than retyped here. A header that
+ * disagrees with the score it labels is worse than no header, and the figures
+ * on the /succession explainer had already drifted that way once.
  */
 const CRITERIA_COLUMNS = [
-  { key: 'ipcr', label: 'Performance', weight: 30 },
-  { key: 'experience', label: 'Experience', weight: 25 },
-  { key: 'training', label: 'Training', weight: 20 },
-  { key: 'education', label: 'Education', weight: 15 },
-  { key: 'tenure', label: 'Tenure', weight: 10 },
+  { key: 'ipcr', label: 'Performance', weight: RANKING_WEIGHTS.ipcr },
+  { key: 'experience', label: 'Experience', weight: RANKING_WEIGHTS.experience },
+  { key: 'training', label: 'Training', weight: RANKING_WEIGHTS.training },
+  { key: 'education', label: 'Education', weight: RANKING_WEIGHTS.education },
+  { key: 'eligibility', label: 'Eligibility', weight: RANKING_WEIGHTS.eligibility },
+  { key: 'tenure', label: 'Tenure', weight: RANKING_WEIGHTS.tenure },
 ] as const;
 
 /**
@@ -1293,6 +1299,9 @@ const buildOcboRows = (res: AutoSuccessorsResult | undefined): OcboRow[] => {
       { key: 'experience', label: 'Experience', value: c.readiness.experience, max: c.readiness.experienceMax },
       { key: 'training', label: 'Training', value: c.readiness.training, max: c.readiness.trainingMax },
       { key: 'education', label: 'Education', value: c.readiness.education, max: c.readiness.educationMax },
+      // max is 0 when the position already requires the top of the scale, which
+      // the cell renders as not assessed rather than as a zero score.
+      { key: 'eligibility', label: 'Eligibility', value: c.readiness.eligibility, max: c.readiness.eligibilityMax },
       { key: 'tenure', label: 'Tenure', value: c.readiness.tenure, max: c.readiness.tenureMax },
     ],
     experienceParts: c.readiness.experienceParts,
@@ -1505,10 +1514,20 @@ const OcboTableView = ({ admin }: { admin: string }) => {
                                     </td>
                                     {r.criteria.map((c) => (
                                       <td key={c.key} className="px-3 py-2 text-right tabular-nums text-slate-700">
-                                        {/* Always a number, never blank: an absent record must read
-                                            as 0, not as a rendering fault. */}
-                                        {c.value.toFixed(1)}
-                                        <span className="ml-0.5 text-[9px] text-slate-400">/{c.max}</span>
+                                        {/* max 0 means the criterion could not apply to this
+                                            position at all — currently only eligibility, when the
+                                            post already requires the top of the scale. Showing
+                                            "0.0 / 0" would read as a failed criterion. Otherwise
+                                            always a number, never blank: an absent record must
+                                            read as 0, not as a rendering fault. */}
+                                        {c.max === 0 ? (
+                                          <span className="text-[10px] text-slate-400" title="Not applicable to this position">n/a</span>
+                                        ) : (
+                                          <>
+                                            {c.value.toFixed(1)}
+                                            <span className="ml-0.5 text-[9px] text-slate-400">/{c.max}</span>
+                                          </>
+                                        )}
                                       </td>
                                     ))}
                                     <td className="px-3 py-2 text-right">
@@ -1540,8 +1559,16 @@ const OcboTableView = ({ admin }: { admin: string }) => {
                                                 <div key={c.key} className="flex items-baseline justify-between gap-3 border-b border-slate-100 py-0.5 last:border-0">
                                                   <span className="text-[11px] text-slate-600">{c.label}</span>
                                                   <span className="text-[11px] tabular-nums text-slate-700">
-                                                    <strong className="font-semibold">{c.value.toFixed(1)}</strong>
-                                                    <span className="text-slate-400"> / {c.max}</span>
+                                                    {c.max === 0 ? (
+                                                      <span className="text-slate-400">
+                                                        not assessed — this position already requires the highest eligibility
+                                                      </span>
+                                                    ) : (
+                                                      <>
+                                                        <strong className="font-semibold">{c.value.toFixed(1)}</strong>
+                                                        <span className="text-slate-400"> / {c.max}</span>
+                                                      </>
+                                                    )}
                                                   </span>
                                                 </div>
                                               ))}

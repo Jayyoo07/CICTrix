@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
+  eligibilityBeyondMinimumRatio,
+  PROGRESSION_FULL_STEPS,
   RANKING_WEIGHTS,
   actionForGate,
   compareRank,
@@ -158,8 +160,10 @@ describe('B. Tenure', () => {
   it('matches the weights given in specification E', () => {
     // Pinned so a future edit to the model is a deliberate, visible change
     // rather than a silent drift away from the document.
+    // Eligibility was added later and funded from tenure (10 -> 5); the four
+    // the spec names are unchanged.
     expect(RANKING_WEIGHTS).toEqual({
-      ipcr: 30, experience: 25, training: 20, education: 15, tenure: 10,
+      ipcr: 30, experience: 25, training: 20, education: 15, eligibility: 5, tenure: 5,
     });
     const total = Object.values(RANKING_WEIGHTS).reduce((a, b) => a + b, 0);
     expect(total).toBe(100);
@@ -248,18 +252,18 @@ describe('Ranking score', () => {
 
   it('is 0–100 and sums its components', () => {
     const r = rankingScore({
-      ipcrRatio: 1, experience: exp, trainingRatio: 1, educationRatio: 1, tenureRatio: 1,
+      ipcrRatio: 1, experience: exp, trainingRatio: 1, educationRatio: 1, eligibilityRatio: 1, tenureRatio: 1,
       weights: RANKING_WEIGHTS,
     });
     expect(r.total).toBeCloseTo(
-      r.ipcr + r.experience + r.training + r.education + r.tenure, 2,
+      r.ipcr + r.experience + r.training + r.education + r.eligibility + r.tenure, 2,
     );
     expect(r.total).toBeLessThanOrEqual(100);
   });
 
   it('scores an unrated candidate at zero for performance without excluding them', () => {
     const r = rankingScore({
-      ipcrRatio: null, experience: exp, trainingRatio: 0.5, educationRatio: 0, tenureRatio: 0.5,
+      ipcrRatio: null, experience: exp, trainingRatio: 0.5, educationRatio: 0, eligibilityRatio: 0, tenureRatio: 0.5,
       weights: RANKING_WEIGHTS,
     });
     expect(r.ipcr).toBe(0);
@@ -268,11 +272,11 @@ describe('Ranking score', () => {
 
   it('ranks performance above tenure at equal ratios', () => {
     const strongPerformer = rankingScore({
-      ipcrRatio: 1, experience: exp, trainingRatio: 0, educationRatio: 0, tenureRatio: 0,
+      ipcrRatio: 1, experience: exp, trainingRatio: 0, educationRatio: 0, eligibilityRatio: 0, tenureRatio: 0,
       weights: RANKING_WEIGHTS,
     });
     const longServer = rankingScore({
-      ipcrRatio: 0, experience: exp, trainingRatio: 0, educationRatio: 0, tenureRatio: 1,
+      ipcrRatio: 0, experience: exp, trainingRatio: 0, educationRatio: 0, eligibilityRatio: 0, tenureRatio: 1,
       weights: RANKING_WEIGHTS,
     });
     expect(strongPerformer.total).toBeGreaterThan(longServer.total);
@@ -285,20 +289,21 @@ describe('normalizeWeights', () => {
     expect(normalizeWeights({})).toEqual(RANKING_WEIGHTS);
   });
 
-  it('migrates a legacy row that still carries an eligibility weight', () => {
-    // Eligibility is filter-only now. Its points must not disappear, or the row
-    // would silently stop summing to 100.
+  it('keeps a legacy row’s eligibility weight now that it scores again', () => {
+    // This value used to be discarded, because eligibility was filter-only.
+    // Eligibility above the position's minimum is a ranking criterion again, so
+    // the stored weight is honoured rather than dropped.
     const w = normalizeWeights({ ipcr: 35, training: 30, education: 20, eligibility: 15 });
-    const total = w.ipcr + w.experience + w.training + w.education + w.tenure;
+    expect(w.eligibility).toBeGreaterThan(0);
+    const total = w.ipcr + w.experience + w.training + w.education + w.eligibility + w.tenure;
     expect(total).toBeCloseTo(100, 1);
-    expect((w as unknown as Record<string, unknown>).eligibility).toBeUndefined();
   });
 
   it('renormalises a hand-edited row that does not total 100', () => {
-    const w = normalizeWeights({ ipcr: 10, experience: 10, training: 10, education: 10, tenure: 10 });
-    const total = w.ipcr + w.experience + w.training + w.education + w.tenure;
+    const w = normalizeWeights({ ipcr: 10, experience: 10, training: 10, education: 10, eligibility: 10, tenure: 10 });
+    const total = w.ipcr + w.experience + w.training + w.education + w.eligibility + w.tenure;
     expect(total).toBeCloseTo(100, 1);
-    expect(w.ipcr).toBeCloseTo(20, 1);
+    expect(w.ipcr).toBeCloseTo(100 / 6, 1);
   });
 
   it('falls back to defaults for negative or non-numeric entries', () => {
@@ -406,5 +411,110 @@ describe('C. System of Ranking Positions', () => {
       expect(positionLevelRatio(sg(null), sg(20))).toBeNull();
       expect(positionLevelRatio(sg(24), lvl(3))).toBeNull();
     });
+  });
+});
+
+describe('Eligibility above the minimum', () => {
+  it('scores nothing for merely meeting the requirement', () => {
+    // The filter already rejected everyone below it, so paying for "meets"
+    // would give every ranked candidate the same points and separate nobody.
+    expect(eligibilityBeyondMinimumRatio('Sub-Professional', 'Sub-Professional')).toBe(0);
+    expect(eligibilityBeyondMinimumRatio('CSC Professional', 'Professional')).toBeNull();
+  });
+
+  it('scores the full weight for exceeding it', () => {
+    expect(eligibilityBeyondMinimumRatio('CSC Professional', 'Sub-Professional')).toBe(1);
+    expect(eligibilityBeyondMinimumRatio('PRC Licensed Civil Engineer', 'Sub-Professional')).toBe(1);
+    expect(eligibilityBeyondMinimumRatio('RA 1080', 'Sub-Professional')).toBe(1);
+  });
+
+  it('treats a position with no stated requirement as a scale from nothing', () => {
+    expect(eligibilityBeyondMinimumRatio('CSC Professional', null)).toBe(1);
+    expect(eligibilityBeyondMinimumRatio('Sub-Professional', null)).toBe(0.5);
+    expect(eligibilityBeyondMinimumRatio(null, null)).toBe(0);
+  });
+
+  it('reports not-assessable when the position already requires Professional', () => {
+    // Nothing can exceed the top of the scale. Scoring these candidates zero
+    // would depress their total against candidates for a lower-graded post.
+    expect(eligibilityBeyondMinimumRatio('CSC Professional', 'CSC Professional')).toBeNull();
+    expect(eligibilityBeyondMinimumRatio('PRC Licensed', 'Professional')).toBeNull();
+  });
+
+  it('does not read "sub-professional" as professional', () => {
+    // 'sub-professional' contains 'professional'; ordering matters.
+    expect(eligibilityBeyondMinimumRatio('Sub-Professional', 'Sub Professional')).toBe(0);
+  });
+
+  it('never exceeds 1', () => {
+    expect(eligibilityBeyondMinimumRatio('CSC Professional', null)).toBeLessThanOrEqual(1);
+  });
+});
+
+describe('Ranking with eligibility', () => {
+  // Every experience component at full marks, so the totals below are the
+  // weights themselves and an absolute assertion means something.
+  const perfectExp = experienceScore({
+    relevantYears: 10,
+    requiredYears: 5,
+    positionLevelRatio: 1,
+    progressionSteps: PROGRESSION_FULL_STEPS,
+  });
+  const base = {
+    ipcrRatio: 1,
+    experience: perfectExp,
+    trainingRatio: 1,
+    educationRatio: 1,
+    tenureRatio: 1,
+    weights: RANKING_WEIGHTS,
+  };
+
+  it('ranks a candidate who exceeds the requirement above one who only meets it', () => {
+    const exceeds = rankingScore({ ...base, eligibilityRatio: 1 });
+    const meets = rankingScore({ ...base, eligibilityRatio: 0 });
+    expect(exceeds.total).toBeGreaterThan(meets.total);
+    expect(exceeds.total - meets.total).toBeCloseTo(RANKING_WEIGHTS.eligibility, 2);
+  });
+
+  it('drops the criterion from the maximum when it cannot be assessed', () => {
+    const unassessable = rankingScore({ ...base, eligibilityRatio: null });
+    expect(unassessable.eligibilityAssessed).toBe(false);
+    expect(unassessable.eligibility).toBe(0);
+    expect(unassessable.max.eligibility).toBe(0);
+    // A perfect candidate still tops out at the remaining weights, not 100.
+    expect(unassessable.total).toBeCloseTo(100 - RANKING_WEIGHTS.eligibility, 2);
+  });
+
+  it('still tops out at 100 when every criterion is assessable', () => {
+    expect(rankingScore({ ...base, eligibilityRatio: 1 }).total).toBeCloseTo(100, 2);
+  });
+});
+
+describe('Weights after the eligibility split', () => {
+  it('sums to 100', () => {
+    const w = RANKING_WEIGHTS;
+    expect(w.ipcr + w.experience + w.training + w.education + w.eligibility + w.tenure).toBe(100);
+  });
+
+  it('took its points from tenure, not from the approved four', () => {
+    expect(RANKING_WEIGHTS.ipcr).toBe(30);
+    expect(RANKING_WEIGHTS.experience).toBe(25);
+    expect(RANKING_WEIGHTS.training).toBe(20);
+    expect(RANKING_WEIGHTS.education).toBe(15);
+    expect(RANKING_WEIGHTS.eligibility).toBe(5);
+    expect(RANKING_WEIGHTS.tenure).toBe(5);
+  });
+
+  it('keeps a legacy stored eligibility weight instead of discarding it', () => {
+    // Rows written under the old shape carried this value and it was dropped,
+    // because eligibility had no ranking weight. It counts again.
+    const w = normalizeWeights({ ipcr: 40, training: 20, education: 20, eligibility: 20 });
+    expect(w.eligibility).toBeGreaterThan(0);
+    const total = w.ipcr + w.experience + w.training + w.education + w.eligibility + w.tenure;
+    expect(total).toBeCloseTo(100, 1);
+  });
+
+  it('still ranks performance above tenure at equal ratios', () => {
+    expect(RANKING_WEIGHTS.ipcr).toBeGreaterThan(RANKING_WEIGHTS.tenure);
   });
 });

@@ -26,6 +26,7 @@ import {
   isDownwardMove,
   positionLevelRatio,
   educationBeyondMinimumRatio,
+  eligibilityBeyondMinimumRatio,
   evaluateQualifications,
   experienceScore,
   normalizeWeights,
@@ -183,7 +184,16 @@ export interface ReadinessScore {
   /** Relevant experience — quality, not only length of service. */
   experience: number;
   experienceMax: number;
-  /** Time in the organisation. Smallest weight of the five. */
+  /** Eligibility above the level the position requires. */
+  eligibility: number;
+  eligibilityMax: number;
+  /**
+   * False when the position already requires the top of the eligibility scale,
+   * so there is nothing a candidate could exceed. The criterion is then left
+   * out of the maximum rather than scored zero.
+   */
+  eligibilityAssessed: boolean;
+  /** Time in the organisation. Smallest weight. */
   tenure: number;
   tenureMax: number;
   /** Years since date_hired, shown alongside the tenure bar. */
@@ -197,8 +207,9 @@ export interface ReadinessScore {
   progressionAssessed: boolean;
   /** Inputs to the experience score, so a rank can be audited, not just read. */
   experienceParts: ExperiencePart[];
-  // Eligibility is a qualification gate, not a ranking criterion — it has no
-  // score here. eligibilityLabel below is still shown as context.
+  // Eligibility gates in stage A and scores in stage B, but only on the margin
+  // above the requirement — see eligibility/eligibilityMax above.
+  // eligibilityLabel below is the raw value, shown as context.
   /** Readiness tier from the total. */
   tier: SuccessionTier | null;
   // Raw context shown alongside the bars
@@ -1302,15 +1313,6 @@ function requiredEligibilityLevel(req: string | null | undefined): number {
   return 1; // generic "eligibility required" → at least sub-pro
 }
 
-/** Eligibility fit as a 0–1 ratio for scoring (gate check is stricter). */
-function eligibilityRatio(empElig: string | null, requiredElig: string | null): number {
-  const empLevel = eligibilityLevel(empElig);
-  if (empLevel === 0) return 0; // no record
-  const reqLevel = requiredEligibilityLevel(requiredElig);
-  if (reqLevel === 0) return 1; // no requirement → a recorded eligibility meets it
-  return empLevel >= reqLevel ? 1 : 0.5;
-}
-
 /**
  * Training subscore, out of W.training (default 30), measured relative to the
  * position's required training threshold:
@@ -1507,14 +1509,19 @@ function computeReadinessScore(input: {
     empCategories: input.empTrainingCategories,
     W: input.W,
   });
-  // Eligibility is a qualification gate, not a ranking criterion — no score.
+  // Eligibility above what the position requires. The filter already rejected
+  // anyone below it, so only the margin above is scored; null means the
+  // position requires the top of the scale and there is nothing to exceed.
+  const eligibilityRatio = eligibilityBeyondMinimumRatio(input.empEligibility, input.requiredEligibility);
+  const eligibilityAssessed = eligibilityRatio !== null;
+  const eligibility = eligibilityAssessed ? w1(eligibilityRatio as number, input.W.eligibility) : 0;
 
   // Performance is no longer a gate, so a candidate with no finalized IPCR is
   // still ranked; they simply score zero on that criterion. dataComplete now
   // reports whether the ranking is based on a full record, not whether the
   // candidate belongs in the pool at all.
   const dataComplete = input.ipcrScore != null;
-  const total = Number((education + ipcr + training + experience + tenure).toFixed(1));
+  const total = Number((education + ipcr + training + experience + eligibility + tenure).toFixed(1));
 
   // Stage-2 competency readiness. When the position lists required competencies,
   // it drives the tier (Ready Now = 100%); otherwise the weighted total does.
@@ -1557,6 +1564,9 @@ function computeReadinessScore(input: {
     trainingMax: input.W.training,
     experience,
     experienceMax: input.W.experience,
+    eligibility,
+    eligibilityMax: eligibilityAssessed ? input.W.eligibility : 0,
+    eligibilityAssessed,
     tenure,
     tenureMax: input.W.tenure,
     tenureYears: input.tenureYears,
