@@ -90,9 +90,16 @@ export type DisqualificationReason = (typeof DISQUALIFICATION_REASONS)[number];
  * Every value observed in production is covered. Two mappings are judgement
  * calls worth stating:
  *
- *   'Recommended for Hiring' -> Qualified. It meant "cleared evaluation, not yet
- *   appointed", which is what Qualified now means. The dashboard already
- *   counted it as qualified, so this preserves the number HR sees.
+ *   'Recommended for Hiring' -> Shortlisted. This string was written by two
+ *   different buttons: document screening, where it meant "documents validated,
+ *   may now be scheduled", and the post-ranking action, where it meant the
+ *   selection process was complete. Those two have since been separated, so
+ *   anything still carrying it is historical and cannot say which it was.
+ *   Migration 20260926 resolves the stored rows by looking for an evaluation
+ *   record; the rows it cannot resolve are the ones that were never
+ *   interviewed. Shortlisted is the cautious reading, and the cautious reading
+ *   is the right default here — calling someone Qualified who never sat the
+ *   interview overstates where they are, in a status the applicant can see.
  *
  *   'New Application' -> Submitted. It is the entry state under another name.
  *
@@ -107,7 +114,7 @@ const LEGACY_MAP: Record<string, ApplicantWorkflowStatus> = {
   reviewed: 'Under Initial Screening',
   pending: 'Pending',
   shortlisted: 'Shortlisted',
-  'recommended for hiring': 'Qualified',
+  'recommended for hiring': 'Shortlisted',
   hired: 'Selected',
   'not qualified': 'Disqualified',
 

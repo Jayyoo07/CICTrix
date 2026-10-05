@@ -18,7 +18,7 @@ import {
 const LIVE_VALUES: [string, number, ApplicantWorkflowStatus][] = [
   ['Hired', 35, 'Selected'],
   ['New Application', 14, 'Submitted'],
-  ['Recommended for Hiring', 13, 'Qualified'],
+  ['Recommended for Hiring', 13, 'Shortlisted'],
   ['Under Review', 3, 'Under Initial Screening'],
   ['Reviewed', 2, 'Under Initial Screening'],
   ['Pending', 1, 'Pending'],
@@ -39,10 +39,18 @@ describe('normalizeStatus — live production data', () => {
     for (const [raw] of LIVE_VALUES) expect(normalizeStatus(raw)).not.toBeNull();
   });
 
-  it('keeps "Recommended for Hiring" counted as qualified', () => {
-    // The dashboard already reported these as qualified via a substring match,
-    // so remapping them anywhere else would change a number HR has been reading.
-    expect(normalizeStatus('Recommended for Hiring')).toBe('Qualified');
+  it('reads a leftover "Recommended for Hiring" as Shortlisted, not Qualified', () => {
+    // Two buttons wrote this one string — document screening and the
+    // post-ranking action — so a row still carrying it cannot say which stage
+    // it reached. Migration 20260926 resolves the ones with an evaluation
+    // record; what is left never sat the interview. Overstating that in a
+    // status the applicant can see is the worse error.
+    expect(normalizeStatus('Recommended for Hiring')).toBe('Shortlisted');
+    expect(funnelBucket('Shortlisted')).toBe('assessment');
+  });
+
+  it('still has a value that means the selection process is complete', () => {
+    expect(normalizeStatus('Qualified')).toBe('Qualified');
     expect(funnelBucket('Qualified')).toBe('qualified');
   });
 

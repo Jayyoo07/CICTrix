@@ -155,8 +155,11 @@ export const ApplicantRankingPage = () => {
     setHiring(true);
     try {
       const toMark = applicants.filter(a => selected.has(a.id));
-      // Use title-case to match what the backend stores via status_label_map
-      const newStatus = 'Recommended for Hiring';
+      // Reached only after ranking, i.e. the interview and exam are done and
+      // scored. That is the complete selection process, so it stores Qualified.
+      // It shared 'Recommended for Hiring' with the document-screening action
+      // until the two stages were separated.
+      const newStatus = 'Qualified';
 
       // Get auth token once before the loop
       let token: string | undefined;

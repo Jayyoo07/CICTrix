@@ -1348,7 +1348,13 @@ export function ApplicantDetailsPage() {
     const statusMap: Record<string, Applicant['status']> = {
       shortlist: 'Shortlisted',
       unshortlist: 'Under Review',
-      qualified: 'Recommended for Hiring',
+      // The Qualify button here is gated on documents alone — qualifyLocked
+      // only checks that every required document is uploaded, reviewed and
+      // approved. That is the screening decision, so it stores Shortlisted:
+      // passed initial screening, awaiting an interview/exam schedule. It used
+      // to store 'Recommended for Hiring', the same value the post-ranking
+      // action wrote, which made the two stages indistinguishable afterwards.
+      qualified: 'Shortlisted',
       disqualify: 'Not Qualified',
       document_verified: 'Document Verified',
       action_required: 'Action Required',
@@ -1656,7 +1662,7 @@ export function ApplicantDetailsPage() {
       normalizedStatus.includes('recommend') ||
         normalizedStatus.includes('qualified') ||
         normalizedStatus.includes('hired')
-        ? 'Recommended for Hiring'
+        ? 'Qualified'
         : 'Shortlisted';
 
     const effectiveAppointmentType: AppointmentType = isForcedPromotionalAppointment ? 'promotional' : appointmentType;

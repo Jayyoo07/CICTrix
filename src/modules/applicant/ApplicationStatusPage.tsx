@@ -159,13 +159,12 @@ interface ApplicantPhase {
 // what a status means; the wording comes from APPLICANT_MESSAGES, which is
 // written for the applicant rather than the office.
 //
-// 'Recommended for Hiring' is handled before normalisation, deliberately. Two
-// different buttons write it: the "Qualify" action on document screening
-// (ApplicantDetailsPage), which means documents validated and scheduling may
-// begin, and "Mark for Hiring" after ranking (ApplicantRankingPage), which
-// means the selection process is complete. The string cannot tell those apart,
-// so it keeps its existing cautious wording — telling someone who has only had
-// documents checked that they finished the process would be false.
+// 'Recommended for Hiring' is handled before normalisation. Nothing writes it
+// any more — document screening now stores Shortlisted and the post-evaluation
+// decision stores Qualified — but rows written before that split are still
+// there until migration 20260926 resolves them against the evaluations table.
+// Until then they keep the wording that is true either way: documents
+// validated, scheduling may follow.
 const PENDING_PHASE: ApplicantPhase = {
   headline: 'Pending Review',
   detail: 'Your application has been received. We will begin reviewing it shortly.',
