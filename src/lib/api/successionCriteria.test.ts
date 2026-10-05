@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
-  eligibilityBeyondMinimumRatio,
+  eligibilityScore,
+  meetsRequiredEligibility,
   PROGRESSION_FULL_STEPS,
   RANKING_WEIGHTS,
   actionForGate,
@@ -415,40 +416,109 @@ describe('C. System of Ranking Positions', () => {
   });
 });
 
-describe('Eligibility above the minimum', () => {
-  it('scores nothing for merely meeting the requirement', () => {
-    // The filter already rejected everyone below it, so paying for "meets"
-    // would give every ranked candidate the same points and separate nobody.
-    expect(eligibilityBeyondMinimumRatio('Sub-Professional', 'Sub-Professional')).toBe(0);
-    expect(eligibilityBeyondMinimumRatio('CSC Professional', 'Professional')).toBeNull();
+describe('Eligibility from multiple records (spec §B–D)', () => {
+  const types = [
+    { name: 'CSC Professional', points: 40, isActive: true },
+    { name: 'PRC License', points: 40, isActive: true },
+    { name: "Professional Driver's License", points: 5, isActive: true },
+    { name: 'Retired Type', points: 30, isActive: false },
+  ];
+  const CAP = 100;
+  const rec = (type: string, validUntil: string | null = null) => ({ type, validUntil });
+
+  it('adds up every valid eligibility rather than reading one', () => {
+    // The whole point of §B: an employee may hold more than one.
+    const s = eligibilityScore([rec('CSC Professional'), rec('PRC License')], types, CAP, '2026-10-05');
+    expect(s.rawPoints).toBe(80);
+    expect(s.ratio).toBeCloseTo(0.8, 5);
+    expect(s.counted).toHaveLength(2);
   });
 
-  it('scores the full weight for exceeding it', () => {
-    expect(eligibilityBeyondMinimumRatio('CSC Professional', 'Sub-Professional')).toBe(1);
-    expect(eligibilityBeyondMinimumRatio('PRC Licensed Civil Engineer', 'Sub-Professional')).toBe(1);
-    expect(eligibilityBeyondMinimumRatio('RA 1080', 'Sub-Professional')).toBe(1);
+  it('caps at full marks so extra credentials cannot run away with it', () => {
+    // §D: "avoid simply giving unlimited points for every additional eligibility".
+    const many = [rec('CSC Professional'), rec('PRC License'), rec("Professional Driver's License")];
+    const s = eligibilityScore(many, types, CAP, '2026-10-05');
+    expect(s.rawPoints).toBe(85);
+    expect(s.ratio).toBeLessThanOrEqual(1);
+
+    const over = eligibilityScore(many, types, 50, '2026-10-05');
+    expect(over.ratio).toBe(1);
+    expect(over.rawPoints).toBe(85); // raw is still reported, so the cap is visible
   });
 
-  it('treats a position with no stated requirement as a scale from nothing', () => {
-    expect(eligibilityBeyondMinimumRatio('CSC Professional', null)).toBe(1);
-    expect(eligibilityBeyondMinimumRatio('Sub-Professional', null)).toBe(0.5);
-    expect(eligibilityBeyondMinimumRatio(null, null)).toBe(0);
+  it('excludes an expired record and says which', () => {
+    const s = eligibilityScore(
+      [rec('CSC Professional', '2020-01-01'), rec('PRC License', '2099-01-01')],
+      types, CAP, '2026-10-05',
+    );
+    expect(s.rawPoints).toBe(40);
+    expect(s.expired).toEqual(['CSC Professional']);
   });
 
-  it('reports not-assessable when the position already requires Professional', () => {
-    // Nothing can exceed the top of the scale. Scoring these candidates zero
-    // would depress their total against candidates for a lower-graded post.
-    expect(eligibilityBeyondMinimumRatio('CSC Professional', 'CSC Professional')).toBeNull();
-    expect(eligibilityBeyondMinimumRatio('PRC Licensed', 'Professional')).toBeNull();
+  it('counts a record with no expiry date', () => {
+    expect(eligibilityScore([rec('CSC Professional', null)], types, CAP, '2026-10-05').rawPoints).toBe(40);
   });
 
-  it('does not read "sub-professional" as professional', () => {
-    // 'sub-professional' contains 'professional'; ordering matters.
-    expect(eligibilityBeyondMinimumRatio('Sub-Professional', 'Sub Professional')).toBe(0);
+  it('reports an unconfigured type instead of silently scoring it zero', () => {
+    // An unconfigured type is a gap in the configuration, not a judgement that
+    // the credential is worthless. HR has to be able to see the difference.
+    const s = eligibilityScore([rec('Barangay Eligibility')], types, CAP, '2026-10-05');
+    expect(s.rawPoints).toBe(0);
+    expect(s.unconfigured).toEqual(['Barangay Eligibility']);
   });
 
-  it('never exceeds 1', () => {
-    expect(eligibilityBeyondMinimumRatio('CSC Professional', null)).toBeLessThanOrEqual(1);
+  it('treats a deactivated type as unconfigured', () => {
+    const s = eligibilityScore([rec('Retired Type')], types, CAP, '2026-10-05');
+    expect(s.rawPoints).toBe(0);
+    expect(s.unconfigured).toEqual(['Retired Type']);
+  });
+
+  it('does not pay twice for the same eligibility entered twice', () => {
+    const s = eligibilityScore([rec('CSC Professional'), rec('csc professional')], types, CAP, '2026-10-05');
+    expect(s.rawPoints).toBe(40);
+    expect(s.counted).toHaveLength(1);
+  });
+
+  it('ignores case and surrounding space when matching a type', () => {
+    expect(eligibilityScore([rec('  csc PROFESSIONAL ')], types, CAP, '2026-10-05').rawPoints).toBe(40);
+  });
+
+  it('scores nothing, and does not crash, with no records', () => {
+    const s = eligibilityScore([], types, CAP, '2026-10-05');
+    expect(s.ratio).toBe(0);
+    expect(s.counted).toEqual([]);
+  });
+
+  it('survives a cap of zero rather than returning Infinity', () => {
+    // A misconfigured cap must cost this one criterion, not corrupt every
+    // candidate's total with NaN.
+    const s = eligibilityScore([rec('CSC Professional')], types, 0, '2026-10-05');
+    expect(Number.isFinite(s.ratio)).toBe(true);
+    expect(s.ratio).toBeLessThanOrEqual(1);
+  });
+});
+
+describe('meetsRequiredEligibility', () => {
+  const rec = (type: string, validUntil: string | null = null) => ({ type, validUntil });
+
+  it('finds the required eligibility even when it is not the first record', () => {
+    // The bug this replaces: only employees.eligibility was read, so a second
+    // entry could not satisfy the gate.
+    const records = [rec("Professional Driver's License"), rec('CSC Professional')];
+    expect(meetsRequiredEligibility(records, 'Professional', '2026-10-05')).toBe(true);
+  });
+
+  it('rejects a candidate holding only a lower level', () => {
+    expect(meetsRequiredEligibility([rec('Sub-Professional')], 'Professional', '2026-10-05')).toBe(false);
+  });
+
+  it('does not accept an expired record', () => {
+    expect(meetsRequiredEligibility([rec('CSC Professional', '2020-01-01')], 'Professional', '2026-10-05')).toBe(false);
+  });
+
+  it('accepts any unexpired record when the position states no requirement', () => {
+    expect(meetsRequiredEligibility([rec('Barangay Eligibility')], null, '2026-10-05')).toBe(true);
+    expect(meetsRequiredEligibility([], null, '2026-10-05')).toBe(false);
   });
 });
 
@@ -469,23 +539,19 @@ describe('Ranking with eligibility', () => {
     weights: RANKING_WEIGHTS,
   };
 
-  it('ranks a candidate who exceeds the requirement above one who only meets it', () => {
-    const exceeds = rankingScore({ ...base, eligibilityRatio: 1 });
-    const meets = rankingScore({ ...base, eligibilityRatio: 0 });
-    expect(exceeds.total).toBeGreaterThan(meets.total);
-    expect(exceeds.total - meets.total).toBeCloseTo(RANKING_WEIGHTS.eligibility, 2);
+  it('ranks a candidate with more eligibility points above one with fewer', () => {
+    const many = rankingScore({ ...base, eligibilityRatio: 1 });
+    const none = rankingScore({ ...base, eligibilityRatio: 0 });
+    expect(many.total).toBeGreaterThan(none.total);
+    expect(many.total - none.total).toBeCloseTo(RANKING_WEIGHTS.eligibility, 2);
   });
 
-  it('drops the criterion from the maximum when it cannot be assessed', () => {
-    const unassessable = rankingScore({ ...base, eligibilityRatio: null });
-    expect(unassessable.eligibilityAssessed).toBe(false);
-    expect(unassessable.eligibility).toBe(0);
-    expect(unassessable.max.eligibility).toBe(0);
-    // A perfect candidate still tops out at the remaining weights, not 100.
-    expect(unassessable.total).toBeCloseTo(100 - RANKING_WEIGHTS.eligibility, 2);
+  it('scales a partial eligibility score by its weight', () => {
+    const half = rankingScore({ ...base, eligibilityRatio: 0.5 });
+    expect(half.eligibility).toBeCloseTo(RANKING_WEIGHTS.eligibility / 2, 2);
   });
 
-  it('still tops out at 100 when every criterion is assessable', () => {
+  it('tops out at 100', () => {
     expect(rankingScore({ ...base, eligibilityRatio: 1 }).total).toBeCloseTo(100, 2);
   });
 });

@@ -181,31 +181,130 @@ function requiredEligibilityLevel(req: string | null | undefined): number {
 }
 
 /**
- * Eligibility above what the position requires, as a 0–1 ratio.
+ * One of an employee's eligibility records, as the scorer needs it.
  *
- * The filter has already rejected anyone below the requirement, so scoring
- * "meets the requirement" would give every ranked candidate the same points and
- * differentiate nobody. What is scored is the margin above it, which is also
- * the rule education and training follow: the filter checks the minimum, the
- * ranking counts only what is above it.
- *
- * Returns null when there is nothing to exceed — a position that already
- * requires Professional, the top of the scale. Scoring those candidates 0 would
- * quietly shrink their achievable total and make them look weaker than
- * candidates for a lower-graded post, so eligibility is reported as not
- * assessed instead and left out of the denominator.
+ * Mirrors the columns `employee_eligibility` has today. Supporting document and
+ * verification status are deliberately absent: those belong to the Personal
+ * Data Sheet work and are being added there, so a record counts as valid on its
+ * expiry date alone until that lands.
  */
-export function eligibilityBeyondMinimumRatio(
-  employeeEligibility: string | null | undefined,
-  requiredEligibility: string | null | undefined,
-): number | null {
-  const required = requiredEligibilityLevel(requiredEligibility);
-  if (required >= PROFESSIONAL_LEVEL) return null;
+export interface EligibilityRecord {
+  type: string;
+  /** ISO date, or null when the record never expires. */
+  validUntil: string | null;
+}
 
-  const held = eligibilityLevel(employeeEligibility);
-  const margin = held - required;
-  if (margin <= 0) return 0;
-  return Math.min(1, margin / (PROFESSIONAL_LEVEL - required));
+/** Points configured for one eligibility type (succession spec §D). */
+export interface EligibilityTypePoints {
+  name: string;
+  points: number;
+  isActive: boolean;
+}
+
+export interface EligibilityScore {
+  /** 0–1. Multiply by the Eligibility weight for the contribution. */
+  ratio: number;
+  /** Raw points before the cap, so a score can be audited rather than read. */
+  rawPoints: number;
+  pointsForFullMarks: number;
+  /** Records that counted, with the points each contributed. */
+  counted: { type: string; points: number }[];
+  /** Records excluded because they had expired. */
+  expired: string[];
+  /**
+   * Record types with no row in eligibility_types. They score nothing, and
+   * naming them is the point: an unconfigured type is a gap in the
+   * configuration, not a judgement that the credential is worthless.
+   */
+  unconfigured: string[];
+}
+
+const eligibilityKey = (name: string) => String(name ?? '').trim().toLowerCase();
+
+/**
+ * Eligibility as a 0–1 ratio, from however many records the employee holds.
+ *
+ * Specification §D: multiple valid eligibilities raise the score, but "the
+ * system should avoid simply giving unlimited points for every additional
+ * eligibility". So the points sum and are then capped at
+ * `pointsForFullMarks` — a long list of minor credentials approaches full
+ * marks without ever passing a single major one plus the cap.
+ *
+ * Points come from the configuration rather than from this function, because
+ * the spec puts them in the administrator's hands.
+ */
+export function eligibilityScore(
+  records: EligibilityRecord[],
+  types: EligibilityTypePoints[],
+  pointsForFullMarks: number,
+  today: string = new Date().toISOString().slice(0, 10),
+): EligibilityScore {
+  const byName = new Map<string, EligibilityTypePoints>();
+  for (const t of types) byName.set(eligibilityKey(t.name), t);
+
+  const counted: { type: string; points: number }[] = [];
+  const expired: string[] = [];
+  const unconfigured: string[] = [];
+  const seen = new Set<string>();
+
+  for (const r of records) {
+    const name = String(r.type ?? '').trim();
+    if (!name) continue;
+    const key = eligibilityKey(name);
+
+    // The same eligibility entered twice is one credential, not two. Without
+    // this a duplicated PDS row would quietly double somebody's score.
+    if (seen.has(key)) continue;
+    seen.add(key);
+
+    if (r.validUntil && r.validUntil < today) {
+      expired.push(name);
+      continue;
+    }
+
+    const config = byName.get(key);
+    if (!config || config.isActive === false) {
+      unconfigured.push(name);
+      continue;
+    }
+    if (config.points > 0) counted.push({ type: name, points: config.points });
+  }
+
+  const rawPoints = counted.reduce((sum, c) => sum + c.points, 0);
+  // Guarded: a cap of zero would make every ratio Infinity or NaN and silently
+  // corrupt the whole ranking rather than one criterion.
+  const cap = Number.isFinite(pointsForFullMarks) && pointsForFullMarks > 0 ? pointsForFullMarks : 1;
+
+  return {
+    ratio: Math.min(rawPoints / cap, 1),
+    rawPoints,
+    pointsForFullMarks: cap,
+    counted,
+    expired,
+    unconfigured,
+  };
+}
+
+/**
+ * Does the employee hold the eligibility the position requires?
+ *
+ * Checks every record rather than one field. Somebody whose required
+ * eligibility is their second entry used to fail the filter, because only
+ * `employees.eligibility` was read.
+ */
+export function meetsRequiredEligibility(
+  records: EligibilityRecord[],
+  requiredEligibility: string | null | undefined,
+  today: string = new Date().toISOString().slice(0, 10),
+): boolean {
+  const required = requiredEligibilityLevel(requiredEligibility);
+  if (required === 0) {
+    // No stated requirement: any unexpired record satisfies it.
+    return records.some((r) => !r.validUntil || r.validUntil >= today);
+  }
+  return records.some(
+    (r) => (!r.validUntil || r.validUntil >= today) && eligibilityLevel(r.type) >= required,
+  );
 }
 
 /**
@@ -456,17 +555,10 @@ export interface RankingBreakdown {
   training: number;
   education: number;
   eligibility: number;
-  /**
-   * The points each criterion could have earned for THIS candidate. Normally
-   * the configured weights; eligibility drops to 0 when the position already
-   * requires the top of the scale, so totals stay comparable between a
-   * candidate who could not exceed it and one who did not.
-   */
+  /** The points each criterion could have earned. */
   max: RankingWeights;
   /** Mirrors ExperienceScore — the ranking is partial when this is false. */
   progressionAssessed: boolean;
-  /** False when the position already requires Professional. */
-  eligibilityAssessed: boolean;
 }
 
 /**
@@ -482,8 +574,8 @@ export function rankingScore(input: {
   experience: ExperienceScore;
   trainingRatio: number;
   educationRatio: number;
-  /** null when the position already requires the top of the eligibility scale. */
-  eligibilityRatio: number | null;
+  /** From eligibilityScore(): the capped 0–1 share of the eligibility weight. */
+  eligibilityRatio: number;
   weights: RankingWeights;
 }): RankingBreakdown {
   const W = input.weights;
@@ -494,11 +586,7 @@ export function rankingScore(input: {
   const training = at(input.trainingRatio, W.training);
   const education = at(input.educationRatio, W.education);
 
-  // Nothing to exceed: the criterion is removed from this candidate's maximum
-  // rather than scored zero, so their total is not depressed by a bar the
-  // position itself made unexceedable.
-  const eligibilityAssessed = input.eligibilityRatio !== null;
-  const eligibility = eligibilityAssessed ? at(input.eligibilityRatio as number, W.eligibility) : 0;
+  const eligibility = at(input.eligibilityRatio, W.eligibility);
 
   return {
     total: Number((ipcr + experience + training + education + eligibility).toFixed(2)),
@@ -507,9 +595,8 @@ export function rankingScore(input: {
     training,
     education,
     eligibility,
-    max: eligibilityAssessed ? W : { ...W, eligibility: 0 },
+    max: W,
     progressionAssessed: input.experience.progressionAssessed,
-    eligibilityAssessed,
   };
 }
 

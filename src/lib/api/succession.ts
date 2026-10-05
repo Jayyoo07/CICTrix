@@ -26,7 +26,11 @@ import {
   isDownwardMove,
   positionLevelRatio,
   educationBeyondMinimumRatio,
-  eligibilityBeyondMinimumRatio,
+  eligibilityScore,
+  meetsRequiredEligibility,
+  type EligibilityRecord,
+  type EligibilityTypePoints,
+  type EligibilityScore,
   evaluateQualifications,
   experienceScore,
   normalizeWeights,
@@ -183,15 +187,11 @@ export interface ReadinessScore {
   /** Relevant experience, including length of service. */
   experience: number;
   experienceMax: number;
-  /** Eligibility above the level the position requires. */
+  /** Points from every valid eligibility the employee holds, capped (spec §D). */
   eligibility: number;
   eligibilityMax: number;
-  /**
-   * False when the position already requires the top of the eligibility scale,
-   * so there is nothing a candidate could exceed. The criterion is then left
-   * out of the maximum rather than scored zero.
-   */
-  eligibilityAssessed: boolean;
+  /** Which records counted, which expired, and which types are unconfigured. */
+  eligibilityDetail: EligibilityScore;
   /**
    * Years since date_hired. Shown as context and used as the years component of
    * the experience score; it is NOT a criterion of its own. A separate tenure
@@ -1442,6 +1442,81 @@ function educationFieldMatches(empEdu: string | null, requiredEdu: string | null
   return reqFields.some((f) => empFields.has(f));
 }
 
+/**
+ * Every employee's eligibility records plus the configured points, in two
+ * queries rather than one per candidate.
+ *
+ * A failure here is not fatal to the ranking. Eligibility is one criterion of
+ * five; losing the table should cost those points and say so, not empty the
+ * succession slate.
+ */
+async function loadEligibilityScoring(employeeIds: string[]): Promise<{
+  eligibilityByEmployee: Map<string, EligibilityRecord[]>;
+  eligibilityTypes: EligibilityTypePoints[];
+  pointsForFullMarks: number;
+}> {
+  const byEmployee = new Map<string, EligibilityRecord[]>();
+  let types: EligibilityTypePoints[] = [];
+  let cap = 100;
+
+  if (employeeIds.length > 0) {
+    try {
+      const { data } = await supabase
+        .from('employee_eligibility')
+        .select('employee_id, eligibility_type, validity_date')
+        .in('employee_id', employeeIds);
+      for (const row of (data ?? []) as any[]) {
+        const key = String(row.employee_id ?? '');
+        if (!key) continue;
+        const list = byEmployee.get(key) ?? [];
+        list.push({
+          type: String(row.eligibility_type ?? '').trim(),
+          validUntil: row.validity_date ? String(row.validity_date).slice(0, 10) : null,
+        });
+        byEmployee.set(key, list);
+      }
+    } catch {
+      /* table unreadable — fall back to the legacy column per employee */
+    }
+  }
+
+  try {
+    const { data } = await supabase
+      .from('eligibility_types')
+      .select('name, points, is_active, points_for_full_marks');
+    const rows = (data ?? []) as any[];
+    types = rows.map((r) => ({
+      name: String(r.name ?? ''),
+      points: Number(r.points ?? 0),
+      isActive: r.is_active !== false,
+    }));
+    const firstCap = rows.find((r) => Number(r.points_for_full_marks) > 0);
+    if (firstCap) cap = Number(firstCap.points_for_full_marks);
+  } catch {
+    /* unconfigured — every record reports as unconfigured and scores zero */
+  }
+
+  return { eligibilityByEmployee: byEmployee, eligibilityTypes: types, pointsForFullMarks: cap };
+}
+
+/**
+ * An employee's eligibility records, falling back to the legacy single column.
+ *
+ * The fallback matters while records are still being entered: an employee with
+ * no rows yet would otherwise fail the eligibility gate outright, which is a
+ * data-entry state being reported as a disqualification.
+ */
+function eligibilityRecordsFor(
+  employeeId: string,
+  byEmployee: Map<string, EligibilityRecord[]>,
+  legacyLabel: string | null,
+): EligibilityRecord[] {
+  const rows = byEmployee.get(employeeId);
+  if (rows && rows.length > 0) return rows;
+  const label = String(legacyLabel ?? '').trim();
+  return label ? [{ type: label, validUntil: null }] : [];
+}
+
 /** Auto-suggested next step for a failed gate (Part 4 Required Actions). */
 
 
@@ -1454,6 +1529,11 @@ function computeReadinessScore(input: {
   requiredEducation: string | null;
   empEligibility: string | null;
   requiredEligibility: string | null;
+  /** Every eligibility the employee holds (spec §B–C), not just one. */
+  eligibilityRecords: EligibilityRecord[];
+  /** Points per type, configured by HR (spec §D). */
+  eligibilityTypes: EligibilityTypePoints[];
+  pointsForFullMarks: number;
   relevantTrainings: number;
   relevantTrainingHours: number;
   mostRecentTrainingDate: string | null;
@@ -1508,12 +1588,15 @@ function computeReadinessScore(input: {
     empCategories: input.empTrainingCategories,
     W: input.W,
   });
-  // Eligibility above what the position requires. The filter already rejected
-  // anyone below it, so only the margin above is scored; null means the
-  // position requires the top of the scale and there is nothing to exceed.
-  const eligibilityRatio = eligibilityBeyondMinimumRatio(input.empEligibility, input.requiredEligibility);
-  const eligibilityAssessed = eligibilityRatio !== null;
-  const eligibility = eligibilityAssessed ? w1(eligibilityRatio as number, input.W.eligibility) : 0;
+  // Eligibility (spec §D): points from every valid record the employee holds,
+  // summed and capped, with the points per type set by HR. Not the margin above
+  // the position's requirement — that could not see a second eligibility.
+  const eligibilityDetail = eligibilityScore(
+    input.eligibilityRecords,
+    input.eligibilityTypes,
+    input.pointsForFullMarks,
+  );
+  const eligibility = w1(eligibilityDetail.ratio, input.W.eligibility);
 
   // Performance is no longer a gate, so a candidate with no finalized IPCR is
   // still ranked; they simply score zero on that criterion. dataComplete now
@@ -1564,8 +1647,8 @@ function computeReadinessScore(input: {
     experience,
     experienceMax: input.W.experience,
     eligibility,
-    eligibilityMax: eligibilityAssessed ? input.W.eligibility : 0,
-    eligibilityAssessed,
+    eligibilityMax: input.W.eligibility,
+    eligibilityDetail,
     tenureYears: input.tenureYears,
     progressionAssessed: exp.progressionAssessed,
     experienceParts: exp.parts,
@@ -1744,6 +1827,12 @@ export async function listAutoSuccessors(
       .in('employment_status', ['Regular', 'Permanent']);
     if (empErr) return { ok: false, error: empErr.message };
 
+    // Eligibility records and the configured points (spec §B–D). An employee
+    // may hold several; the single employees.eligibility column cannot express
+    // that and is used only as a fallback below.
+    const { eligibilityByEmployee, eligibilityTypes, pointsForFullMarks } =
+      await loadEligibilityScoring((empRows ?? []).map((e: any) => String(e.id)));
+
     const fullName = (e: any) =>
       [e.first_name, e.middle_name, e.last_name].filter(Boolean).join(' ').trim() || '(unknown)';
     const posTokens = positionTitle.toLowerCase().split(/[^a-z]+/).filter((t) => t.length > 3);
@@ -1862,12 +1951,16 @@ export async function listAutoSuccessors(
         }
       }
 
-      // Gate 4: Eligibility Match (strict Professional vs Sub-Professional)
+      // Gate 4: Eligibility Match (strict Professional vs Sub-Professional).
+      // Checked across every record the employee holds — somebody whose
+      // required eligibility was their second entry used to fail this gate,
+      // because only the single employees.eligibility column was read.
+      const empEligRecords = eligibilityRecordsFor(String(e.id), eligibilityByEmployee, e.eligibility ?? null);
       if (requiredEligibility) {
         const reqLevel = requiredEligibilityLevel(requiredEligibility);
-        const empLevel = eligibilityLevel(e.eligibility ?? null);
-        if (reqLevel > 0 && empLevel < reqLevel) {
-          const empEligLabel = e.eligibility ? `Eligibility: ${e.eligibility}` : 'No eligibility on file';
+        if (reqLevel > 0 && !meetsRequiredEligibility(empEligRecords, requiredEligibility)) {
+          const held = empEligRecords.map((r) => r.type).filter(Boolean);
+          const empEligLabel = held.length ? `Eligibility: ${held.join(', ')}` : 'No eligibility on file';
           const reqLabel = reqLevel === 2 ? 'Professional' : 'Sub-Professional';
           failedGates.push(`${empEligLabel} — requires ${reqLabel}`);
         }
@@ -1948,6 +2041,9 @@ export async function listAutoSuccessors(
         empEducation: e.highest_educational_attainment ?? null,
         requiredEducation,
         empEligibility: e.eligibility ?? null,
+        eligibilityRecords: empEligRecords,
+        eligibilityTypes,
+        pointsForFullMarks,
         requiredEligibility,
         relevantTrainings: agg.count,
         relevantTrainingHours: agg.hours,
@@ -2019,6 +2115,12 @@ export async function listAutoSuccessors(
         .eq('id', mcId)
         .maybeSingle();
       const mcScore = scores.get(mcId) ?? (await getLatestOverallScores([mcId])).get(mcId);
+      const mcEligibility = await loadEligibilityScoring([mcId]);
+      const mcEligibilityRecords = eligibilityRecordsFor(
+        mcId,
+        mcEligibility.eligibilityByEmployee,
+        mcEmp?.eligibility ?? null,
+      );
       const { data: mcTrain } = await supabase
         .from('employee_training')
         .select('id, training_title, training_type, number_of_hours, from_date')
@@ -2051,6 +2153,13 @@ export async function listAutoSuccessors(
         empEducation: mcEmp?.highest_educational_attainment ?? null,
         requiredEducation,
         empEligibility: mcEmp?.eligibility ?? null,
+        // Loaded on its own: this candidate was added by hand from outside the
+        // position-matched pool, so they are not in the batch fetched above.
+        // Without this they would score from the single legacy column while
+        // everyone else scored from their full record set.
+        eligibilityRecords: mcEligibilityRecords,
+        eligibilityTypes,
+        pointsForFullMarks,
         requiredEligibility,
         relevantTrainings: mcAgg.count,
         relevantTrainingHours: mcAgg.hours,

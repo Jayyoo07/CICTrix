@@ -44,7 +44,7 @@ import {
   type QualificationDrift,
   type PositionQualifications,
 } from '../lib/api/succession';
-import { RANKING_WEIGHTS } from '../lib/api/successionCriteria';
+import { RANKING_WEIGHTS, type EligibilityScore } from '../lib/api/successionCriteria';
 
 // The Succession Planning view lives inside the RSP Portal, which is already
 // access-gated to the RSP admin. Management actions therefore key off "am I in
@@ -686,7 +686,7 @@ const CandidatesPanel = (props: CandidatesPanelProps) => {
       </div>
 
       <p className="!mb-0 text-xs text-[var(--text-secondary)]">
-        Two-stage model. Stage A — qualifications are minimum requirements, not weighted (Employment · Position Match · Education field-match · CSC Eligibility · Minimum Experience · Training): fail any one and the employee drops to "Not Yet Qualified" below, never ranked here. Stage B — only qualified employees are ranked, on Performance 30 + Relevant Experience including length of service 20 + Training 20 + Education beyond minimum 15 + Eligibility beyond minimum 15. Education, Training and Eligibility count only what is above the minimum the filter already checked, so clearing the bar is not paid for twice. Length of service is inside Experience rather than a criterion of its own, because it is already that score's years component. A position that already requires the highest eligibility shows n/a for that column, because nothing can exceed it. Performance is ranked but never gates: an unrated employee who meets the four minimums is still ranked, scoring zero on that criterion.
+        Two-stage model. Stage A — qualifications are minimum requirements, not weighted (Employment · Position Match · Education field-match · CSC Eligibility · Minimum Experience · Training): fail any one and the employee drops to "Not Yet Qualified" below, never ranked here. Stage B — only qualified employees are ranked, on Performance 30 + Relevant Experience including length of service 20 + Training 20 + Education beyond minimum 15 + Eligibility beyond minimum 15. Education and Training count only what is above the minimum the filter already checked, so clearing the bar is not paid for twice. Eligibility sums the points of every valid eligibility the employee holds, capped so a long list of minor credentials cannot reach full marks — the points per type are set in Eligibility Points. Length of service is inside Experience rather than a criterion of its own, because it is already that score's years component. Performance is ranked but never gates: an unrated employee who meets the four minimums is still ranked, scoring zero on that criterion.
       </p>
 
       {loading && <p className="text-sm text-[var(--text-secondary)]">Discovering eligible successors…</p>}
@@ -1216,6 +1216,7 @@ type OcboRow = {
   criteria: { key: string; label: string; value: number; max: number }[];
   /** Inputs to the experience score, shown when a candidate is expanded. */
   experienceParts: ExperiencePart[];
+  eligibility: EligibilityScore;
   status: string;
   statusTone: string;
   gapAnalysis: string[];
@@ -1294,11 +1295,10 @@ const buildOcboRows = (res: AutoSuccessorsResult | undefined): OcboRow[] => {
       { key: 'experience', label: 'Experience + Tenure', value: c.readiness.experience, max: c.readiness.experienceMax },
       { key: 'training', label: 'Training', value: c.readiness.training, max: c.readiness.trainingMax },
       { key: 'education', label: 'Education', value: c.readiness.education, max: c.readiness.educationMax },
-      // max is 0 when the position already requires the top of the scale, which
-      // the cell renders as not assessed rather than as a zero score.
       { key: 'eligibility', label: 'Eligibility', value: c.readiness.eligibility, max: c.readiness.eligibilityMax },
     ],
     experienceParts: c.readiness.experienceParts,
+    eligibility: c.readiness.eligibilityDetail,
     status: c.readiness.tier ?? 'Developmental',
     statusTone: ocboStatusTone(c.readiness.tier ?? 'Developmental'),
     gapAnalysis: c.gapAnalysis,
@@ -1508,20 +1508,10 @@ const OcboTableView = ({ admin }: { admin: string }) => {
                                     </td>
                                     {r.criteria.map((c) => (
                                       <td key={c.key} className="px-3 py-2 text-right tabular-nums text-slate-700">
-                                        {/* max 0 means the criterion could not apply to this
-                                            position at all — currently only eligibility, when the
-                                            post already requires the top of the scale. Showing
-                                            "0.0 / 0" would read as a failed criterion. Otherwise
-                                            always a number, never blank: an absent record must
+                                        {/* Always a number, never blank: an absent record must
                                             read as 0, not as a rendering fault. */}
-                                        {c.max === 0 ? (
-                                          <span className="text-[10px] text-slate-400" title="Not applicable to this position">n/a</span>
-                                        ) : (
-                                          <>
-                                            {c.value.toFixed(1)}
-                                            <span className="ml-0.5 text-[9px] text-slate-400">/{c.max}</span>
-                                          </>
-                                        )}
+                                        {c.value.toFixed(1)}
+                                        <span className="ml-0.5 text-[9px] text-slate-400">/{c.max}</span>
                                       </td>
                                     ))}
                                     <td className="px-3 py-2 text-right">
@@ -1553,16 +1543,8 @@ const OcboTableView = ({ admin }: { admin: string }) => {
                                                 <div key={c.key} className="flex items-baseline justify-between gap-3 border-b border-slate-100 py-0.5 last:border-0">
                                                   <span className="text-[11px] text-slate-600">{c.label}</span>
                                                   <span className="text-[11px] tabular-nums text-slate-700">
-                                                    {c.max === 0 ? (
-                                                      <span className="text-slate-400">
-                                                        not assessed — this position already requires the highest eligibility
-                                                      </span>
-                                                    ) : (
-                                                      <>
-                                                        <strong className="font-semibold">{c.value.toFixed(1)}</strong>
-                                                        <span className="text-slate-400"> / {c.max}</span>
-                                                      </>
-                                                    )}
+                                                    <strong className="font-semibold">{c.value.toFixed(1)}</strong>
+                                                    <span className="text-slate-400"> / {c.max}</span>
                                                   </span>
                                                 </div>
                                               ))}
@@ -1590,6 +1572,41 @@ const OcboTableView = ({ admin }: { admin: string }) => {
                                                   <span className="text-slate-400">· {part.detail}</span>
                                                 </li>
                                               ))}
+                                            </ul>
+
+                                            {/* Which eligibilities produced the score. A capped
+                                                sum is unreadable without its parts: two
+                                                candidates on the same number may hold entirely
+                                                different credentials. */}
+                                            <p className="!mb-1 mt-3 text-[10px] font-bold uppercase tracking-wide text-slate-500">
+                                              How Eligibility was scored
+                                            </p>
+                                            <ul className="!mb-0 space-y-0.5">
+                                              {r.eligibility.counted.map((c) => (
+                                                <li key={c.type} className="flex flex-wrap items-baseline gap-x-2 text-[10px]">
+                                                  <span className="text-slate-700">{c.type}</span>
+                                                  <span className="font-semibold tabular-nums text-slate-700">{c.points} pts</span>
+                                                </li>
+                                              ))}
+                                              {r.eligibility.counted.length === 0 && (
+                                                <li className="text-[10px] text-slate-400">No valid eligibility counted.</li>
+                                              )}
+                                              {r.eligibility.expired.map((t) => (
+                                                <li key={`x-${t}`} className="flex flex-wrap items-baseline gap-x-2 text-[10px]">
+                                                  <span className="text-slate-400">{t}</span>
+                                                  <span className="font-semibold text-amber-700">expired</span>
+                                                </li>
+                                              ))}
+                                              {/* Not "worth nothing" — nobody has configured it. */}
+                                              {r.eligibility.unconfigured.map((t) => (
+                                                <li key={`u-${t}`} className="flex flex-wrap items-baseline gap-x-2 text-[10px]">
+                                                  <span className="text-slate-400">{t}</span>
+                                                  <span className="font-semibold text-amber-700">no points configured</span>
+                                                </li>
+                                              ))}
+                                              <li className="pt-0.5 text-[10px] text-slate-400">
+                                                {r.eligibility.rawPoints} of {r.eligibility.pointsForFullMarks} points for full marks
+                                              </li>
                                             </ul>
                                           </div>
                                           <div>
