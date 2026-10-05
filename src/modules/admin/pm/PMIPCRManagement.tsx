@@ -11,6 +11,7 @@ import {
   ChevronLeft,
   ChevronRight,
   ClipboardCheck,
+  ListChecks,
   Lock,
   Unlock,
   RefreshCw,
@@ -32,6 +33,7 @@ import { computeOverallScore } from '../../../lib/api/ipcrWorkspace';
 import { resolveOfficeWeights } from '../../../lib/api/officeWeighting';
 import { loadEmployeeIpcrForReview } from '../../../lib/api/ipcrApproval';
 import { OfficeWeightingPanel } from './OfficeWeightingPanel';
+import { RatingScalePanel } from '../../../components/RatingScalePanel';
 import { getCurrentAdminEmail } from '../moduleUi';
 import { supabase as supabaseClient } from '../../../lib/supabase';
 import { getSystemPhaseStates, openPhase, closePhase } from '../../../lib/api/ipcrPhaseControl';
@@ -2158,6 +2160,9 @@ export const PMIPCRManagement = () => {
   // popup so the per-office Core/Strategic/Support split lives beside the IPCR
   // records it governs.
   const [showWeighting, setShowWeighting] = useState(false);
+  // Same treatment for the rating scale (spec §G): it governs the ratings on
+  // these records, so it opens beside them rather than from Settings.
+  const [showRatingScale, setShowRatingScale] = useState(false);
 
   const latestLoadId = useRef<number>(0);
 
@@ -2319,6 +2324,15 @@ export const PMIPCRManagement = () => {
           <Scale size={15} className="text-blue-600" />
           IPCR Weighting
         </button>
+        <button
+          type="button"
+          onClick={() => setShowRatingScale(true)}
+          className="flex shrink-0 items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50"
+          title="Set what each 1–5 rating means for employees"
+        >
+          <ListChecks size={15} className="text-blue-600" />
+          Rating Scale
+        </button>
       </div>
 
       {/* Subtabs */}
@@ -2381,6 +2395,28 @@ export const PMIPCRManagement = () => {
               <X size={18} />
             </button>
             <OfficeWeightingPanel />
+          </div>
+        </div>
+      )}
+
+      {showRatingScale && (
+        <div
+          className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/40 p-4 backdrop-blur-sm sm:p-8"
+          onClick={() => setShowRatingScale(false)}
+        >
+          <div
+            className="relative w-full max-w-5xl rounded-2xl bg-white p-6 shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              type="button"
+              onClick={() => setShowRatingScale(false)}
+              className="absolute right-4 top-4 rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+              title="Close"
+            >
+              <X size={18} />
+            </button>
+            <RatingScalePanel />
           </div>
         </div>
       )}

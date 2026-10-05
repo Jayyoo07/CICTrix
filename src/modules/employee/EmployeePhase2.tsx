@@ -21,6 +21,7 @@ import {
   type Phase2Status,
 } from '../../lib/api/ipcrRatings';
 import { markEmployeeNotificationsRead } from '../../lib/api/employeeNotifications';
+import { DEFAULT_RATING_SCALE, getRatingScale, type RatingScaleEntry } from '../../lib/api/ipcrRatingScale';
 
 const LOCKED_NOTICE =
   'Notice: Your targets have been finalized and locked for this rating period. You will be able to encode your accomplishments and self-ratings for each Success Indicator here, but the submission opens during the rating period (about 4–5 months from now). We will notify you as soon as the IPCR self-rating submission is open.';
@@ -37,6 +38,10 @@ const FUNCTION_GROUPS = [
 
 const LIKERT = [1, 2, 3, 4, 5];
 
+/** Spec §G: what each rating means, shown while Phase 2 is being filled in. */
+const ratingLabel = (scale: RatingScaleEntry[], value: number | null): RatingScaleEntry | null =>
+  value == null ? null : (scale.find((s) => s.rating === value) ?? null);
+
 type Entry = { accomplishment: string; quality: number | null; efficiency: number | null; timeliness: number | null };
 
 const avgOf = (nums: Array<number | null>): number | null => {
@@ -51,6 +56,15 @@ export const EmployeePhase2: React.FC<{ employeeId: string | null; phaseOpen?: b
   const [loading, setLoading] = useState(true);
   const [sheet, setSheet] = useState<EmployeeRatingSheet | null>(null);
   const [status, setStatus] = useState<Phase2Status>('locked');
+  // The rating scale the employee is rating themselves against (§G). Starts
+  // on the built-in wording so the legend is never briefly empty while the
+  // configured scale loads.
+  const [ratingScale, setRatingScale] = useState<RatingScaleEntry[]>(DEFAULT_RATING_SCALE);
+  useEffect(() => {
+    let cancelled = false;
+    void getRatingScale().then((s) => { if (!cancelled) setRatingScale(s); });
+    return () => { cancelled = true; };
+  }, []);
   const [entries, setEntries] = useState<Record<string, Entry>>({});
   const [saving, setSaving] = useState(false);
   const [notice, setNotice] = useState<{ tone: 'ok' | 'err'; text: string } | null>(null);
@@ -397,6 +411,20 @@ export const EmployeePhase2: React.FC<{ employeeId: string | null; phaseOpen?: b
                                   <option value="">—</option>
                                   {LIKERT.map((n) => (<option key={n} value={n}>{n}</option>))}
                                 </select>
+                                {/* §G: the meaning of the value just chosen, against
+                                    the field itself, so the scale does not have to be
+                                    held in the head while filling the row in. */}
+                                {(() => {
+                                  const meaning = ratingLabel(ratingScale, e[dim]);
+                                  return meaning ? (
+                                    <div
+                                      className="mt-1 text-[9px] leading-tight text-slate-500"
+                                      title={meaning.description}
+                                    >
+                                      {meaning.label}
+                                    </div>
+                                  ) : null;
+                                })()}
                               </td>
                             ))}
                             <td className="border-b px-2 py-2 text-center font-bold text-slate-700" style={{ borderColor: '#EEF0FD' }}>{a != null ? a.toFixed(2) : '—'}</td>
@@ -410,6 +438,25 @@ export const EmployeePhase2: React.FC<{ employeeId: string | null; phaseOpen?: b
             })}
           </tbody>
         </table>
+      </div>
+
+      {/* §G: the scale itself, below the ratings. Employees should not have to
+          guess what a rating means, and the wording is the PM Administrator's
+          to set — this falls back to the built-in text if none is configured,
+          because an empty legend reads as a fault rather than an explanation. */}
+      <div className="mt-3 rounded-lg border px-3 py-2.5" style={{ borderColor: '#EEF0FD', background: '#F8FAFF' }}>
+        <p className="!mb-1.5 text-[10px] font-bold uppercase tracking-wide text-slate-500">
+          What each rating means
+        </p>
+        <ul className="!mb-0 space-y-0.5">
+          {ratingScale.map((r) => (
+            <li key={r.rating} className="flex gap-2 text-[10px] leading-snug">
+              <span className="shrink-0 font-bold tabular-nums text-slate-700">{r.rating}</span>
+              <span className="shrink-0 font-semibold text-slate-700">{r.label}</span>
+              <span className="text-slate-500">{r.description}</span>
+            </li>
+          ))}
+        </ul>
       </div>
 
       {readOnly ? (
