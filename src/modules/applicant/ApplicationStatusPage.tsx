@@ -86,7 +86,10 @@ type BadgeTone = 'approved' | 'in-review' | 'rejected' | 'new';
 
 const STATUS_BADGE: Record<string, { label: string; tone: BadgeTone }> = {
   'New Application': { label: 'New', tone: 'new' },
-  'Pending': { label: 'New', tone: 'new' },
+  // Spec §7: Pending means the office is waiting on the applicant, not that
+  // the application is new. Labelling it 'New' told someone who needed to
+  // resubmit a document that there was nothing for them to do.
+  'Pending': { label: 'Action Required', tone: 'new' },
   'Under Review': { label: 'Under Evaluation', tone: 'in-review' },
   'Reviewed': { label: 'Under Evaluation', tone: 'in-review' },
   // Passing the screening, not a request for documents — that is 'Action

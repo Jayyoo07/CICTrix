@@ -141,3 +141,27 @@ describe('applicant-facing messages', () => {
     expect(msg).not.toMatch(/another applicant|internal|score|rank/i);
   });
 });
+
+describe('Pending and Shortlisted are opposites', () => {
+  it('maps the resubmission state to Pending, whichever name it was stored under', () => {
+    // Spec §7 renamed the action to Pending; rows written before that carry
+    // 'Action Required'. Both mean the office is waiting on the applicant.
+    expect(normalizeStatus('Pending')).toBe('Pending');
+    expect(normalizeStatus('Action Required')).toBe('Pending');
+  });
+
+  it('never reads a shortlisted applicant as pending a resubmission', () => {
+    // These two states are opposites — one has cleared screening, the other
+    // cannot proceed until they resubmit. A substring test on 'shortlist' in
+    // the RSP detail page conflated them once Shortlisted changed meaning.
+    expect(normalizeStatus('Shortlisted')).not.toBe('Pending');
+    expect(funnelBucket('Shortlisted')).toBe('assessment');
+    expect(funnelBucket('Pending')).toBe('screening');
+  });
+
+  it('does not let a Pending applicant jump the queue', () => {
+    expect(nextStatuses('Pending')).toContain('Under Initial Screening');
+    expect(canTransition('Pending', 'Interview/Exam Scheduled')).toBe(false);
+    expect(canTransition('Pending', 'Qualified')).toBe(false);
+  });
+});

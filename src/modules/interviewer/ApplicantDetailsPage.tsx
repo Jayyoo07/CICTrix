@@ -27,6 +27,7 @@ import { mockDatabase } from '../../lib/mockDatabase';
 import { sendEmail } from '../../lib/email';
 import { getApplicants, getAuthoritativeJobPostings, saveApplicants } from '../../lib/recruitmentData';
 import { ATTACHMENTS_BUCKET, isMockModeEnabled, supabase } from '../../lib/supabase';
+import { normalizeStatus } from '../../lib/api/applicantStatus';
 import {
   DISQUALIFICATION_REASON_OPTIONS,
   FAILURE_TO_ATTEND,
@@ -1143,24 +1144,25 @@ export function ApplicantDetailsPage() {
   const showJobPostActionButtons = true;
   const scoreActionLabel = isScoreFinalized ? 'View Score' : 'Update Score';
   const isForcedPromotionalAppointment = isPromotionalSource(recruitmentApplicant, applicant);
-  const isApplicantDisqualified =
-    normalizeText(resolvedStatus ?? '').includes('not qualified') ||
-    normalizeText(resolvedStatus ?? '').includes('disqual');
-  const isApplicantQualified =
-    normalizeText(resolvedStatus ?? '').includes('recommend') ||
-    normalizeText(resolvedStatus ?? '') === 'qualified';
-  const isApplicantShortlisted = normalizeText(resolvedStatus ?? '').includes('shortlist');
+  // Resolved through the workflow module rather than by matching substrings.
+  // 'Shortlisted' now means the applicant passed document screening, so the
+  // old `includes('shortlist')` test made a screened applicant read as pending
+  // a resubmission — the two states are opposites.
+  const workflowStatus = normalizeStatus(resolvedStatus ?? '');
+  const isApplicantDisqualified = workflowStatus === 'Disqualified';
+  const isApplicantQualified = workflowStatus === 'Qualified' || workflowStatus === 'Selected';
+  const isApplicantPending = workflowStatus === 'Pending';
   const primaryEducation = recruitmentApplicant?.education?.[0] ?? null;
   const primaryExperience = recruitmentApplicant?.experience?.[0] ?? null;
 
   // Sync the mutually-exclusive status toggle from the persisted resolvedStatus
   useEffect(() => {
-    const norm = normalizeText(resolvedStatus ?? '');
-    if (norm.includes('not qualified') || norm.includes('disqual')) {
+    const norm = normalizeStatus(resolvedStatus ?? '');
+    if (norm === 'Disqualified' || norm === 'Not Selected') {
       setApplicantStatus('disqualify');
-    } else if (norm.includes('shortlist')) {
+    } else if (norm === 'Pending') {
       setApplicantStatus('shortlist');
-    } else if (norm.includes('qualified') || norm.includes('recommend') || norm.includes('hired')) {
+    } else if (norm === 'Qualified' || norm === 'Selected') {
       setApplicantStatus('qualified');
     } else {
       setApplicantStatus(null);
@@ -1368,7 +1370,12 @@ export function ApplicantDetailsPage() {
     }
 
     const statusMap: Record<string, Applicant['status']> = {
-      shortlist: 'Shortlisted',
+      // Spec §7: the Shortlist action was renamed Pending. It means the
+      // application cannot proceed until something is resubmitted or
+      // corrected — the opposite of Shortlisted, which now means the applicant
+      // cleared screening. Keeping it on 'Shortlisted' would have told a
+      // resubmitting applicant they had passed.
+      shortlist: 'Pending',
       unshortlist: 'Under Review',
       // The Qualify button here is gated on documents alone — qualifyLocked
       // only checks that every required document is uploaded, reviewed and
@@ -1379,7 +1386,8 @@ export function ApplicantDetailsPage() {
       qualified: 'Shortlisted',
       disqualify: 'Not Qualified',
       document_verified: 'Document Verified',
-      action_required: 'Action Required',
+      // Same state, the name the specification uses.
+      action_required: 'Pending',
       under_review: 'Under Review',
     };
     const nextStatus = statusMap[action];
@@ -1594,10 +1602,12 @@ export function ApplicantDetailsPage() {
     setResubmitSending(true);
     setResubmitError(null);
 
-    // Shortlist the applicant first if not already shortlisted.
-    if (!isApplicantShortlisted) {
-      await persistStatus('shortlist');
-    }
+    // No status write here. This used to set 'Shortlisted' first and then
+    // 'Action Required' at the end, which — now that Shortlisted means the
+    // applicant cleared screening — briefly told someone being asked to
+    // resubmit that they had passed it. Realtime fires on every write, so the
+    // applicant's tracker really did show it. The single write below is the
+    // only one this flow needs.
 
     // Insert a resubmission_request row in Supabase for each selected document.
     for (const slotLabel of resubmitSelectedSlots) {
@@ -1894,26 +1904,26 @@ export function ApplicantDetailsPage() {
                       <button
                         type="button"
                         // Once documents are validated the applicant has moved past the
-                        // "needs more documents" step, so shortlisting no longer applies.
-                        disabled={isApplicantDisqualified || (docsValidatedEffective && !isApplicantShortlisted)}
+                        // "needs more documents" step, so Pending no longer applies.
+                        disabled={isApplicantDisqualified || (docsValidatedEffective && !isApplicantPending)}
                         title={
-                          docsValidatedEffective && !isApplicantShortlisted
-                            ? 'Documents are already validated — this applicant can no longer be shortlisted'
+                          docsValidatedEffective && !isApplicantPending
+                            ? 'Documents are already validated — nothing is outstanding for this applicant to resubmit'
                             : undefined
                         }
                         onClick={() => {
-                          if (isApplicantShortlisted) {
+                          if (isApplicantPending) {
                             void persistStatus('unshortlist');
                           } else {
                             openResubmitModal();
                           }
                         }}
-                        className={`inline-flex items-center gap-1.5 rounded-xl border px-4 py-2 text-sm font-semibold shadow-sm disabled:cursor-not-allowed disabled:opacity-40 ${isApplicantShortlisted
+                        className={`inline-flex items-center gap-1.5 rounded-xl border px-4 py-2 text-sm font-semibold shadow-sm disabled:cursor-not-allowed disabled:opacity-40 ${isApplicantPending
                             ? 'border-[#363EE8] bg-[#363EE8] text-white'
                             : 'border-[#363EE8] bg-white text-[#363EE8] hover:bg-blue-50'
                           }`}
                       >
-                        <Star size={14} /> {isApplicantShortlisted ? 'Undo Pending' : 'Pending'}
+                        <Star size={14} /> {isApplicantPending ? 'Undo Pending' : 'Pending'}
                       </button>
                       <button
                         type="button"

@@ -218,6 +218,9 @@ const STATUS_COLORS: Record<ApplicantStatus, string> = {
   'New Application': 'bg-amber-100 text-amber-800',
   'Under Review': 'bg-blue-100 text-blue-800',
   Shortlisted: 'bg-emerald-100 text-emerald-800',
+  // Awaiting a resubmission or correction — an action for the applicant, so it
+  // reads as attention-needed rather than progress.
+  Pending: 'bg-amber-100 text-amber-800',
   'For Interview': 'bg-violet-100 text-violet-800',
   'Interview Scheduled': 'bg-purple-100 text-purple-800',
   'Interview Completed': 'bg-teal-100 text-teal-800',
@@ -323,9 +326,13 @@ const toApplicantStatus = (rawStatus: string, hasCompletedEval: boolean): Applic
     return 'Qualified';
   }
   if (normalized.includes('shortlist')) return 'Shortlisted';
+  // Awaiting a resubmission or correction (spec §7). Must come before the
+  // 'review' test, which used to swallow 'pending' and report it as Under
+  // Review — hiding the fact that the office is waiting on the applicant.
+  if (normalized === 'pending' || normalized.includes('action required')) return 'Pending';
   if (normalized.includes('interview scheduled')) return 'Interview Scheduled';
   if (normalized.includes('for interview')) return 'For Interview';
-  if (normalized.includes('review') || normalized === 'reviewed' || normalized === 'pending') {
+  if (normalized.includes('review') || normalized === 'reviewed') {
     return hasCompletedEval ? 'Interview Completed' : 'Under Review';
   }
   if (normalized.includes('new')) return 'New Application';
