@@ -29,6 +29,7 @@ dist-ssr
 .env.production
 .env.seed
 .env.demo
+.env.prod-dump
 
 # Seed script outputs (contain known demo passwords)
 scripts/seed-credentials.md

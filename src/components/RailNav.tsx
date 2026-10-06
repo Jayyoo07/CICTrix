@@ -1,19 +1,26 @@
 // Collapsible side navigation rail (DESIGN_IDENTITY.md §9.12).
 // Collapsed 72px icon rail by default; hover or keyboard focus opens it to
-// 256px as an overlay; one highlight slides to the active item.
+// 256px as an overlay; one highlight slides to the active item. When the items
+// don't fit the window, the rail scrolls and fades out at the bottom.
 
-import { useEffect, useLayoutEffect, useRef, useState, type ComponentType } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
+import type { LucideIcon } from 'lucide-react';
 import '../styles/abyan-tokens.css';
 import '../styles/rail-nav.css';
 
 export interface RailNavItem {
+  /** Route for link items; for `onSelect` items, a unique key. */
   path: string;
   label: string;
-  icon: ComponentType<{ size?: number; strokeWidth?: number; 'aria-hidden'?: boolean }>;
+  icon: LucideIcon;
   isActive: boolean;
   /** Pinned to the bottom group (Settings). */
   bottom?: boolean;
+  /** For portals that switch sections in place (L&D, PM): renders a button instead of a link. */
+  onSelect?: () => void;
+  /** Hover tooltip, e.g. the item's sublabel. */
+  title?: string;
 }
 
 const CLOSE_DELAY_MS = 250;              // grace period so brushing past the edge doesn't snap it shut
@@ -32,7 +39,9 @@ export function RailNav({ items, label = 'Main navigation' }: { items: RailNavIt
   const [open, setOpen] = useState(false);
   const closeTimer = useRef<number | undefined>(undefined);
   const railRef = useRef<HTMLElement | null>(null);
-  const itemRefs = useRef(new Map<string, HTMLAnchorElement>());
+  const scrollRef = useRef<HTMLDivElement | null>(null);
+  const itemRefs = useRef(new Map<string, HTMLElement>());
+  const [moreBelow, setMoreBelow] = useState(false);
   // Every RSP page mounts its own copy of the rail, so the highlight starts at
   // the position it had on the previous page and slides from there.
   const [highlightY, setHighlightY] = useState<number | null>(readStoredY);
@@ -50,16 +59,26 @@ export function RailNav({ items, label = 'Main navigation' }: { items: RailNavIt
   };
   useEffect(() => () => window.clearTimeout(closeTimer.current), []);
 
-  // Measure the active item's offset inside the rail. The highlight lives on
-  // the rail (not in a group), so it can also reach Settings at the bottom.
+  // Measure the active item's offset inside the scroll area. The highlight
+  // lives there (not in a group), so it scrolls with its item and can also
+  // reach Settings at the bottom.
   const measure = () => {
-    const rail = railRef.current;
+    const scroller = scrollRef.current;
     const el = active ? itemRefs.current.get(active.path) : undefined;
-    if (!rail || !el) return null;
-    return Math.round(el.getBoundingClientRect().top - rail.getBoundingClientRect().top);
+    if (!scroller || !el) return null;
+    return Math.round(el.getBoundingClientRect().top - scroller.getBoundingClientRect().top + scroller.scrollTop);
+  };
+
+  const updateMoreBelow = () => {
+    const scroller = scrollRef.current;
+    if (!scroller) return;
+    setMoreBelow(scroller.scrollTop + scroller.clientHeight < scroller.scrollHeight - 1);
   };
 
   useLayoutEffect(() => {
+    const el = active ? itemRefs.current.get(active.path) : undefined;
+    el?.scrollIntoView({ block: 'nearest' });   // on a short window the active item may sit below the fold
+    updateMoreBelow();
     const y = measure();
     if (y === null) return;
     const from = readStoredY();
@@ -91,6 +110,7 @@ export function RailNav({ items, label = 'Main navigation' }: { items: RailNavIt
   // The bottom group moves with the viewport height; re-measure without animating.
   useEffect(() => {
     const onResize = () => {
+      updateMoreBelow();
       const y = measure();
       if (y === null) return;
       setAnimate(false);
@@ -104,18 +124,26 @@ export function RailNav({ items, label = 'Main navigation' }: { items: RailNavIt
 
   const renderItem = (item: RailNavItem) => {
     const Icon = item.icon;
+    const shared = {
+      ref: (el: HTMLElement | null) => { if (el) itemRefs.current.set(item.path, el); else itemRefs.current.delete(item.path); },
+      className: `rail-item${item.isActive ? ' active' : ''}`,
+      'aria-label': item.label,
+      'aria-current': item.isActive ? ('page' as const) : undefined,
+      title: item.title,
+    };
+    const content = (
+      <>
+        <span className="rail-chip"><Icon size={20} strokeWidth={1.75} aria-hidden /></span>
+        <span className="rail-label">{item.label}</span>
+      </>
+    );
     return (
       <li key={item.path}>
-        <Link
-          to={item.path}
-          ref={(el) => { if (el) itemRefs.current.set(item.path, el); else itemRefs.current.delete(item.path); }}
-          className={`rail-item${item.isActive ? ' active' : ''}`}
-          aria-label={item.label}
-          aria-current={item.isActive ? 'page' : undefined}
-        >
-          <span className="rail-chip"><Icon size={20} strokeWidth={1.75} aria-hidden /></span>
-          <span className="rail-label">{item.label}</span>
-        </Link>
+        {item.onSelect ? (
+          <button type="button" onClick={item.onSelect} {...shared}>{content}</button>
+        ) : (
+          <Link to={item.path} {...shared}>{content}</Link>
+        )}
       </li>
     );
   };
@@ -139,16 +167,19 @@ export function RailNav({ items, label = 'Main navigation' }: { items: RailNavIt
           }
         }}
       >
-        <div
-          className={`rail-hl${animate ? '' : ' no-anim'}`}
-          aria-hidden="true"
-          style={{
-            transform: `translateY(${highlightY ?? 0}px)`,
-            visibility: active && highlightY !== null ? 'visible' : 'hidden',
-          }}
-        />
-        <ul className="rail-nav">{items.filter((item) => !item.bottom).map(renderItem)}</ul>
-        <ul className="rail-nav bottom">{items.filter((item) => item.bottom).map(renderItem)}</ul>
+        <div className="rail-scroll" ref={scrollRef} onScroll={updateMoreBelow}>
+          <div
+            className={`rail-hl${animate ? '' : ' no-anim'}`}
+            aria-hidden="true"
+            style={{
+              transform: `translateY(${highlightY ?? 0}px)`,
+              visibility: active && highlightY !== null ? 'visible' : 'hidden',
+            }}
+          />
+          <ul className="rail-nav">{items.filter((item) => !item.bottom).map(renderItem)}</ul>
+          <ul className="rail-nav bottom">{items.filter((item) => item.bottom).map(renderItem)}</ul>
+        </div>
+        <div className={`rail-fade${moreBelow ? ' show' : ''}`} aria-hidden="true" />
       </aside>
     </div>
   );

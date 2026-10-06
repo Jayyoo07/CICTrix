@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>ABYAN · Portal rails</title>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://unpkg.com/lucide@0.469.0/dist/umd/lucide.min.js"></script>
+<style>
+  :root {
+    --color-primary: #363EE8; --color-primary-700: #191FA8; --color-primary-900: #040E6B;
+    --color-primary-200: #C8D1FF; --color-primary-50: #EEF0FF;
+    --bg-page: #F1F5F9; --neutral-800: #28343D; --neutral-600: #515F69; --neutral-200: #E2E8F0;
+    --gradient-hero: linear-gradient(180deg, #363EE8 0%, #040E6B 100%);
+    --rail-collapsed: 72px; --rail-open: 256px;
+    --ease-standard: cubic-bezier(.2, .8, .2, 1); --dur-base: 200ms;
+    --font-sans: 'Poppins', system-ui, sans-serif;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: var(--font-sans); background: #E4E9F0; color: var(--neutral-800); padding: 24px; }
+
+  .question { max-width: 1180px; margin: 0 auto 14px; }
+  .question h2 { font: 600 24px/32px var(--font-sans); color: var(--color-primary-900); }
+  .question p { font: 400 14px/20px var(--font-sans); color: var(--neutral-600); margin-top: 4px; max-width: 820px; }
+  .controls { display: flex; gap: 8px; align-items: center; margin-top: 12px; flex-wrap: wrap; }
+  .controls .lbl { font: 500 14px/16px var(--font-sans); color: var(--neutral-600); margin-right: 4px; }
+  .seg { height: 36px; padding: 0 16px; border-radius: 999px; border: 1.5px solid var(--color-primary); background: transparent; color: var(--color-primary); font: 600 13px var(--font-sans); cursor: pointer; }
+  .seg.on { background: var(--color-primary); color: #fff; }
+  .fit { display: none; }
+  .fit.show { display: flex; }
+
+  /* ===== Portal frame: ~1366×768 laptop viewport ===== */
+  .app { position: relative; max-width: 1180px; height: 650px; margin: 0 auto; border-radius: 16px; overflow: hidden; background: var(--bg-page); display: flex; flex-direction: column; }
+
+  /* §8.2 top bar */
+  .topbar { flex: none; height: 64px; background: var(--color-primary); display: flex; align-items: center; gap: 12px; padding: 0 24px; color: #fff; position: relative; z-index: 3; }
+  .logo-slot { width: 40px; height: 40px; border-radius: 50%; border: 1.5px dashed rgba(255,255,255,.55); display: grid; place-items: center; font: 500 9px var(--font-sans); color: rgba(255,255,255,.8); flex: none; }
+  .topbar { white-space: nowrap; }
+  @media (max-width: 1023px) { .topbar .sys { display: none; } }
+  .topbar b { font: 700 20px/24px var(--font-sans); }
+  .topbar .sys { font: 400 16px/20px var(--font-sans); }
+  .topbar .spacer { flex: 1; }
+  .avatar { width: 36px; height: 36px; border-radius: 50%; background: rgba(255,255,255,.18); display: grid; place-items: center; }
+  .avatar svg { width: 20px; height: 20px; }
+  .who b { display: block; font: 600 14px/18px var(--font-sans); }
+  .who small { display: block; font: 400 12px/16px var(--font-sans); color: rgba(255,255,255,.8); }
+  .divider { width: 1px; height: 28px; background: rgba(255,255,255,.25); margin: 0 4px; }
+  .logout { height: 36px; padding: 0 14px; border-radius: 12px; border: 1px solid rgba(255,255,255,.5); background: rgba(255,255,255,.08); color: #fff; font: 600 13px var(--font-sans); display: flex; align-items: center; gap: 8px; }
+  .logout svg { width: 16px; height: 16px; }
+
+  .body { flex: 1; min-height: 0; display: flex; position: relative; }
+
+  /* ===== Rail (rail-nav.css values) ===== */
+  .rail-slot { --item-h: 48px; --item-gap: 8px; --chip: 40px; --corner: 20px;
+    position: relative; z-index: 2; flex: 0 0 var(--rail-collapsed); }
+  .rail-slot.compact { --item-h: 44px; --item-gap: 4px; --chip: 36px; }
+  .rail-slot::before, .rail-slot::after { content: ''; position: absolute; left: 100%; width: 16px; height: 16px; pointer-events: none; }
+  .rail-slot::before { top: 0; background: var(--color-primary); -webkit-mask: radial-gradient(circle at 100% 100%, transparent 15.5px, #000 16px); mask: radial-gradient(circle at 100% 100%, transparent 15.5px, #000 16px); }
+  .rail-slot::after { bottom: 0; background: var(--color-primary-900); -webkit-mask: radial-gradient(circle at 100% 0, transparent 15.5px, #000 16px); mask: radial-gradient(circle at 100% 0, transparent 15.5px, #000 16px); }
+
+  .rail { position: absolute; inset: 0 auto 0 0; z-index: 1; width: var(--rail-collapsed); background: var(--gradient-hero); overflow: hidden; transition: width var(--dur-base) var(--ease-standard); }
+  .rail.open { width: var(--rail-open); }
+
+  /* Scroll wrapper: holds both groups AND the highlight, so the highlight
+     scrolls with its item and still slides to Settings. */
+  .rail-scroll { position: relative; height: 100%; overflow-x: hidden; overflow-y: auto; scrollbar-width: none; display: flex; flex-direction: column; padding: 16px 0; }
+  .rail-scroll::-webkit-scrollbar { display: none; }
+
+  .rail-nav { position: relative; z-index: 1; list-style: none; padding-left: 12px; display: flex; flex-direction: column; gap: var(--item-gap); }
+  .rail-nav.bottom { margin-top: auto; padding-top: var(--item-gap); }
+
+  .rail-hl { position: absolute; left: 12px; top: 0; height: var(--item-h); width: var(--item-h); border-radius: calc(var(--item-h) / 2); background: var(--bg-page); pointer-events: none;
+    transition: transform 260ms var(--ease-standard), width var(--dur-base) var(--ease-standard), border-radius var(--dur-base) var(--ease-standard); }
+  .rail-hl.no-anim { transition: width var(--dur-base) var(--ease-standard), border-radius var(--dur-base) var(--ease-standard); }
+  .rail.open .rail-hl { width: calc(100% - 12px); border-radius: calc(var(--item-h) / 2) 0 0 calc(var(--item-h) / 2); }
+  .rail-hl::before, .rail-hl::after { content: ''; position: absolute; right: 0; width: var(--corner); height: var(--corner); opacity: 0; transition: opacity 120ms ease-out; }
+  .rail-hl::before { top: calc(var(--corner) * -1); border-bottom-right-radius: var(--corner); box-shadow: 8px 8px 0 8px var(--bg-page); }
+  .rail-hl::after { bottom: calc(var(--corner) * -1); border-top-right-radius: var(--corner); box-shadow: 8px -8px 0 8px var(--bg-page); }
+  .rail.open .rail-hl::before, .rail.open .rail-hl::after { opacity: 1; transition-delay: 120ms; }
+
+  .rail-item { position: relative; z-index: 1; display: flex; align-items: center; gap: 12px; height: var(--item-h);
+    padding-left: calc((var(--item-h) - var(--chip)) / 2); margin-right: 12px; border-radius: calc(var(--item-h) / 2);
+    color: rgba(255,255,255,.85); text-decoration: none; white-space: nowrap; cursor: pointer; transition: background 150ms ease-out, color 150ms ease-out; }
+  .rail-chip { width: var(--chip); height: var(--chip); flex: none; border-radius: 50%; display: grid; place-items: center;
+    background: rgba(255,255,255,.12); border: 1px solid rgba(255,255,255,.22); transition: background 150ms ease-out, border-color 150ms ease-out, color 150ms ease-out; }
+  .rail-chip svg { width: 20px; height: 20px; }
+  .rail-label { font: 500 16px/20px var(--font-sans); overflow: hidden; text-overflow: ellipsis; opacity: 0; transform: translateX(-6px);
+    transition: opacity 150ms ease-out, transform var(--dur-base) var(--ease-standard); }
+  .rail.open .rail-label { opacity: 1; transform: none; transition-delay: 60ms; }
+  .rail-item:hover .rail-chip { background: rgba(255,255,255,.22); }
+  .rail.open .rail-item:not(.active):hover { background: rgba(255,255,255,.10); color: #fff; }
+  .rail-item:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+  .rail.open .rail-item.active:focus-visible { outline-color: var(--color-primary); }
+  .rail-item.active { color: var(--color-primary-900); }
+  .rail-item.active .rail-chip { background: transparent; border-color: transparent; color: var(--color-primary); }
+  .rail-item.active .rail-label { font-weight: 600; }
+
+  /* Scroll cue: a soft fade at the bottom while more items sit below. */
+  .rail-fade { position: absolute; left: 0; right: 0; bottom: 0; height: 40px; z-index: 2; pointer-events: none;
+    background: linear-gradient(180deg, rgba(4,14,107,0) 0%, #040E6B 100%); opacity: 0; transition: opacity 150ms ease-out; }
+  .rail-fade.show { opacity: 1; }
+
+  /* ===== Page ===== */
+  .page { flex: 1; min-width: 0; padding: 24px 28px; overflow: hidden; }
+  .crumb { font: 500 14px/16px var(--font-sans); color: var(--neutral-600); margin-bottom: 4px; }
+  .page h1 { font: 700 28px/36px var(--font-sans); color: var(--color-primary-900); margin-bottom: 20px; }
+  .kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 20px; }
+  .kpi { background: #fff; border: 1px solid var(--neutral-200); border-radius: 12px; padding: 20px; height: 128px; }
+  .kpi .ic { width: 36px; height: 36px; border-radius: 10px; background: var(--color-primary-50); margin-bottom: 14px; }
+  .kpi .l1 { height: 10px; width: 60%; background: var(--neutral-200); border-radius: 5px; margin-bottom: 10px; }
+  .kpi .l2 { height: 20px; width: 35%; background: var(--color-primary-200); border-radius: 6px; }
+  .table { background: #fff; border: 1px solid var(--neutral-200); border-radius: 12px; height: 300px; }
+  .table .th { height: 52px; background: var(--bg-page); border-bottom: 1px solid var(--neutral-200); border-radius: 12px 12px 0 0; }
+  .table .tr { height: 60px; border-bottom: 1px solid var(--neutral-200); margin: 0 20px; }
+
+  .note { max-width: 1180px; margin: 12px auto 0; font: 500 12px/16px var(--font-sans); color: var(--neutral-600); }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { transition-duration: 0ms !important; transition-delay: 0ms !important; }
+  }
+</style>
+</head>
+<body>
+
+<div class="question">
+  <h2>L&amp;D and PM portals on the RSP rail</h2>
+  <p>Both portals swap their white sidebar for the same §9.12 rail RSP uses: under the blue top bar, collapsed to icons, opening over the page on hover or focus, Settings pinned to the bottom. Switch portals below and hover the rail.</p>
+  <div class="controls">
+    <span class="lbl">Portal</span>
+    <button class="seg" data-choice="portal-rsp" onclick="setPortal('rsp')">RSP (shipped, reference)</button>
+    <button class="seg on" data-choice="portal-lnd" onclick="setPortal('lnd')">L&amp;D Admin</button>
+    <button class="seg" data-choice="portal-pm" onclick="setPortal('pm')">PM Admin</button>
+  </div>
+</div>
+
+<div class="app">
+  <header class="topbar">
+    <div class="logo-slot">LOGO</div>
+    <b>ABYAN</b><span class="sys">Human Resource Information System</span>
+    <span class="spacer"></span>
+    <span class="avatar"><i data-lucide="user-circle"></i></span>
+    <span class="who"><b id="who">L&amp;D Admin</b><small id="division">L&amp;D Division</small></span>
+    <span class="divider"></span>
+    <span class="logout"><i data-lucide="log-out"></i>Logout</span>
+  </header>
+
+  <div class="body">
+    <div class="rail-slot" id="slot">
+      <aside class="rail" id="rail" aria-label="Main navigation">
+        <div class="rail-scroll" id="scroller">
+          <div class="rail-hl no-anim" id="hl" aria-hidden="true"></div>
+          <ul class="rail-nav" id="mainNav"></ul>
+          <ul class="rail-nav bottom" id="bottomNav"></ul>
+        </div>
+        <div class="rail-fade" id="fade"></div>
+      </aside>
+    </div>
+
+    <main class="page">
+      <div class="crumb" id="crumb">Learning and Development</div>
+      <h1 id="title">Dashboard</h1>
+      <div class="kpis"><div class="kpi"><div class="ic"></div><div class="l1"></div><div class="l2"></div></div><div class="kpi"><div class="ic"></div><div class="l1"></div><div class="l2"></div></div><div class="kpi"><div class="ic"></div><div class="l1"></div><div class="l2"></div></div><div class="kpi"><div class="ic"></div><div class="l1"></div><div class="l2"></div></div></div>
+      <div class="table"><div class="th"></div><div class="tr"></div><div class="tr"></div><div class="tr"></div></div>
+    </main>
+  </div>
+</div>
+
+<p class="note">Items, labels and icons are the ones each portal already uses in the repo (LND_MENU, PMDashboard sideNavItems, Sidebar rspMenuItems). Sublabels move to the item's tooltip. Frame is 650px tall, about what a 1366×768 laptop browser shows. Logo slot is a placeholder for the real mark. Decided 2026-10-06: Training Evaluation removed from L&amp;D; when items don't fit, the rail scrolls (fade at the bottom) rather than tightening the 48px items.</p>
+
+<script>
+  const PORTALS = {
+    rsp: { who: 'RSP Admin', division: 'RSP Division', crumb: 'Recruitment, Selection, and Placement', items: [
+      ['Dashboard', 'layout-dashboard'], ['Job Posts', 'briefcase', 'Manage positions'], ['Applicants', 'clipboard-list', 'Applications & scoring'],
+      ['Newly Hired', 'user-check', 'Generate credentials'], ['Rater Management', 'user-cog', 'Access control'], ['Office Directory', 'users', 'All employees'],
+      ['Succession Planning', 'git-branch', 'Backup employees per position'], ['Archives', 'file-text'], ['Settings', 'settings', '', true] ] },
+    lnd: { who: 'L&D Admin', division: 'L&D Division', crumb: 'Learning and Development', items: [
+      ['Dashboard', 'layout-dashboard', 'Overview and KPIs'], ['Summary of Ratings', 'bar-chart-2', 'IPCR performance data'],
+      ['Training Calendar', 'calendar-days', 'This year’s trainings'], ['Training Plan', 'calendar-clock', 'Next year’s plan'],
+      ['Requests & Needs', 'clipboard-list', 'Office requests and Training Needs Assessment'], ['Seminar Enrollment', 'clipboard-check', 'Registrations and slots'],
+      ['IDP Form', 'target', 'Form link and availability window'],
+      ['L&D Archive', 'file-text', 'Historical training records'], ['Office Directory', 'users', 'All employees'], ['Settings', 'settings', 'Division preferences', true] ] },
+    pm: { who: 'PM Admin', division: 'PM Division', crumb: 'Performance Management', items: [
+      ['Dashboard', 'layout-dashboard'], ['Office Directory', 'building-2', 'Offices, heads & employees'], ['Summary of Ratings', 'bar-chart-3', 'IPCR performance data'],
+      ['IPCR Management', 'clipboard-list', 'Onboarding & Tracking'], ['Competency Framework', 'book-open', 'Position Requirements'],
+      ['Archive', 'archive', 'Historical IPCR records'], ['Settings', 'settings', '', true] ] },
+  };
+
+  const slot = document.getElementById('slot');
+  const rail = document.getElementById('rail');
+  const scroller = document.getElementById('scroller');
+  const hl = document.getElementById('hl');
+  const fade = document.getElementById('fade');
+  const CLOSE_DELAY_MS = 250;
+  let closeTimer = null, items = [], activeIndex = 0;
+
+  const openRail = () => { clearTimeout(closeTimer); rail.classList.add('open'); };
+  const closeRail = () => { clearTimeout(closeTimer); closeTimer = setTimeout(() => rail.classList.remove('open'), CLOSE_DELAY_MS); };
+  rail.addEventListener('mouseenter', openRail);
+  rail.addEventListener('mouseleave', closeRail);
+  rail.addEventListener('focusin', openRail);
+  rail.addEventListener('focusout', e => { if (!rail.contains(e.relatedTarget)) closeRail(); });
+  rail.addEventListener('keydown', e => { if (e.key === 'Escape') { document.activeElement.blur(); closeRail(); } });
+
+  // Highlight Y is measured inside the scroll wrapper, so it scrolls with the item.
+  function placeHighlight(animate) {
+    const el = items[activeIndex];
+    hl.classList.toggle('no-anim', !animate);
+    hl.style.transform = `translateY(${el.offsetTop + el.offsetParent.offsetTop - hl.offsetParent.offsetTop}px)`;
+  }
+  function updateFade() {
+    fade.classList.toggle('show', scroller.scrollTop + scroller.clientHeight < scroller.scrollHeight - 2);
+  }
+  scroller.addEventListener('scroll', updateFade);
+
+  function select(i) {
+    activeIndex = i;
+    items.forEach((el, j) => { el.classList.toggle('active', j === i); j === i ? el.setAttribute('aria-current', 'page') : el.removeAttribute('aria-current'); });
+    document.getElementById('title').textContent = items[i].getAttribute('aria-label');
+    placeHighlight(true);
+  }
+
+  function setPortal(key) {
+    const p = PORTALS[key];
+    document.querySelectorAll('[data-choice^="portal-"]').forEach(b => b.classList.toggle('on', b.dataset.choice === 'portal-' + key));
+    document.getElementById('who').textContent = p.who;
+    document.getElementById('division').textContent = p.division;
+    document.getElementById('crumb').textContent = p.crumb;
+    const main = document.getElementById('mainNav'), bottom = document.getElementById('bottomNav');
+    main.innerHTML = ''; bottom.innerHTML = '';
+    p.items.forEach(([label, icon, sub, isBottom]) => {
+      const li = document.createElement('li');
+      li.innerHTML = `<a class="rail-item" href="#" aria-label="${label}" title="${sub || label}"><span class="rail-chip"><i data-lucide="${icon}"></i></span><span class="rail-label">${label.replace('&', '&amp;')}</span></a>`;
+      (isBottom ? bottom : main).appendChild(li);
+    });
+    lucide.createIcons({ attrs: { 'stroke-width': 1.75 } });
+    items = [...rail.querySelectorAll('.rail-item')];
+    items.forEach((el, i) => el.addEventListener('click', e => { e.preventDefault(); select(i); }));
+    scroller.scrollTop = 0;
+    activeIndex = 0;
+    items.forEach((el, j) => el.classList.toggle('active', j === 0));
+    document.getElementById('title').textContent = 'Dashboard';
+    placeHighlight(false);
+    updateFade();
+  }
+
+  window.addEventListener('resize', () => { placeHighlight(false); updateFade(); });
+  lucide.createIcons({ attrs: { 'stroke-width': 1.75 } });
+  setPortal('lnd');
+</script>
+</body>
+</html>

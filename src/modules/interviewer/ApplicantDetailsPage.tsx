@@ -41,6 +41,8 @@ import type { Applicant, JobPosting } from '../../types/recruitment.types';
 type ApplicantRecord = {
   id: string;
   item_number?: string;
+  /** Tracking code issued by the database on submission (ABYAN-000-000). */
+  reference_no?: string | null;
   first_name: string;
   middle_name?: string | null;
   last_name: string;
@@ -1827,9 +1829,14 @@ export function ApplicantDetailsPage() {
                     <span className={`rounded-full border px-2.5 py-0.5 text-xs font-semibold ${normalizeText(resolvedStatus ?? '').includes('pending') || !resolvedStatus ? 'border-amber-300 bg-amber-100 text-amber-700' : badge.className}`}>
                       {(normalizeText(resolvedStatus ?? '').includes('pending') || !resolvedStatus) ? 'Under Review' : badge.label}
                     </span>
-                    <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-0.5 text-xs font-medium text-slate-600">
-                      {applicant.item_number || applicant.id}
-                    </span>
+                    {applicant.reference_no && (
+                      <span
+                        className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-0.5 text-xs font-medium text-slate-600"
+                        title="Reference No."
+                      >
+                        {applicant.reference_no}
+                      </span>
+                    )}
                     {applicant.office && (
                       <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-0.5 text-xs font-medium text-slate-600">{applicant.office}</span>
                     )}
