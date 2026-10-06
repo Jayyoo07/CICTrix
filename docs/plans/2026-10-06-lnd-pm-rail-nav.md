@@ -1,7 +1,7 @@
 ---
 title: L&D and PM portals on the side navigation rail
 date: 2026-10-06
-status: In Progress
+status: Done
 summary: L&D Admin and PM Admin swap their white sidebars for the §9.12 rail RSP already ships, the rail scrolls when items don't fit, and L&D drops the Training Evaluation page.
 spec: DESIGN_IDENTITY.md §9.12; mockup docs/mockups/2026-10-06-portal-rails.html
 ---
