@@ -2,10 +2,8 @@ import { useBackClosesView } from '../hooks/useHistoryBack';
 import {
     Briefcase,
     Calendar,
-    ChevronDown,
     ChevronLeft,
     ChevronRight,
-    ChevronUp,
     FileText,
     Lock,
     MapPin,
@@ -887,12 +885,19 @@ export const JobPostingsPage = () => {
             id: slot.id.startsWith('legacy:') ? undefined : slot.id,
             label: plantillaLabel(slot),
             itemNumber: slot.itemNumber,
-            salaryGrade: slot.salaryGrade != null ? String(slot.salaryGrade) : '',
-            monthlySalary: slot.monthlySalary != null ? String(slot.monthlySalary) : '',
+            // The shared Salary Grade / Monthly Salary fields are gone; a row
+            // that relied on them inherits the posting's value here.
+            salaryGrade: String(slot.salaryGrade ?? job.salaryGrade ?? ''),
+            monthlySalary: String(slot.monthlySalary ?? job.monthlySalary ?? ''),
             status: slot.status,
             filledByApplicantId: slot.filledByApplicantId,
           }))
-        : [buildSlotRow({ label: 'Plantilla 1', itemNumber: job.jobCode })],
+        : [buildSlotRow({
+            label: 'Plantilla 1',
+            itemNumber: job.jobCode,
+            salaryGrade: String(job.salaryGrade ?? ''),
+            monthlySalary: String(job.monthlySalary ?? ''),
+          })],
       department: job.department,
       division: job.division ?? '',
       positionLevel: '',
@@ -957,19 +962,6 @@ export const JobPostingsPage = () => {
     }));
   };
 
-  /** Move a plantilla up (-1) or down (+1). Order is display order only. */
-  const moveSlot = (key: string, direction: -1 | 1) => {
-    setSlotError('');
-    setForm((prev) => {
-      const index = prev.slots.findIndex((slot) => slot.key === key);
-      const target = index + direction;
-      if (index < 0 || target < 0 || target >= prev.slots.length) return prev;
-      const slots = [...prev.slots];
-      [slots[index], slots[target]] = [slots[target], slots[index]];
-      return { ...prev, slots };
-    });
-  };
-
   const removeSlot = (key: string) => {
     const target = form.slots.find((slot) => slot.key === key);
     if (!target) return;
@@ -1020,6 +1012,13 @@ export const JobPostingsPage = () => {
       return;
     }
 
+    const missingSalary = form.slots.find((slot) => !slot.salaryGrade || !slot.monthlySalary);
+    if (missingSalary) {
+      setSlotError(`Enter the Salary Grade and Monthly Salary for ${missingSalary.label.trim() || 'every plantilla'}.`);
+      modalBodyRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
+      return;
+    }
+
     setSavingJob(true);
     const slotProblem = await validateSlots();
     if (slotProblem) {
@@ -1047,10 +1046,8 @@ export const JobPostingsPage = () => {
       label: slot.label.trim().replace(/\s+/g, ' '),
       // Existing rows keep their internal key; new ones get a neutral one.
       itemNumber: slot.itemNumber.trim() || internalPlantillaKey(),
-      // Blank per-slot override falls back to the shared value at the top of
-      // the form, so a batch posting stays consistent unless a row is edited.
-      salaryGrade: slot.salaryGrade ? Number(slot.salaryGrade) : (form.salaryGrade ? Number(form.salaryGrade) : undefined),
-      monthlySalary: slot.monthlySalary ? Number(slot.monthlySalary) : (form.monthlySalary ? Number(form.monthlySalary) : undefined),
+      salaryGrade: Number(slot.salaryGrade),
+      monthlySalary: Number(slot.monthlySalary),
       status: slot.status,
     }));
 
@@ -1086,8 +1083,9 @@ export const JobPostingsPage = () => {
         certifications: form.qualEligibility ? [form.qualEligibility] : [],
         preferred: form.qualTraining || undefined,
       },
-      salaryGrade: form.salaryGrade ? Number(form.salaryGrade) : undefined,
-      monthlySalary: form.monthlySalary ? Number(form.monthlySalary) : undefined,
+      // Posting-level mirror of Plantilla 1, for screens that read the posting.
+      salaryGrade: slotDrafts[0].salaryGrade,
+      monthlySalary: slotDrafts[0].monthlySalary,
       eligibility: form.qualEligibility || undefined,
       training: form.qualTraining || undefined,
       competency: form.qualCompetency || undefined,
@@ -1837,26 +1835,6 @@ export const JobPostingsPage = () => {
                               )}
                               <button
                                 type="button"
-                                aria-label={`Move ${slot.label || `row ${index + 1}`} up`}
-                                title="Move up"
-                                disabled={index === 0}
-                                onClick={() => moveSlot(slot.key, -1)}
-                                className="shrink-0 rounded-lg border border-slate-200 p-2 text-slate-500 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:text-slate-300"
-                              >
-                                <ChevronUp className="h-4 w-4" />
-                              </button>
-                              <button
-                                type="button"
-                                aria-label={`Move ${slot.label || `row ${index + 1}`} down`}
-                                title="Move down"
-                                disabled={index === form.slots.length - 1}
-                                onClick={() => moveSlot(slot.key, 1)}
-                                className="shrink-0 rounded-lg border border-slate-200 p-2 text-slate-500 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:text-slate-300"
-                              >
-                                <ChevronDown className="h-4 w-4" />
-                              </button>
-                              <button
-                                type="button"
                                 aria-label={removeTitle}
                                 title={removeTitle}
                                 // Rows with applications stay clickable so the
@@ -1871,22 +1849,26 @@ export const JobPostingsPage = () => {
                               </button>
                             </div>
 
-                            {/* Per-slot overrides for a batch whose rows are not
-                                quite identical. Blank = use the shared value. */}
+                            {/* Each plantilla carries its own salary; there is no
+                                shared Salary Grade / Monthly Salary field. */}
                             <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
                               <input
                                 type="number"
                                 min={1}
+                                required
+                                aria-label={`Salary Grade of ${slot.label || `row ${index + 1}`}`}
                                 className="w-full rounded-lg border border-slate-200 px-3 py-1.5 text-xs"
-                                placeholder={form.salaryGrade ? `Salary Grade (shared: ${form.salaryGrade})` : 'Salary Grade override'}
+                                placeholder="Salary Grade *  e.g., 6"
                                 value={slot.salaryGrade}
                                 onChange={(event) => updateSlot(slot.key, { salaryGrade: event.target.value.replace(/[^0-9]/g, '') })}
                               />
                               <input
                                 type="number"
                                 min={0}
+                                required
+                                aria-label={`Monthly Salary of ${slot.label || `row ${index + 1}`}`}
                                 className="w-full rounded-lg border border-slate-200 px-3 py-1.5 text-xs"
-                                placeholder={form.monthlySalary ? `Monthly Salary (shared: ${form.monthlySalary})` : 'Monthly Salary override'}
+                                placeholder="Monthly Salary (PHP) *  e.g., 16113"
                                 value={slot.monthlySalary}
                                 onChange={(event) => updateSlot(slot.key, { monthlySalary: event.target.value.replace(/[^0-9]/g, '') })}
                               />
@@ -1929,33 +1911,6 @@ export const JobPostingsPage = () => {
                         <option key={office} value={office}>{office}</option>
                       ))}
                     </select>
-                  </div>
-
-                  <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
-                    <div>
-                      <label className="mb-2 block text-base font-semibold text-slate-900">Salary Grade</label>
-                      <input
-                        type="number"
-                        min={1}
-                        step={1}
-                        className="w-full rounded-xl border border-slate-300 p-3 text-base"
-                        placeholder="e.g., 6"
-                        value={form.salaryGrade}
-                        onChange={(event) => setForm((prev) => ({ ...prev, salaryGrade: event.target.value.replace(/[^0-9]/g, '') }))}
-                      />
-                    </div>
-                    <div>
-                      <label className="mb-2 block text-base font-semibold text-slate-900">Monthly Salary (PHP)</label>
-                      <input
-                        type="number"
-                        min={0}
-                        step={1}
-                        className="w-full rounded-xl border border-slate-300 p-3 text-base"
-                        placeholder="e.g., 16113"
-                        value={form.monthlySalary}
-                        onChange={(event) => setForm((prev) => ({ ...prev, monthlySalary: event.target.value.replace(/[^0-9]/g, '') }))}
-                      />
-                    </div>
                   </div>
 
                   <div>
