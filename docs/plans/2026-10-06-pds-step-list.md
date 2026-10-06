@@ -1,7 +1,7 @@
 ---
 title: PDS step list shows the fill-in sequence
 date: 2026-10-06
-status: In Progress
+status: Done
 summary: Replace the wrapping PDS pill tabs with a numbered vertical step list (compact progress strip on mobile) so employees see the order to fill the Personal Data Sheet.
 ---
 
