@@ -55,13 +55,40 @@
   width: var(--rail-collapsed);
   background: var(--gradient-hero);
   overflow: hidden;
+  transition: width var(--dur-base) var(--ease-standard);
+}
+.rail.open { width: var(--rail-open); }
+
+/* Holds both groups and the highlight. When the items don't fit the window
+   (e.g. L&D on a short laptop) it scrolls, with no visible scrollbar; the
+   highlight scrolls with its item because it lives in here too. */
+.rail-scroll {
+  position: relative;
+  height: 100%;
+  overflow-x: hidden;
+  overflow-y: auto;
+  scrollbar-width: none;
   display: flex;
   flex-direction: column;
   padding: 16px 0;
   box-sizing: border-box;
-  transition: width var(--dur-base) var(--ease-standard);
 }
-.rail.open { width: var(--rail-open); }
+.rail-scroll::-webkit-scrollbar { display: none; }
+
+/* Scroll cue: the rail fades out at the bottom while more items sit below. */
+.rail-fade {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 2;
+  height: 40px;
+  pointer-events: none;
+  background: linear-gradient(180deg, rgba(4, 14, 107, 0) 0%, var(--color-primary-900) 100%);
+  opacity: 0;
+  transition: opacity 150ms ease-out;
+}
+.rail-fade.show { opacity: 1; }
 
 .rail-nav {
   position: relative;
@@ -127,6 +154,19 @@
   cursor: pointer;
   transition: background 150ms ease-out, color 150ms ease-out;
 }
+/* Button items (portals that switch sections in place). The reset also beats
+   globals.css `button:hover`, which would paint a background and dark text. */
+button.rail-item {
+  width: calc(100% - 12px);
+  padding-right: 0;
+  border: 0;
+  background: transparent;
+  font: inherit;
+  text-align: left;
+}
+button.rail-item:hover { background: transparent; color: rgba(255, 255, 255, .85); }
+button.rail-item.active:hover { color: var(--color-primary-900); }
+
 .rail-chip {
   width: 40px;
   height: 40px;
@@ -168,6 +208,10 @@
 }
 @media (max-width: 639px) {
   .rail-slot { --rail-top: 3.5rem; }
+}
+
+@media print {
+  .rail-slot { display: none; }
 }
 
 @media (prefers-reduced-motion: reduce) {

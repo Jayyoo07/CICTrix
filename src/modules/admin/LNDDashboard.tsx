@@ -20,7 +20,6 @@ import {
   Settings,
   ShieldCheck,
   Target,
-  TrendingUp,
   Upload,
   Users,
   X,
@@ -42,6 +41,7 @@ import {
   YAxis,
 } from 'recharts';
 import { AdminHeader } from '../../components/AdminHeader';
+import { RailNav, type RailNavItem } from '../../components/RailNav';
 import { supabase } from '../../lib/supabase';
 
 import { LndIdpFormSettings } from './LndIdpFormSettings';
@@ -56,7 +56,6 @@ import { computeNeedsAssessment, type CompetencyNeed } from '../../lib/api/train
 import { listIncompleteLockedTrainings, listLockingSoonWithoutRoster, type IncompleteLockedTraining, type LockingSoonTraining } from '../../lib/api/trainingLifecycle';
 import { OfficeDirectorySection } from '../../components/OfficeDirectorySection';
 import { LndSummaryOfRatings } from './LndSummaryOfRatings';
-import { LndTrainingEvaluation } from './LndTrainingEvaluation';
 import { LndTrainingNeeds } from './LndTrainingNeeds';
 import { LndArchive } from './LndArchive';
 
@@ -67,7 +66,6 @@ type MenuId =
   | 'training-plan'
   | 'training-needs'
   | 'seminar-enrollment'
-  | 'training-evaluation'
   | 'archive'
   | 'office-directory'
   | 'idp-form'
@@ -77,7 +75,7 @@ type MenuItem = {
   id: MenuId;
   label: string;
   sublabel: string;
-  icon: React.ComponentType<{ className?: string }>;
+  icon: RailNavItem['icon'];
 };
 
 type StatCardColor = 'blue' | 'green' | 'orange' | 'purple';
@@ -99,7 +97,6 @@ const LND_MENU: MenuItem[] = [
   { id: 'training-plan', label: 'Training Plan', sublabel: 'Next year’s plan', icon: CalendarClock },
   { id: 'training-needs', label: 'Requests & Needs', sublabel: 'Office requests and Training Needs Assessment', icon: ClipboardList },
   { id: 'seminar-enrollment', label: 'Seminar Enrollment', sublabel: 'Registrations and slots', icon: ClipboardCheck },
-  { id: 'training-evaluation', label: 'Training Evaluation', sublabel: 'Pre/post-test results', icon: TrendingUp },
   { id: 'idp-form', label: 'IDP Form', sublabel: 'Form link and availability window', icon: Target },
   { id: 'archive', label: 'L&D Archive', sublabel: 'Historical training records', icon: FileText },
   { id: 'office-directory', label: 'Office Directory', sublabel: 'All employees', icon: Users },
@@ -107,54 +104,21 @@ const LND_MENU: MenuItem[] = [
 ];
 
 
-const LndSidebar = ({ activeModule, onSelect }: { activeModule: MenuId; onSelect: (id: MenuId) => void }) => {
-  return (
-    // Below `lg` the sidebar becomes a full-width, horizontally scrollable tab
-    // strip above the content instead of a fixed 16rem column that would eat
-    // the whole narrow viewport.
-    <aside className="w-full shrink-0 border-b border-slate-200 bg-white lg:min-h-[calc(100vh-70px)] lg:w-64 lg:border-b-0 lg:border-r">
-      <div
-        className="border-b border-slate-200 px-4 pb-3 pt-4 sm:px-6 lg:pb-5 lg:pt-7"
-        style={{ background: 'linear-gradient(135deg, #C8D1FF 0%, #FFFFFF 100%)' }}
-      >
-        <h2 className="mb-1 text-lg font-bold sm:text-xl" style={{ color: '#040E6B' }}>L&amp;D Admin</h2>
-        <span className="block text-xs font-semibold uppercase tracking-wider" style={{ color: '#363EE8' }}>
-          Learning and Development
-        </span>
-      </div>
-
-      <nav className="flex gap-1.5 overflow-x-auto px-3 py-3 lg:flex-col lg:space-y-1.5 lg:gap-0 lg:py-4">
-        {LND_MENU.map((item) => {
-          const Icon = item.icon;
-          const isActive = activeModule === item.id;
-          return (
-            <button
-              key={item.id}
-              type="button"
-              onClick={() => onSelect(item.id)}
-              title={item.sublabel}
-              className={[
-                'flex min-h-[44px] shrink-0 items-center gap-2 rounded-xl px-3 py-2.5 text-left transition',
-                'lg:w-full lg:shrink lg:items-start lg:gap-3 lg:py-3',
-                isActive ? 'shadow-sm' : 'hover:bg-[#C8D1FF]/50',
-              ].join(' ')}
-              style={isActive ? { backgroundColor: '#363EE8', color: '#FFFFFF' } : { color: '#040E6B' }}
-            >
-              <span className="shrink-0" style={{ color: isActive ? '#FFFFFF' : '#363EE8' }}>
-                <Icon className="h-5 w-5 lg:mt-0.5" />
-              </span>
-              <span className="flex min-w-0 flex-col">
-                <span className="whitespace-nowrap text-sm font-semibold lg:whitespace-normal">{item.label}</span>
-                {/* Sublabel is noise in the narrow tab strip — title attr keeps it reachable */}
-                <span className="hidden text-xs lg:block" style={{ color: isActive ? 'rgba(255,255,255,0.80)' : 'rgba(4,14,107,0.65)' }}>{item.sublabel}</span>
-              </span>
-            </button>
-          );
-        })}
-      </nav>
-    </aside>
-  );
-};
+// Side navigation rail (DESIGN_IDENTITY.md §9.12), same as the RSP portal.
+// Sections switch in place, so items are buttons; the sublabel is the tooltip.
+const LndSidebar = ({ activeModule, onSelect }: { activeModule: MenuId; onSelect: (id: MenuId) => void }) => (
+  <RailNav
+    items={LND_MENU.map((item) => ({
+      path: `lnd:${item.id}`,
+      label: item.label,
+      icon: item.icon,
+      isActive: activeModule === item.id,
+      bottom: item.id === 'settings',
+      onSelect: () => onSelect(item.id),
+      title: item.sublabel,
+    }))}
+  />
+);
 
 const PlaceholderPage = ({ label }: { label: string }) => {
   return (
@@ -742,7 +706,7 @@ export const LNDDashboard = ({ isDashboardView = true }: { isDashboardView?: boo
         userName="L&D Admin"
         divisionLabel="L&D Division"
       />
-      <div className="flex flex-col lg:flex-row">
+      <div className="flex">
         <LndSidebar activeModule={activeModule} onSelect={setActiveModule} />
         {/* min-w-0: without it this flex child defaults to min-width:auto and wide
             tables push the whole page (and the sticky header) sideways. */}
@@ -759,8 +723,6 @@ export const LNDDashboard = ({ isDashboardView = true }: { isDashboardView?: boo
             <LndTrainingNeeds />
           ) : activeModule === 'seminar-enrollment' ? (
             <SeminarEnrollment />
-          ) : activeModule === 'training-evaluation' ? (
-            <LndTrainingEvaluation />
           ) : activeModule === 'archive' ? (
             <LndArchive initialOffice={archiveDeepLink.office} focusEmployeeId={archiveDeepLink.employee} />
           ) : activeModule === 'office-directory' ? (

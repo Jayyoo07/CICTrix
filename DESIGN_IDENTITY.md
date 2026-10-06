@@ -796,6 +796,10 @@ Changing the active item **slides** the highlight vertically to the new item. It
 
 Esc still drops keyboard focus to the page body (§17 item 12) — unresolved, carried over from the mockup.
 
+**L&D and PM admin portals (second rollout).** Both portals use the same `RailNav`, with their existing items, labels and icons, and Settings pinned to the bottom (mockup: `docs/mockups/2026-10-06-portal-rails.html`). Their sections switch in place rather than by route, so their items render as buttons instead of links; each item's former sublabel becomes its tooltip. L&D's Training Evaluation page was removed in the same change, leaving 10 items.
+
+**When the items don't fit.** On a short window the rail **scrolls** (no visible scrollbar) instead of clipping the bottom items, and a 40px fade to `--color-primary-900` at its foot signals that more items sit below. The highlight lives inside the scroll area, so it scrolls with its item and can still slide to Settings. If the active item is out of view, the rail scrolls it into view. Item sizes stay at the 48px spec; tightening them per portal was considered and rejected so all portals keep one rail.
+
 ---
 
 ## 10. Status & Category Color Map (HR Domain)
