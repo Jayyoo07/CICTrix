@@ -284,13 +284,21 @@ export const ensureRecruitmentSeedData = () => {
 // Fetch job postings from Supabase and map raw DB rows to the JobPosting type.
 // The DB stores UI-domain status values ('Open', 'Reviewing', 'Closed') and
 // snake_case columns (item_number, created_at), so we remap here.
+// The last fetch failure, or null after a successful fetch. Callers that must
+// tell "no postings" apart from "could not load postings" (the public vacancy
+// list) read this instead of trusting an empty array.
+let lastJobPostingsError: string | null = null;
+export const getJobPostingsLoadError = (): string | null => lastJobPostingsError;
+
 export const getJobPostingsFromSupabase = async (): Promise<JobPosting[]> => {
   try {
     const { data, error } = await supabase.from('job_postings').select('*');
     if (error) {
       console.warn('[RECRUITMENT] Supabase job fetch failed:', error);
+      lastJobPostingsError = error.message || 'Could not load job postings.';
       return [];
     }
+    lastJobPostingsError = null;
     if (!data || !Array.isArray(data)) {
       console.warn('[RECRUITMENT] Supabase returned no data');
       return [];
@@ -369,6 +377,7 @@ export const getJobPostingsFromSupabase = async (): Promise<JobPosting[]> => {
     });
   } catch (err) {
     console.warn('[RECRUITMENT] Error fetching job postings from Supabase:', err);
+    lastJobPostingsError = String((err as Error)?.message ?? err ?? 'Could not load job postings.');
     return [];
   }
 };

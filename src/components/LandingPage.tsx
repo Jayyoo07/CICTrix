@@ -14,17 +14,40 @@ import {
 } from 'lucide-react';
 import abyanLogo from '../assets/abyan-logo.png';
 import { SharedFooter } from './SharedFooter';
-import { getAuthoritativeJobPostings, loadJobPostings } from '../lib/recruitmentData';
+import { getAuthoritativeJobPostings, getJobPostingsLoadError, loadJobPostings } from '../lib/recruitmentData';
 import type { JobPosting } from '../types/recruitment.types';
-import { POSITIONS, POSITION_TO_DEPARTMENT_MAP } from '../constants/positions';
 
 /* ── trish UI theme tokens ──────────────────────────────────────────
    Brand: Indigo #363EE8 · Hover #2E35D4 · Soft #EEF2FF
    Ink:   #050D65 · Workspace: #F8FAFC · Surface: #FFFFFF
 ------------------------------------------------------------------- */
 
-// Fallback: empty - will be populated from Supabase
-const FALLBACK_JOB_VACANCIES = [];
+// Same shape JobPortalPage hands to /job-details and /apply as `landingJob`.
+type VacancyRow = {
+  id: string;
+  title: string;
+  department: string;
+  itemNumber: string;
+  type: string;
+  status: JobPosting['status'];
+  openSlots: number;
+  postingDate: string;
+  closingDate: string;
+  positionType: string;
+  employmentStatus: string;
+  originalJob: JobPosting;
+};
+
+// A posting is open to the public when RSP left it Active and its closing date
+// (if it has one) is today or later. The deadline is a date, so "today" counts.
+const isOpenToday = (job: JobPosting, today: string): boolean => {
+  if (job.status !== 'Active') return false;
+  const deadline = job.applicationDeadline ? String(job.applicationDeadline).slice(0, 10) : '';
+  return !deadline || deadline >= today;
+};
+
+const localIsoDate = (date: Date): string =>
+  `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
 
 
 const FEATURES = [
@@ -56,90 +79,87 @@ export const LandingPage = () => {
   const contactRef = useRef<HTMLElement>(null);
   const [itemsPerPage, setItemsPerPage] = useState(5);
   const [currentPage, setCurrentPage] = useState(1);
-  const [vacancyJobs, setVacancyJobs] = useState<any[]>(FALLBACK_JOB_VACANCIES);
+  const [vacancyJobs, setVacancyJobs] = useState<VacancyRow[]>([]);
+  const [vacanciesLoading, setVacanciesLoading] = useState(true);
+  const [vacanciesError, setVacanciesError] = useState<string | null>(null);
+  const [reloadKey, setReloadKey] = useState(0);
   const [searchQuery, setSearchQuery] = useState('');
   const [sortBy, setSortBy] = useState('newest');
 
   // Load jobs from Supabase and subscribe to updates
   useEffect(() => {
-    const syncJobs = async () => {
+    // Only postings RSP created and left open. No placeholder rows: when the
+    // fetch fails the error is shown, and when nothing is open the empty state is.
+    //
+    // Reads the shared cache. Runs on the job-postings-updated event, which
+    // loadJobPostings itself fires, so it must not refetch (that looped).
+    const applyCachedJobs = () => {
       try {
-        await loadJobPostings();
-        const allJobs = getAuthoritativeJobPostings();
-        
-        console.log('[LandingPage] Fetched jobs from Supabase:', allJobs);
-        
-        const activePostings = allJobs.filter((job) => {
-          return String(job?.status ?? '').toLowerCase() === 'active';
-        });
+        const loadError = getJobPostingsLoadError();
+        if (loadError) {
+          setVacanciesError(loadError);
+          setVacancyJobs([]);
+          return;
+        }
 
-        const seenPositions = new Set<string>();
-        const displayJobs: any[] = [];
-        let idCounter = 1;
-
-        // 1. Process active postings first
-        activePostings.forEach((job) => {
-          const title = job.title || '';
-          const normalizedTitle = title.trim().toLowerCase();
-          seenPositions.add(normalizedTitle);
-
-          displayJobs.push({
-            id: idCounter++,
-            title: title,
+        const today = localIsoDate(new Date());
+        const rows = getAuthoritativeJobPostings()
+          .filter((job) => isOpenToday(job, today))
+          .map((job): VacancyRow => ({
+            id: job.id,
+            title: job.title || '',
             department: job.department || '',
             itemNumber: job.jobCode || job.id || '',
-            postingDate: job.postedDate ? new Date(job.postedDate).toISOString().split('T')[0] : '',
-            closingDate: job.applicationDeadline ? new Date(job.applicationDeadline).toISOString().split('T')[0] : '',
             type: job.employmentStatus === 'Permanent' ? 'Plantilla' : 'Contractual',
+            status: job.status,
+            openSlots: (job.plantillaSlots ?? []).filter((slot) => slot.status !== 'closed').length,
+            postingDate: job.postedDate ? new Date(job.postedDate).toISOString().split('T')[0] : '',
+            closingDate: job.applicationDeadline ? String(job.applicationDeadline).slice(0, 10) : '',
             positionType: job.positionType || '',
             employmentStatus: job.employmentStatus || '',
-            hasPosting: true,
             originalJob: job,
-          });
-        });
+          }))
+          // A posting whose every plantilla is closed has nothing left to apply to.
+          .filter((row) => row.openSlots > 0);
 
-        // 2. Add standard POSITIONS that don't have active postings
-        POSITIONS.forEach((pos) => {
-          const normalized = pos.trim().toLowerCase();
-          if (!seenPositions.has(normalized)) {
-            seenPositions.add(normalized);
-            const department = POSITION_TO_DEPARTMENT_MAP[pos] || '';
-            displayJobs.push({
-              id: idCounter++,
-              title: pos,
-              department: department,
-              itemNumber: 'N/A',
-              postingDate: '',
-              closingDate: '',
-              type: 'N/A',
-              positionType: '',
-              employmentStatus: '',
-              hasPosting: false,
-            });
-          }
-        });
-        
-        console.log('[LandingPage] Display jobs with inactive ones grayed out:', displayJobs);
-        setVacancyJobs(displayJobs);
+        setVacanciesError(null);
+        setVacancyJobs(rows);
       } catch (err) {
         console.error('[LandingPage] Error loading jobs:', err);
+        setVacanciesError(String((err as Error)?.message ?? err));
+        setVacancyJobs([]);
+      } finally {
+        setVacanciesLoading(false);
       }
     };
 
-    // Load on mount
-    void syncJobs();
+    // Fetches; loadJobPostings fires the update event, which applies the result.
+    const syncJobs = () => {
+      void loadJobPostings().catch((err) => {
+        setVacanciesError(String((err as Error)?.message ?? err));
+        setVacanciesLoading(false);
+      });
+    };
+
+    syncJobs();
 
     // Subscribe to job postings updates (only on client side)
     if (typeof window !== 'undefined') {
-      window.addEventListener('cictrix:job-postings-updated', syncJobs as EventListener);
-      window.addEventListener('focus', syncJobs as EventListener);
+      window.addEventListener('cictrix:job-postings-updated', applyCachedJobs);
+      window.addEventListener('focus', syncJobs);
 
       return () => {
-        window.removeEventListener('cictrix:job-postings-updated', syncJobs as EventListener);
-        window.removeEventListener('focus', syncJobs as EventListener);
+        window.removeEventListener('cictrix:job-postings-updated', applyCachedJobs);
+        window.removeEventListener('focus', syncJobs);
       };
     }
-  }, []);
+  }, [reloadKey]);
+
+  const retryVacancies = () => {
+    setVacanciesLoading(true);
+    setVacanciesError(null);
+    setReloadKey((key) => key + 1);
+  };
 
   const handleScrollToJobs = () => {
     jobsTableRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -163,22 +183,13 @@ export const LandingPage = () => {
     }
 
     // Sort options: Newest to Oldest, Oldest to Newest, Position Title (A-Z), Position Title (Z-A), Department
+    // Sort on the full timestamp, not the date column, so two postings made the
+    // same day still come out in the order they were created.
+    const postedAt = (row: VacancyRow) => new Date(row.originalJob.postedDate).getTime() || 0;
     if (sortBy === 'newest') {
-      result.sort((a, b) => {
-        if (a.hasPosting === b.hasPosting) {
-          if (!a.hasPosting) return 0;
-          return new Date(b.postingDate).getTime() - new Date(a.postingDate).getTime();
-        }
-        return a.hasPosting ? -1 : 1;
-      });
+      result.sort((a, b) => postedAt(b) - postedAt(a));
     } else if (sortBy === 'oldest') {
-      result.sort((a, b) => {
-        if (a.hasPosting === b.hasPosting) {
-          if (!a.hasPosting) return 0;
-          return new Date(a.postingDate).getTime() - new Date(b.postingDate).getTime();
-        }
-        return a.hasPosting ? -1 : 1;
-      });
+      result.sort((a, b) => postedAt(a) - postedAt(b));
     } else if (sortBy === 'title-az') {
       result.sort((a, b) => a.title.localeCompare(b.title));
     } else if (sortBy === 'title-za') {
@@ -382,8 +393,8 @@ export const LandingPage = () => {
               <thead className="bg-slate-100">
                 <tr className="border-b border-slate-200">
                   <th className="px-4 py-3 text-left font-semibold text-[#050D65]">Position Title</th>
-                  <th className="px-4 py-3 text-left font-semibold text-[#050D65]">Department</th>
-                  <th className="px-4 py-3 text-left font-semibold text-[#050D65]">Plantillas</th>
+                  <th className="px-4 py-3 text-left font-semibold text-[#050D65]">Department / Office</th>
+                  <th className="px-4 py-3 text-left font-semibold text-[#050D65]">Plantilla</th>
                   <th className="px-4 py-3 text-left font-semibold text-[#050D65]">Posting Date</th>
                   <th className="px-4 py-3 text-left font-semibold text-[#050D65]">Closing Date</th>
                   <th className="px-4 py-3 text-center font-semibold text-[#050D65]">Details</th>
@@ -391,63 +402,75 @@ export const LandingPage = () => {
                 </tr>
               </thead>
               <tbody>
-                {paginatedJobs.map((job) => {
-                  const hasPosting = job.hasPosting !== false;
-                  return (
-                    <tr 
-                      key={job.id} 
-                      className={`border-b border-slate-200 transition ${
-                        hasPosting 
-                          ? 'hover:bg-slate-50' 
-                          : 'bg-slate-50/50 opacity-60'
-                      }`}
-                    >
-                      <td className="px-4 py-3">
-                        <p className={`font-semibold ${hasPosting ? 'text-[#050D65]' : 'text-slate-400'}`}>{job.title}</p>
-                      </td>
-                      <td className={`px-4 py-3 ${hasPosting ? 'text-slate-600' : 'text-slate-400'}`}>
-                        {job.department || 'N/A'}
-                      </td>
-                      <td className={`px-4 py-3 ${hasPosting ? 'text-slate-600' : 'text-slate-400'}`}>
-                        {(() => { const n = job.originalJob?.plantillaSlots?.length ?? (hasPosting ? 1 : 0); return n > 0 ? `${n} plantilla${n === 1 ? "" : "s"}` : "—"; })()}
-                      </td>
-                      <td className={`px-4 py-3 ${hasPosting ? 'text-slate-600' : 'text-slate-400'}`}>
-                        {job.postingDate ? formatDate(job.postingDate) : '-'}
-                      </td>
-                      <td className={`px-4 py-3 ${hasPosting ? 'text-slate-600' : 'text-slate-400'}`}>
-                        {job.closingDate ? formatDate(job.closingDate) : '-'}
-                      </td>
-                      <td className="px-4 py-3 text-center">
-                        <button
-                          type="button"
-                          disabled={!hasPosting}
-                          onClick={() => navigate(`/job-details/${encodeURIComponent(job.originalJob?.id ?? job.itemNumber)}`, { state: { landingJob: job } })}
-                          className={`inline-flex items-center gap-1 rounded-lg border px-3 py-2 text-xs font-medium transition ${
-                            hasPosting
-                              ? 'border-slate-300 bg-white text-slate-600 hover:bg-slate-50 hover:border-slate-400 cursor-pointer'
-                              : 'border-slate-200 bg-slate-100 text-slate-400 cursor-not-allowed'
-                          }`}
-                        >
-                          Details
-                        </button>
-                      </td>
-                      <td className="px-4 py-3 text-center">
-                        <button
-                          type="button"
-                          disabled={!hasPosting}
-                          onClick={() => navigate('/apply', { state: { landingJob: job } })}
-                          className={`inline-flex items-center gap-1 rounded-lg px-3 py-2 text-xs font-medium text-white transition ${
-                            hasPosting
-                              ? 'bg-[#363EE8] hover:bg-[#2f35d0] cursor-pointer'
-                              : 'bg-slate-300 cursor-not-allowed'
-                          }`}
-                        >
-                          Apply
-                        </button>
-                      </td>
-                    </tr>
-                  );
-                })}
+                {vacanciesLoading ? (
+                  <tr>
+                    <td colSpan={7} className="px-4 py-10 text-center text-slate-500" role="status">
+                      Loading vacancies…
+                    </td>
+                  </tr>
+                ) : vacanciesError ? (
+                  <tr>
+                    <td colSpan={7} className="px-4 py-10 text-center" role="alert">
+                      <p className="font-medium text-[#B42323]">We couldn't load the vacancies. Check your connection and try again.</p>
+                      <p className="mt-1 text-xs text-slate-500">{vacanciesError}</p>
+                      <button
+                        type="button"
+                        onClick={retryVacancies}
+                        className="mt-3 rounded-lg border border-[#363EE8] px-4 py-2 text-xs font-semibold text-[#363EE8] transition hover:bg-[#EEF2FF]"
+                      >
+                        Try again
+                      </button>
+                    </td>
+                  </tr>
+                ) : filteredAndSortedJobs.length === 0 ? (
+                  <tr>
+                    <td colSpan={7} className="px-4 py-10 text-center text-slate-500">
+                      {vacancyJobs.length === 0
+                        ? 'No vacant positions are open at the moment. Please check back later.'
+                        : 'No vacancies match your search.'}
+                    </td>
+                  </tr>
+                ) : (
+                  paginatedJobs.map((job) => {
+                    const isClosed = job.status === 'Closed';
+                    return (
+                      <tr key={job.id} className="border-b border-slate-200 transition hover:bg-slate-50">
+                        <td className="px-4 py-3">
+                          <p className="font-semibold text-[#050D65]">{job.title}</p>
+                        </td>
+                        <td className="px-4 py-3 text-slate-600">{job.department || 'Not specified'}</td>
+                        <td className="px-4 py-3 text-slate-600">
+                          {job.openSlots} open {job.openSlots === 1 ? 'slot' : 'slots'}
+                        </td>
+                        <td className="px-4 py-3 text-slate-600">{formatDate(job.postingDate)}</td>
+                        <td className="px-4 py-3 text-slate-600">
+                          {job.closingDate ? formatDate(job.closingDate) : 'Until filled'}
+                        </td>
+                        <td className="px-4 py-3 text-center">
+                          <button
+                            type="button"
+                            onClick={() => navigate(`/job-details/${encodeURIComponent(job.originalJob.id)}`, { state: { landingJob: job } })}
+                            className="inline-flex cursor-pointer items-center gap-1 rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-medium text-slate-600 transition hover:border-slate-400 hover:bg-slate-50"
+                          >
+                            Details
+                          </button>
+                        </td>
+                        <td className="px-4 py-3 text-center">
+                          <button
+                            type="button"
+                            disabled={isClosed}
+                            onClick={() => navigate('/apply', { state: { landingJob: job } })}
+                            className={`inline-flex items-center gap-1 rounded-lg px-3 py-2 text-xs font-medium text-white transition ${
+                              isClosed ? 'cursor-not-allowed bg-slate-300' : 'cursor-pointer bg-[#363EE8] hover:bg-[#2f35d0]'
+                            }`}
+                          >
+                            Apply
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
               </tbody>
             </table>
           </div>
@@ -455,7 +478,7 @@ export const LandingPage = () => {
           {/* Pagination Controls */}
           <div className="mt-6 flex items-center justify-between">
             <div className="text-sm text-slate-600">
-              Showing {startIdx + 1} to {Math.min(endIdx, filteredAndSortedJobs.length)} of {filteredAndSortedJobs.length} jobs
+              Showing {filteredAndSortedJobs.length === 0 ? 0 : startIdx + 1} to {Math.min(endIdx, filteredAndSortedJobs.length)} of {filteredAndSortedJobs.length} jobs
             </div>
             <div className="flex items-center gap-2">
               <button
