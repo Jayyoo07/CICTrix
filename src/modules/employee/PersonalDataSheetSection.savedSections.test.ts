@@ -38,6 +38,11 @@ describe('getInitiallySavedSections', () => {
     expect(filled.has('education')).toBe(true);
   });
 
+  it('does not mark personal from the HR-entered name alone', () => {
+    expect(getInitiallySavedSections({ surname: 'Cruz', firstName: 'Juan' } as Employee, {}).has('personal')).toBe(false);
+    expect(getInitiallySavedSections({ surname: 'Cruz', firstName: 'Juan', placeOfBirth: 'Iloilo City' } as Employee, {}).has('personal')).toBe(true);
+  });
+
   it('marks background once a yes/no question is answered, even with "No"', () => {
     expect(getInitiallySavedSections({ relatedThirdDegree: null } as Employee, {}).has('background')).toBe(false);
     expect(getInitiallySavedSections({ relatedThirdDegree: false } as Employee, {}).has('background')).toBe(true);

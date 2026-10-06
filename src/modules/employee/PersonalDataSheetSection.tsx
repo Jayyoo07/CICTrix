@@ -354,7 +354,8 @@ const hasText = (v: string | null | undefined) => !!v && v.trim() !== '';
  */
 export function getInitiallySavedSections(profile: Employee, lists: LoadedLists): Set<SubTab> {
   const saved = new Set<SubTab>();
-  if (hasText(profile.surname) && hasText(profile.firstName)) saved.add('personal');
+  // Not the name: HR fills that in at hire. Place of birth only comes from the employee's own PDS save.
+  if (hasText(profile.placeOfBirth)) saved.add('personal');
   if (
     [
       profile.spouseSurname, profile.spouseFirstName,
