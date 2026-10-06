@@ -1,0 +1,59 @@
+<h2>Plantilla Slots, as in the HRIS, trimmed</h2>
+<p class="subtitle">Removed: the up/down arrows, and the shared Salary Grade / Monthly Salary fields lower in the form. Each plantilla keeps its own Salary Grade and Monthly Salary, now labelled as the real values instead of "override".</p>
+
+<div class="split">
+  <div class="mockup">
+    <div class="mockup-header">Job Information (after)</div>
+    <div class="mockup-body">
+      <div class="label">Position Title *</div>
+      <input class="mock-input" placeholder="e.g., Administrative Officer III" style="margin-bottom:16px">
+
+      <div style="display:flex;gap:12px;align-items:baseline;margin-bottom:8px">
+        <div class="label" style="margin:0">Plantilla Slots * (2)</div>
+        <span style="font-size:.75rem;color:var(--text-secondary)">Name each plantilla, e.g. "Plantilla 2". Names must be unique in this job post.</span>
+      </div>
+      <div style="background:var(--bg-primary);border:1px solid var(--border);border-radius:12px;padding:12px;margin-bottom:16px">
+        <div class="mockup" style="margin-bottom:8px"><div class="mockup-body" style="padding:12px">
+          <div style="display:flex;gap:8px;margin-bottom:8px">
+            <input class="mock-input" value="Plantilla 1" style="flex:1">
+            <select class="mock-input" style="width:96px"><option>Open</option></select>
+            <button class="mock-button" style="background:transparent;color:var(--text-secondary);border:1px solid var(--border)">🗑</button>
+          </div>
+          <div style="display:flex;gap:8px"><input class="mock-input" placeholder="Salary Grade *  e.g., 6"><input class="mock-input" placeholder="Monthly Salary (PHP) *  e.g., 16113"></div>
+        </div></div>
+        <div class="mockup" style="margin-bottom:8px"><div class="mockup-body" style="padding:12px">
+          <div style="display:flex;gap:8px;margin-bottom:8px">
+            <input class="mock-input" value="Plantilla 2" style="flex:1">
+            <select class="mock-input" style="width:96px"><option>Open</option></select>
+            <button class="mock-button" style="background:transparent;color:var(--text-secondary);border:1px solid var(--border)">🗑</button>
+          </div>
+          <div style="display:flex;gap:8px"><input class="mock-input" placeholder="Salary Grade *  e.g., 6"><input class="mock-input" placeholder="Monthly Salary (PHP) *  e.g., 16113"></div>
+        </div></div>
+        <button class="mock-button" style="background:transparent;color:var(--accent);border:1px dashed var(--accent)">+ Add Another Plantilla</button>
+      </div>
+
+      <div class="label">Place of Assignation *</div>
+      <select class="mock-input" style="margin-bottom:16px"><option>Select Office</option></select>
+
+      <div class="label">Application Deadline</div>
+      <input class="mock-input" placeholder="mm/dd/yyyy">
+      <p style="font-size:.75rem;color:var(--text-secondary);margin-top:6px">The shared "Salary Grade" and "Monthly Salary (PHP)" fields that sat here are gone.</p>
+    </div>
+  </div>
+
+  <div>
+    <h3>One thing to confirm</h3>
+    <p class="subtitle" style="margin-bottom:12px">With the shared fields gone, each plantilla's own values are the only source. Are they required?</p>
+    <div class="options">
+      <div class="option" data-choice="slot-salary-required" onclick="toggleSelect(this)">
+        <div class="letter">A</div>
+        <div class="content"><h3>Required on every plantilla</h3><p>Salary Grade and Monthly Salary must be filled per row, so Job Details and the landing page always show a real salary. Recommended.</p></div>
+      </div>
+      <div class="option" data-choice="slot-salary-optional" onclick="toggleSelect(this)">
+        <div class="letter">B</div>
+        <div class="content"><h3>Optional</h3><p>Left blank, Job Details shows "Not specified" for that plantilla.</p></div>
+      </div>
+    </div>
+    <p class="subtitle" style="margin-top:16px">Behind the scenes the posting's own salary fields are filled from Plantilla 1, so screens that read the posting-level value keep working. If plantillas differ, Job Details shows each plantilla's own salary.</p>
+  </div>
+</div>
