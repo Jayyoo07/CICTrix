@@ -1,0 +1,131 @@
+<h2>Which TNA indicators should the L&amp;D Dashboard show?</h2>
+<p class="subtitle">Today the cards say <b>how big</b> the gaps are. What L&amp;D can't see yet is <b>whether anything is being done about them</b> and <b>whether it's working</b>. Every item below is built from data the system already stores. Pick the ones you want (multi-select per group).</p>
+
+<div class="section">
+<h3>1 · KPI cards: "are we acting on the gaps?"</h3>
+<div class="options" data-multiselect>
+
+<div class="option" data-choice="kpi-coverage" onclick="toggleSelect(this)">
+<div class="letter">A</div>
+<div class="content">
+<h4>Gap coverage</h4>
+<div style="border:1px solid #ddd;border-radius:12px;padding:12px;margin:6px 0;max-width:280px">
+<div style="font-size:12px;opacity:.7">High-priority gaps with a training scheduled</div>
+<div style="font-size:28px;font-weight:700">3 of 7</div>
+<div style="height:6px;background:#eee;border-radius:9px"><div style="width:43%;height:6px;background:#2563eb;border-radius:9px"></div></div>
+<div style="font-size:11px;opacity:.7;margin-top:4px">4 gaps have no training on the 2026 calendar</div>
+</div>
+<p>The single most useful number for L&amp;D: it shows how many of the biggest gaps still have no plan. Source: needs assessment × Training Calendar competencies.</p>
+</div></div>
+
+<div class="option" data-choice="kpi-reach" onclick="toggleSelect(this)">
+<div class="letter">B</div>
+<div class="content">
+<h4>Reach</h4>
+<div style="border:1px solid #ddd;border-radius:12px;padding:12px;margin:6px 0;max-width:280px">
+<div style="font-size:12px;opacity:.7">Employees with a gap enrolled in a matching training</div>
+<div style="font-size:28px;font-weight:700">18 / 52</div>
+<div style="font-size:11px;opacity:.7">35% · 34 still waiting</div>
+</div>
+<p>A training can exist and still miss the people who need it. Source: competency matches (per employee) × seminar enrollments.</p>
+</div></div>
+
+<div class="option" data-choice="kpi-effectiveness" onclick="toggleSelect(this)">
+<div class="letter">C</div>
+<div class="content">
+<h4>Training effectiveness</h4>
+<div style="border:1px solid #ddd;border-radius:12px;padding:12px;margin:6px 0;max-width:280px">
+<div style="font-size:12px;opacity:.7">Average pre → post-test gain</div>
+<div style="font-size:28px;font-weight:700">+22 pts</div>
+<div style="font-size:11px;opacity:.7">Across 5 evaluated trainings · 2 still missing post-tests</div>
+</div>
+<p>Shows whether trainings actually close gaps. Source: training evaluations (pre/post scores).</p>
+</div></div>
+
+<div class="option" data-choice="kpi-trend" onclick="toggleSelect(this)">
+<div class="letter">D</div>
+<div class="content">
+<h4>Gap trend vs last semester</h4>
+<div style="border:1px solid #ddd;border-radius:12px;padding:12px;margin:6px 0;max-width:280px">
+<div style="font-size:12px;opacity:.7">Employees with identified gaps</div>
+<div style="font-size:28px;font-weight:700">52 <span style="font-size:14px;color:#059669">▼ 9 vs Jan–Jun</span></div>
+</div>
+<p>Turns the current headline card into a direction: improving or worsening. Source: IPCR competency matches by rating period.</p>
+</div></div>
+
+<div class="option" data-choice="kpi-alignment" onclick="toggleSelect(this)">
+<div class="letter">E</div>
+<div class="content">
+<h4>Request alignment</h4>
+<div style="border:1px solid #ddd;border-radius:12px;padding:12px;margin:6px 0;max-width:280px">
+<div style="font-size:12px;opacity:.7">Office requests that target an assessed gap</div>
+<div style="font-size:28px;font-weight:700">61%</div>
+<div style="font-size:11px;opacity:.7">14 of 23 · 6 pending decision</div>
+</div>
+<p>Helps L&amp;D decide which requests to approve first: those backed by ratings. Source: training requests × needs assessment.</p>
+</div></div>
+
+</div>
+</div>
+
+<div class="section">
+<h3>2 · Panels: what to do next</h3>
+<div class="options" data-multiselect>
+
+<div class="option" data-choice="panel-action-list" onclick="toggleSelect(this)">
+<div class="letter">F</div>
+<div class="content">
+<h4>Action list: top gaps with no training planned</h4>
+<table style="width:100%;border-collapse:collapse;font-size:12px;margin:6px 0">
+<tr style="text-align:left;border-bottom:1px solid #ccc"><th>Competency</th><th>Affected</th><th>Worst office</th><th>Plan</th></tr>
+<tr style="border-bottom:1px solid #eee"><td>Data/records mgmt</td><td>35 (67%)</td><td>City Accountant 91%</td><td><span style="color:#b91c1c">None scheduled</span> · <u>Add to calendar</u></td></tr>
+<tr style="border-bottom:1px solid #eee"><td>Fiscal mgmt/budgeting</td><td>14 (27%)</td><td>City Accountant 52%</td><td><span style="color:#b91c1c">None scheduled</span> · <u>Add to calendar</u></td></tr>
+<tr><td>Transparency/accountability</td><td>11 (21%)</td><td>Legal 58%</td><td><span style="color:#166534">Nov 14 · 12 enrolled</span></td></tr>
+</table>
+<p>Turns the analysis into a to-do. Sorted by people affected; one click to plan.</p>
+</div></div>
+
+<div class="option" data-choice="panel-heatmap" onclick="toggleSelect(this)">
+<div class="letter">G</div>
+<div class="content">
+<h4>Office × competency heatmap</h4>
+<div style="display:grid;grid-template-columns:110px repeat(5,1fr);gap:3px;font-size:10px;margin:6px 0">
+<div></div><div>Data/rec</div><div>Fiscal</div><div>Transp.</div><div>Digital</div><div>Writing</div>
+<div>Accountant</div><div style="background:#1e40af;color:#fff;padding:4px">91</div><div style="background:#3b82f6;color:#fff;padding:4px">52</div><div style="background:#dbeafe;padding:4px">10</div><div style="background:#93c5fd;padding:4px">30</div><div style="background:#eff6ff;padding:4px">0</div>
+<div>IT</div><div style="background:#1d4ed8;color:#fff;padding:4px">79 ●</div><div style="background:#eff6ff;padding:4px">0</div><div style="background:#dbeafe;padding:4px">8</div><div style="background:#60a5fa;padding:4px">44</div><div style="background:#dbeafe;padding:4px">12</div>
+<div>Legal</div><div style="background:#60a5fa;padding:4px">40</div><div style="background:#eff6ff;padding:4px">0</div><div style="background:#2563eb;color:#fff;padding:4px">58 ●</div><div style="background:#eff6ff;padding:4px">0</div><div style="background:#93c5fd;padding:4px">33</div>
+</div>
+<p>All offices and competencies in one view instead of one radar at a time. ● = training scheduled. Could replace the radar.</p>
+</div></div>
+
+<div class="option" data-choice="panel-effectiveness" onclick="toggleSelect(this)">
+<div class="letter">H</div>
+<div class="content">
+<h4>Before / after by competency</h4>
+<div style="font-size:12px;margin:6px 0">
+<div>Digital literacy <div style="display:flex;gap:4px;align-items:center"><div style="width:40%;height:8px;background:#cbd5e1"></div><div style="width:28%;height:8px;background:#2563eb"></div><span>48 → 76</span></div></div>
+<div>Technical writing <div style="display:flex;gap:4px;align-items:center"><div style="width:52%;height:8px;background:#cbd5e1"></div><div style="width:8%;height:8px;background:#d97706"></div><span>55 → 61</span></div></div>
+</div>
+<p>Shows which trainings work and which need a different provider or format.</p>
+</div></div>
+
+</div>
+</div>
+
+<div class="section">
+<h3>3 · Fix on the existing cards</h3>
+<div class="options" data-multiselect>
+<div class="option" data-choice="fix-truncation" onclick="toggleSelect(this)">
+<div class="letter">I</div>
+<div class="content">
+<h4>Stop truncating "Top competency need"</h4>
+<p>"Data/rec…" hides the answer. Show the full short name on two lines at a smaller size ("Data/records management"), keep "67% LGU-wide · peaks at 91% (City Accountant)" and name the office instead of "one office".</p>
+</div></div>
+<div class="option" data-choice="fix-split-requests" onclick="toggleSelect(this)">
+<div class="letter">J</div>
+<div class="content">
+<h4>Move "23 requests filed YTD" out of the gaps card</h4>
+<p>It's a different measure from the 52 employees with gaps and reads as related. It fits Request alignment (E) instead.</p>
+</div></div>
+</div>
+</div>

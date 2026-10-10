@@ -1,0 +1,45 @@
+<h2>Which "Trainings completed this year" card?</h2>
+<p class="subtitle">Total = trainings on the 2026 calendar minus cancelled, so it changes whenever a training is added or cancelled. Progress = completed ÷ total. Sample numbers.</p>
+
+<div class="options">
+
+<div class="option" data-choice="segmented" onclick="toggleSelect(this)">
+<div class="letter">A</div>
+<div class="content">
+<h4>Progress bar split by status</h4>
+<div style="border:1px solid #ddd;border-radius:16px;padding:16px;margin:8px 0;max-width:320px;background:#fff">
+ <div style="font-size:13px;opacity:.7">Trainings completed (2026)</div>
+ <div style="font-size:30px;font-weight:700;color:#040E6B">12 <span style="font-size:16px;opacity:.6">of 20</span></div>
+ <div style="display:flex;height:8px;border-radius:9px;overflow:hidden;margin:8px 0;background:#eee">
+  <div style="width:60%;background:#059669"></div><div style="width:10%;background:#2563eb"></div><div style="width:30%;background:#cbd5e1"></div>
+ </div>
+ <div style="font-size:11px;display:flex;flex-wrap:wrap;gap:10px">
+  <span><span style="color:#059669">■</span> Completed 12</span>
+  <span><span style="color:#2563eb">■</span> Ongoing 2</span>
+  <span><span style="color:#94a3b8">■</span> Scheduled 6</span>
+  <span style="opacity:.6">Cancelled 3 (not counted)</span>
+ </div>
+</div>
+<p>One glance: how far along, and what's left. Same width as the other cards.</p>
+</div>
+</div>
+
+<div class="option" data-choice="ring-list" onclick="toggleSelect(this)">
+<div class="letter">B</div>
+<div class="content">
+<h4>Percentage ring with status list</h4>
+<div style="border:1px solid #ddd;border-radius:16px;padding:16px;margin:8px 0;max-width:320px;background:#fff;display:flex;gap:14px;align-items:center">
+ <div style="width:72px;height:72px;border-radius:50%;background:conic-gradient(#059669 0 60%,#eee 60% 100%);display:flex;align-items:center;justify-content:center">
+  <div style="width:54px;height:54px;border-radius:50%;background:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;color:#040E6B">60%</div>
+ </div>
+ <div style="font-size:12px;line-height:1.6">
+  <div style="font-size:13px;opacity:.7">Trainings completed (2026)</div>
+  <div>Completed <b>12</b> · Ongoing <b>2</b></div>
+  <div>Scheduled <b>6</b> · Cancelled <b>3</b></div>
+ </div>
+</div>
+<p>Leads with the percentage; counts are secondary.</p>
+</div>
+</div>
+
+</div>
