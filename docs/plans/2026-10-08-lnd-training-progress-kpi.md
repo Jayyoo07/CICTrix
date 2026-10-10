@@ -1,8 +1,8 @@
 ---
 title: Trainings-completed KPI card on the L&D Dashboard
 date: 2026-10-08
-status: Draft
-summary: A KPI card showing the share of this year's trainings completed (ring) with Scheduled / Ongoing / Completed / Cancelled counts. Total = calendar trainings minus cancelled.
+status: Done
+summary: A KPI card showing the share of this year's trainings completed (ring) with Scheduled / Ongoing / Completed / Cancelled counts. Total = calendar trainings minus cancelled. Deployed to HR Demo and production from main.
 ---
 
 ## Goal
@@ -13,7 +13,7 @@ and what is still scheduled, running, or cancelled.
 ## Approach
 
 Mockup: `docs/mockups/2026-10-08-lnd-training-progress-kpi.html`, option B
-(percentage ring with status list).
+(percentage ring with status list), plus a "N of M trainings done" line the user added.
 
 1. `src/lib/trainingProgress.ts` (TDD): pure `trainingProgress(events, now)`
    returning counts per status, total (all minus cancelled) and percent

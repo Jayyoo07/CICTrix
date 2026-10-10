@@ -52,6 +52,8 @@ import { CATEGORY_COLORS, TRAINING_CATEGORIES } from './trainingCategories';
 
 import { EmptyState } from '../../components/EmptyState';
 import { listTrainingRequestsDetailed, type TrainingRequest } from '../../lib/api/trainingRequests';
+import { listCalendarEvents, type CalendarEvent } from '../../lib/api/trainingCalendar';
+import { trainingProgress } from '../../lib/trainingProgress';
 import { computeNeedsAssessment, type CompetencyNeed } from '../../lib/api/trainingNeeds';
 import { listIncompleteLockedTrainings, listLockingSoonWithoutRoster, type IncompleteLockedTraining, type LockingSoonTraining } from '../../lib/api/trainingLifecycle';
 import { OfficeDirectorySection } from '../../components/OfficeDirectorySection';
@@ -303,20 +305,24 @@ const LndDashboardContent = () => {
   const [idpSubs, setIdpSubs] = useState<IdpSubmission[]>([]);
   const [selectedIdpOffice, setSelectedIdpOffice] = useState('');
   const idpCycle = cycleYearFor();
+  /** This year's Training Calendar — drives the trainings-completed card. */
+  const [calendarEvents, setCalendarEvents] = useState<CalendarEvent[]>([]);
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
-        const [data, locked, soon, assessed, idp] = await Promise.all([
+        const [data, locked, soon, assessed, idp, events] = await Promise.all([
           listTrainingRequestsDetailed(),
           listIncompleteLockedTrainings(),
           listLockingSoonWithoutRoster(),
           computeNeedsAssessment(),
           listSubmissions(cycleYearFor()),
+          listCalendarEvents(new Date().getFullYear()),
         ]);
         if (cancelled) return;
         if (idp.ok) setIdpSubs(idp.data);
+        setCalendarEvents(events);
         setRequests(data);
         setIncompleteLocked(locked);
         setLockingSoon(soon);
@@ -473,6 +479,8 @@ const LndDashboardContent = () => {
     setSelectedIdpOffice(prev => matched ?? (prev || idpOfficeList[0] || ''));
   }, [selectedRadarDept, idpOfficeList]);
 
+  const progress = useMemo(() => trainingProgress(calendarEvents), [calendarEvents]);
+
   // Shared by the TNA and IDP stacked bars: one line per office in the hovered bar.
   const stackTooltip = ({ active, payload, label }: any) => {
     if (!active || !payload?.length) return null;
@@ -526,7 +534,7 @@ const LndDashboardContent = () => {
       />
 
       {/* Metric Cards */}
-      <section className="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-4 relative">
+      <section className="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-5 relative">
         {loading && <div className="absolute inset-0 bg-white/50 backdrop-blur-[1px] z-10 rounded-2xl" />}
         <StatCard
           label="Employees with identified skill gaps"
@@ -564,6 +572,32 @@ const LndDashboardContent = () => {
           </div>
         </article>
         <StatCard label="Offices assessed" value={departments.length.toString()} icon={Building2} color="green" sublabel="With identified competency gaps" />
+        {/* Year progress — ring is completed ÷ (calendar trainings − cancelled) */}
+        <article className="rounded-2xl border border-gray-200 bg-white p-5 transition hover:shadow-md">
+          <p className="text-sm font-medium text-gray-500">Trainings completed ({currentYear})</p>
+          <div className="mt-2 flex items-center gap-4">
+            <div
+              className="flex h-[72px] w-[72px] shrink-0 items-center justify-center rounded-full"
+              style={{ background: `conic-gradient(#059669 0 ${progress.percent}%, #e5e7eb ${progress.percent}% 100%)` }}
+              role="img"
+              aria-label={`${progress.percent}% of trainings completed`}
+            >
+              <div className="flex h-[54px] w-[54px] items-center justify-center rounded-full bg-white text-base font-bold text-gray-900">
+                {progress.percent}%
+              </div>
+            </div>
+            <div className="min-w-0">
+              <p className="text-sm font-semibold text-gray-900">
+                {progress.completed} <span className="font-normal text-gray-500">of {progress.total} trainings done</span>
+              </p>
+              <p className="mt-1 text-xs leading-relaxed text-gray-500">
+                Completed <b className="text-gray-800">{progress.completed}</b> · Ongoing <b className="text-gray-800">{progress.ongoing}</b>
+                <br />
+                Scheduled <b className="text-gray-800">{progress.scheduled}</b> · Cancelled <b className="text-gray-800">{progress.cancelled}</b>
+              </p>
+            </div>
+          </div>
+        </article>
         <StatCard
           label={`IDPs submitted (${idpCycle})`}
           value={idpSubs.length.toString()}
