@@ -22,6 +22,7 @@ export interface ApplicantRecord {
   created_at: string;
   total_score: number | null;
   application_type?: string | null;
+  reference_no?: string | null;
   // Schedule + interviewer assignment (migration 007). Drives
   // /admin/rsp/qualified Pending Assignment → /admin/rsp/applicant-score.
   exam_date?: string | null;
@@ -51,9 +52,9 @@ export const QualifiedApplicantsRSPPage = ({ mode = 'score' }: QualifiedApplican
 
   useEffect(() => {
     const loadData = async () => {
+      // Only the first load shows the loading screen. Refreshes (e.g. after a
+      // batch schedule) keep the page mounted so its success alert survives.
       try {
-        setLoading(true);
-
         // Primary: Supabase. Fallback: Python backend (which currently 500s but
         // remains as a path in case it's brought online). Both errors are logged
         // so silent failures surface.
@@ -128,6 +129,7 @@ export const QualifiedApplicantsRSPPage = ({ mode = 'score' }: QualifiedApplican
             created_at: String(row?.created_at || ''),
             total_score: row?.total_score ? Number(row.total_score) : null,
             application_type: row?.application_type ?? null,
+            reference_no: row?.reference_no ?? null,
             exam_date: row?.exam_date ?? null,
             exam_time: row?.exam_time ?? null,
             interview_date: row?.interview_date ?? null,
