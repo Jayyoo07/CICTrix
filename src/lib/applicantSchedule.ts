@@ -7,6 +7,7 @@
 //   assigned_interviewer_email
 
 import { supabase } from './supabase';
+import { partitionForStatusAdvance, SCHEDULED_STATUS } from './scheduleSelection';
 
 const SCHEDULE_CACHE_KEY = 'cictrix_applicant_schedules';
 
@@ -67,16 +68,16 @@ export interface InterviewerOption {
   designation: string;
 }
 
+// Batch scheduling sets only the oral interview, so the written exam is not
+// required for an applicant to count as scheduled.
 const ASSIGNMENT_KEYS: (keyof ApplicantAssignmentFields)[] = [
-  'exam_date',
-  'exam_time',
   'interview_date',
   'interview_time',
   'assigned_interviewer_email',
 ];
 
-/** True iff every assignment field is set — drives the progression rule
- *  from subtab 2 (Pending) to subtab 3 (Scheduled / For Interview). */
+/** True iff the interview date, time and rater are set — drives the progression
+ *  rule from subtab 2 (Pending) to subtab 3 (Scheduled / For Interview). */
 export const isApplicantFullyAssigned = (a: Partial<ApplicantAssignmentFields>): boolean =>
   ASSIGNMENT_KEYS.every((k) => {
     const v = a[k];
@@ -155,4 +156,77 @@ export async function fetchActiveInterviewers(): Promise<InterviewerOption[]> {
       name: String(r.name ?? r.email ?? 'Interviewer').trim(),
       designation: String(r.designation ?? '').trim(),
     }));
+}
+
+export interface BatchScheduleInput {
+  applicants: { id: string; status: string }[];
+  /** YYYY-MM-DD */
+  interviewDate: string;
+  /** HH:mm */
+  interviewTime: string;
+  oralExamDate: string;
+  oralExamTime: string;
+  raterEmail: string;
+  /** Room or meeting link. Left unchanged when blank. */
+  venue?: string | null;
+}
+
+export type BatchScheduleResult =
+  | { success: true; scheduled: number; advanced: number }
+  | { success: false; error: string };
+
+/**
+ * Sets one interview + oral exam schedule and rater on many applicants at once, and
+ * moves those still at Shortlisted to Interview/Exam Scheduled. Applicants at
+ * any other status keep it. At most two updates, each checked against the rows
+ * Supabase returns so a write blocked by RLS is reported instead of ignored.
+ */
+export async function scheduleApplicantsBatch(input: BatchScheduleInput): Promise<BatchScheduleResult> {
+  if (input.applicants.length === 0) return { success: false, error: 'Select at least one applicant.' };
+  if (!input.interviewDate || !input.interviewTime || !input.oralExamDate || !input.oralExamTime || !input.raterEmail.trim()) {
+    return { success: false, error: 'Interview and oral exam dates and times, and a rater, are required.' };
+  }
+
+  const schedule: Record<string, string> = {
+    interview_date: input.interviewDate,
+    interview_time: input.interviewTime,
+    oral_exam_date: input.oralExamDate,
+    oral_exam_time: input.oralExamTime,
+    assigned_interviewer_email: input.raterEmail.trim(),
+  };
+  const venue = input.venue?.trim();
+  if (venue) schedule.venue = venue;
+
+  const { advance, keep } = partitionForStatusAdvance(input.applicants);
+  const batches = [
+    { ids: advance, payload: { ...schedule, status: SCHEDULED_STATUS } },
+    { ids: keep, payload: schedule },
+  ].filter((b) => b.ids.length > 0);
+
+  let scheduled = 0;
+  for (const batch of batches) {
+    const { data, error } = await (supabase as any)
+      .from('applicants')
+      .update(batch.payload)
+      .in('id', batch.ids)
+      .select('id');
+    if (error) {
+      console.error('[scheduleApplicantsBatch] update failed:', error);
+      return { success: false, error: error.message ?? 'Could not save the schedule.' };
+    }
+    const updated = Array.isArray(data) ? data.length : 0;
+    if (updated !== batch.ids.length) {
+      console.error('[scheduleApplicantsBatch] rows updated mismatch', { expected: batch.ids.length, updated });
+      return {
+        success: false,
+        error: `Only ${scheduled + updated} of ${input.applicants.length} applicants were scheduled. Check your access and try again.`,
+      };
+    }
+    scheduled += updated;
+  }
+
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('cictrix:applicants-updated'));
+  }
+  return { success: true, scheduled, advanced: advance.length };
 }
