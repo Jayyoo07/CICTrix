@@ -113,7 +113,7 @@ export const ScheduleApplicantsModal = ({ applicants, raters, onCancel, onSchedu
             <h2 id="schedule-applicants-title" className="!m-0 text-[18px] font-semibold leading-6 text-[var(--color-primary-900)]">
               Schedule Applicants
             </h2>
-            <p className="!m-0 mt-1 text-[14px] font-medium leading-[18px] text-[var(--neutral-600)]">
+            <p className="!mb-0 !mt-1 text-[14px] font-medium leading-[18px] text-[var(--neutral-600)]">
               Oral interview for {applicants.length} applicant{applicants.length === 1 ? '' : 's'} across{' '}
               {positionSummary.length} position{positionSummary.length === 1 ? '' : 's'}.
             </p>
@@ -156,7 +156,7 @@ export const ScheduleApplicantsModal = ({ applicants, raters, onCancel, onSchedu
             />
           </div>
 
-          <fieldset className="!m-0 !border-0 !p-0">
+          <fieldset className="!border-0 !p-0">
             <legend className={LABEL_CLASS}>Time slot<Required /></legend>
             <div className="flex flex-wrap gap-2">
               {SESSIONS.map((s) => (
@@ -227,15 +227,15 @@ export const ScheduleApplicantsModal = ({ applicants, raters, onCancel, onSchedu
           </div>
 
           {error && (
-            <p role="alert" className="!m-0 text-[12px] font-medium leading-4 text-[var(--error-700)]">{error}</p>
+            <p role="alert" className="!mb-0 text-[12px] font-medium leading-4 text-[var(--error-700)]">{error}</p>
           )}
         </div>
 
-        <div className="flex justify-end gap-3 border-t border-[var(--neutral-200)] px-6 py-4">
-          <button type="button" className="btn btn-md btn-secondary" onClick={onCancel} disabled={saving}>
+        <div className="flex flex-col-reverse gap-3 border-t border-[var(--neutral-200)] px-6 py-4 sm:flex-row sm:justify-end">
+          <button type="button" className="btn btn-md btn-secondary w-full sm:w-auto" onClick={onCancel} disabled={saving}>
             Cancel
           </button>
-          <button type="button" className="btn btn-md btn-primary" onClick={() => void handleConfirm()} disabled={saving}>
+          <button type="button" className="btn btn-md btn-primary w-full sm:w-auto" onClick={() => void handleConfirm()} disabled={saving}>
             {saving
               ? <Loader2 size={16} className="animate-spin" aria-hidden="true" />
               : <CalendarCheck size={16} strokeWidth={1.75} aria-hidden="true" />}

@@ -89,7 +89,7 @@ export const SchedulingTree = ({ applicants, selected, onSelectionChange }: Sche
               <span className="min-w-0 flex-1 truncate text-[18px] font-semibold leading-6 text-[var(--color-primary-900)]">
                 {dept.department}
               </span>
-              <span className="badge badge-neutral shrink-0">{plural(deptCount, 'applicant')}</span>
+              <span className="hidden shrink-0 sm:inline-flex"><span className="badge badge-neutral">{plural(deptCount, 'applicant')}</span></span>
             </button>
 
             {deptOpen && (
@@ -122,7 +122,7 @@ export const SchedulingTree = ({ applicants, selected, onSelectionChange }: Sche
                           <span className="badge badge-tint shrink-0">{plural(ids.length, 'applicant')}</span>
                         </button>
                         {selectedCount > 0 && (
-                          <span className="shrink-0 text-[12px] font-medium leading-4 text-[var(--neutral-600)]">
+                          <span className="hidden shrink-0 text-[12px] font-medium leading-4 text-[var(--neutral-600)] sm:inline">
                             {selectedCount} of {ids.length} selected
                           </span>
                         )}
@@ -154,8 +154,11 @@ export const SchedulingTree = ({ applicants, selected, onSelectionChange }: Sche
                                       {a.reference_no || 'No reference no.'}{a.email ? ` · ${a.email}` : ''}
                                     </span>
                                   </span>
-                                  <span className={`badge shrink-0 ${isPromotional(a.application_type) ? 'badge-tint' : 'badge-neutral'}`}>
-                                    {isPromotional(a.application_type) ? 'Promotional' : 'Original'}
+                                  {/* The .badge display rule outranks `hidden`, so hide a wrapper. */}
+                                  <span className="hidden shrink-0 sm:inline-flex">
+                                    <span className={`badge ${isPromotional(a.application_type) ? 'badge-tint' : 'badge-neutral'}`}>
+                                      {isPromotional(a.application_type) ? 'Promotional' : 'Original'}
+                                    </span>
                                   </span>
                                   <span className={`badge shrink-0 ${status ? STATUS_BADGE[status] : 'badge-neutral'}`}>
                                     {status ?? (a.status || 'No status')}
