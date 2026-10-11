@@ -30,3 +30,13 @@ All six plan steps shipped as written:
 ## Known issues, not fixed
 
 - The `isQualified` substring filter also matches "Not Qualified" (pre-existing).
+
+## Merge into main (2026-10-11)
+
+`main` had moved on: the 2026-10-07 sort/filter work (`docs/plans/2026-10-07-rsp-sort-filter.md`) had rebuilt Pending Assignment as a flat table with filters, sorting and a selection-chip bar, after grouping was turned down. The user chose to replace the Pending tab with the tree and keep that work's search box. The resolution:
+
+- Pending: the department tree plus the Schedule Applicants modal, with the search box above the tree. While a search is active, matching departments and positions open automatically, and picks persist across searches. A "Clear all" link sits beside Schedule Applicants.
+- Removed from Pending: the department, position and type dropdowns, the per-department selection chips and the sortable table. The tree supersedes them.
+- Scheduled: unchanged, so its filters and sorting still work as before.
+
+Checks after the merge: `npx tsc --noEmit` clean; `npm test` 25 files, 265 passed; `npm run build` passed. I screenshotted the merged Pending tab with sample data at 1280px: the department list, checking a position (2 selected), and a search for "elena", which showed the matching branch open with the selection kept. There were no runtime errors.
