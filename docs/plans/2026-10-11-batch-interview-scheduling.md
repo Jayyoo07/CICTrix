@@ -1,7 +1,7 @@
 ---
 title: Batch interview scheduling grouped by department
 date: 2026-10-11
-status: In Progress
+status: Done
 summary: Replace the flat Pending Assignment table with a department → position → applicant checkbox tree and a "Schedule Applicants" modal that sets the oral interview date, session, rater and venue.
 spec: Pasted task "Hierarchical Batch Interview Scheduling for Qualified Applicants" plus a classmate's Hiligaynon notes (2026-10-11 session)
 ---
