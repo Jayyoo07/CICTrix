@@ -76,11 +76,21 @@ describe('ScheduleApplicantsModal', () => {
 
   it('rejects a past date without saving', () => {
     render(<ScheduleApplicantsModal applicants={applicants} raters={raters} onCancel={vi.fn()} onScheduled={vi.fn()} />);
-    fireEvent.change(screen.getByLabelText(/Interview \/ oral date/), { target: { value: '2000-01-01' } });
+    fireEvent.change(screen.getByLabelText(/^Interview date/), { target: { value: '2000-01-01' } });
     fireEvent.change(screen.getByLabelText(/Assigned rater/), { target: { value: 'rater@example.com' } });
     fireEvent.click(screen.getByRole('button', { name: 'Confirm Schedule' }));
 
-    expect(screen.getByRole('alert').textContent).toMatch(/cannot be in the past/);
+    expect(screen.getByRole('alert').textContent).toMatch(/interview date cannot be in the past/);
+    expect(scheduleApplicantsBatch).not.toHaveBeenCalled();
+  });
+
+  it('requires the oral exam date', () => {
+    render(<ScheduleApplicantsModal applicants={applicants} raters={raters} onCancel={vi.fn()} onScheduled={vi.fn()} />);
+    fireEvent.change(screen.getByLabelText(/^Interview date/), { target: { value: '2099-01-15' } });
+    fireEvent.change(screen.getByLabelText(/Assigned rater/), { target: { value: 'rater@example.com' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Confirm Schedule' }));
+
+    expect(screen.getByRole('alert').textContent).toMatch(/Choose the oral examination date/);
     expect(scheduleApplicantsBatch).not.toHaveBeenCalled();
   });
 
@@ -95,8 +105,9 @@ describe('ScheduleApplicantsModal', () => {
     const onScheduled = vi.fn();
     render(<ScheduleApplicantsModal applicants={applicants} raters={raters} onCancel={vi.fn()} onScheduled={onScheduled} />);
 
-    fireEvent.change(screen.getByLabelText(/Interview \/ oral date/), { target: { value: '2099-01-15' } });
-    fireEvent.click(screen.getByLabelText('Afternoon (1:00 PM)'));
+    fireEvent.change(screen.getByLabelText(/^Interview date/), { target: { value: '2099-01-15' } });
+    fireEvent.click(screen.getByLabelText('Interview: Afternoon (1:00 PM)'));
+    fireEvent.change(screen.getByLabelText(/^Oral examination date/), { target: { value: '2099-01-16' } });
     fireEvent.change(screen.getByLabelText(/Assigned rater/), { target: { value: 'rater@example.com' } });
     fireEvent.click(screen.getByRole('button', { name: 'Confirm Schedule' }));
 
@@ -104,9 +115,11 @@ describe('ScheduleApplicantsModal', () => {
     expect(scheduleApplicantsBatch).toHaveBeenCalledWith(expect.objectContaining({
       interviewDate: '2099-01-15',
       interviewTime: '13:00',
+      oralExamDate: '2099-01-16',
+      oralExamTime: '08:00',
       raterEmail: 'rater@example.com',
       applicants: applicants.map((a) => ({ id: a.id, status: a.status })),
     }));
-    expect(onScheduled.mock.calls[0][0]).toMatch(/Scheduled 3 applicants for Jan 15, 2099, 1:00 PM with Rita Rater/);
+    expect(onScheduled.mock.calls[0][0]).toMatch(/Scheduled 3 applicants with Rita Rater: interview Jan 15, 2099, 1:00 PM; oral exam Jan 16, 2099, 8:00 AM/);
   });
 });

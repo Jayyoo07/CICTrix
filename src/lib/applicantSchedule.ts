@@ -164,6 +164,8 @@ export interface BatchScheduleInput {
   interviewDate: string;
   /** HH:mm */
   interviewTime: string;
+  oralExamDate: string;
+  oralExamTime: string;
   raterEmail: string;
   /** Room or meeting link. Left unchanged when blank. */
   venue?: string | null;
@@ -174,20 +176,22 @@ export type BatchScheduleResult =
   | { success: false; error: string };
 
 /**
- * Sets one oral interview schedule and rater on many applicants at once, and
+ * Sets one interview + oral exam schedule and rater on many applicants at once, and
  * moves those still at Shortlisted to Interview/Exam Scheduled. Applicants at
  * any other status keep it. At most two updates, each checked against the rows
  * Supabase returns so a write blocked by RLS is reported instead of ignored.
  */
 export async function scheduleApplicantsBatch(input: BatchScheduleInput): Promise<BatchScheduleResult> {
   if (input.applicants.length === 0) return { success: false, error: 'Select at least one applicant.' };
-  if (!input.interviewDate || !input.interviewTime || !input.raterEmail.trim()) {
-    return { success: false, error: 'Interview date, time and rater are required.' };
+  if (!input.interviewDate || !input.interviewTime || !input.oralExamDate || !input.oralExamTime || !input.raterEmail.trim()) {
+    return { success: false, error: 'Interview and oral exam dates and times, and a rater, are required.' };
   }
 
   const schedule: Record<string, string> = {
     interview_date: input.interviewDate,
     interview_time: input.interviewTime,
+    oral_exam_date: input.oralExamDate,
+    oral_exam_time: input.oralExamTime,
     assigned_interviewer_email: input.raterEmail.trim(),
   };
   const venue = input.venue?.trim();

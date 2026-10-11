@@ -1,5 +1,5 @@
-// "Schedule Applicants" dialog: one oral interview date, session, rater and
-// venue applied to every selected applicant (DESIGN_IDENTITY §9.10).
+// "Schedule Applicants" dialog: one interview slot, one oral exam slot, a
+// rater and a venue applied to every selected applicant (DESIGN_IDENTITY §9.10).
 
 import { useEffect, useMemo, useState } from 'react';
 import { CalendarCheck, Loader2, X } from 'lucide-react';
@@ -33,6 +33,81 @@ const formatTime = (hhmm: string) => {
 
 const Required = () => <span className="text-[var(--error-500)]" aria-hidden="true"> *</span>;
 
+interface SlotValue {
+  date: string;
+  session: InterviewSession;
+  customTime: string;
+}
+
+const EMPTY_SLOT: SlotValue = { date: '', session: 'morning', customTime: '' };
+
+const slotTime = (slot: SlotValue) => (slot.session === 'custom' ? slot.customTime : SESSION_TIMES[slot.session]);
+
+/** First validation problem with a slot, or null when it can be saved. */
+const slotError = (name: string, slot: SlotValue, today: string): string | null => {
+  if (!slot.date) return `Choose the ${name} date.`;
+  if (isPastDate(slot.date, today)) return `The ${name} date cannot be in the past.`;
+  if (!slotTime(slot)) return `Enter a custom time for the ${name}.`;
+  return null;
+};
+
+/** A date plus Morning / Afternoon / Custom time for one scheduled event. */
+const ScheduleSlot = ({ id, title, today, autoFocus, value, onChange }: {
+  id: string;
+  title: string;
+  today: string;
+  autoFocus?: boolean;
+  value: SlotValue;
+  onChange: (next: SlotValue) => void;
+}) => (
+  <fieldset className="!border-0 !p-0">
+    <legend className="mb-3 block text-[16px] font-semibold leading-5 text-[var(--color-primary-900)]">{title}</legend>
+    <label htmlFor={`${id}-date`} className={LABEL_CLASS}>{title} date<Required /></label>
+    <input
+      id={`${id}-date`}
+      type="date"
+      autoFocus={autoFocus}
+      min={today}
+      value={value.date}
+      onChange={(e) => onChange({ ...value, date: e.target.value })}
+      className={INPUT_CLASS}
+    />
+    <p className={`${LABEL_CLASS} mt-3`} id={`${id}-session-label`}>{title} time<Required /></p>
+    <div role="radiogroup" aria-labelledby={`${id}-session-label`} className="flex flex-wrap gap-2">
+      {SESSIONS.map((s) => (
+        <label
+          key={s.value}
+          className={`inline-flex h-9 cursor-pointer items-center rounded-[var(--radius-pill)] border px-4 text-[13px] font-semibold transition-colors ${
+            value.session === s.value
+              ? 'border-[var(--color-primary)] bg-[var(--color-primary-50)] text-[var(--color-primary)]'
+              : 'border-[var(--neutral-200)] text-[var(--neutral-800)] hover:border-[var(--color-primary-200)]'
+          }`}
+        >
+          <input
+            type="radio"
+            name={`${id}-session`}
+            value={s.value}
+            aria-label={`${title}: ${s.label}`}
+            checked={value.session === s.value}
+            onChange={() => onChange({ ...value, session: s.value })}
+            className="sr-only"
+          />
+          {s.label}
+        </label>
+      ))}
+    </div>
+    {value.session === 'custom' && (
+      <input
+        type="time"
+        aria-label={`Custom ${title.toLowerCase()} time`}
+        value={value.customTime}
+        onChange={(e) => onChange({ ...value, customTime: e.target.value })}
+        className={`${INPUT_CLASS} mt-3 sm:max-w-[200px]`}
+      />
+    )}
+  </fieldset>
+);
+
 interface ScheduleApplicantsModalProps {
   applicants: ApplicantRecord[];
   raters: InterviewerOption[];
@@ -43,9 +118,8 @@ interface ScheduleApplicantsModalProps {
 
 export const ScheduleApplicantsModal = ({ applicants, raters, onCancel, onScheduled }: ScheduleApplicantsModalProps) => {
   const today = localIsoDate();
-  const [date, setDate] = useState('');
-  const [session, setSession] = useState<InterviewSession>('morning');
-  const [customTime, setCustomTime] = useState('');
+  const [interview, setInterview] = useState<SlotValue>(EMPTY_SLOT);
+  const [oral, setOral] = useState<SlotValue>(EMPTY_SLOT);
   const [raterEmail, setRaterEmail] = useState('');
   const [venue, setVenue] = useState('');
   const [saving, setSaving] = useState(false);
@@ -66,21 +140,20 @@ export const ScheduleApplicantsModal = ({ applicants, raters, onCancel, onSchedu
     return () => window.removeEventListener('keydown', onKey);
   }, [onCancel, saving]);
 
-  const time = session === 'custom' ? customTime : SESSION_TIMES[session];
-
   const handleConfirm = async () => {
     if (saving) return;
-    if (!date) return setError('Choose an interview date.');
-    if (isPastDate(date, today)) return setError('The interview date cannot be in the past.');
-    if (!time) return setError('Enter a time for the custom session.');
+    const problem = slotError('interview', interview, today) ?? slotError('oral examination', oral, today);
+    if (problem) return setError(problem);
     if (!raterEmail) return setError('Choose a rater.');
 
     setError('');
     setSaving(true);
     const result = await scheduleApplicantsBatch({
       applicants: applicants.map((a) => ({ id: a.id, status: a.status })),
-      interviewDate: date,
-      interviewTime: time,
+      interviewDate: interview.date,
+      interviewTime: slotTime(interview),
+      oralExamDate: oral.date,
+      oralExamTime: slotTime(oral),
       raterEmail,
       venue,
     });
@@ -92,7 +165,7 @@ export const ScheduleApplicantsModal = ({ applicants, raters, onCancel, onSchedu
     }
     const rater = raters.find((r) => r.email === raterEmail)?.name ?? raterEmail;
     onScheduled(
-      `Scheduled ${result.scheduled} applicant${result.scheduled === 1 ? '' : 's'} for ${formatDate(date)}, ${formatTime(time)} with ${rater}. They are now in the Scheduled tab.`,
+      `Scheduled ${result.scheduled} applicant${result.scheduled === 1 ? '' : 's'} with ${rater}: interview ${formatDate(interview.date)}, ${formatTime(slotTime(interview))}; oral exam ${formatDate(oral.date)}, ${formatTime(slotTime(oral))}. They are now in the Scheduled tab.`,
     );
   };
 
@@ -114,7 +187,7 @@ export const ScheduleApplicantsModal = ({ applicants, raters, onCancel, onSchedu
               Schedule Applicants
             </h2>
             <p className="!mb-0 !mt-1 text-[14px] font-medium leading-[18px] text-[var(--neutral-600)]">
-              Oral interview for {applicants.length} applicant{applicants.length === 1 ? '' : 's'} across{' '}
+              Interview and oral exam for {applicants.length} applicant{applicants.length === 1 ? '' : 's'} across{' '}
               {positionSummary.length} position{positionSummary.length === 1 ? '' : 's'}.
             </p>
           </div>
@@ -143,53 +216,22 @@ export const ScheduleApplicantsModal = ({ applicants, raters, onCancel, onSchedu
             ))}
           </ul>
 
-          <div>
-            <label htmlFor="schedule-date" className={LABEL_CLASS}>Interview / oral date<Required /></label>
-            <input
-              id="schedule-date"
-              type="date"
-              autoFocus
-              min={today}
-              value={date}
-              onChange={(e) => setDate(e.target.value)}
-              className={INPUT_CLASS}
-            />
-          </div>
+          <ScheduleSlot
+            id="interview"
+            title="Interview"
+            today={today}
+            autoFocus
+            value={interview}
+            onChange={setInterview}
+          />
 
-          <fieldset className="!border-0 !p-0">
-            <legend className={LABEL_CLASS}>Time slot<Required /></legend>
-            <div className="flex flex-wrap gap-2">
-              {SESSIONS.map((s) => (
-                <label
-                  key={s.value}
-                  className={`inline-flex h-9 cursor-pointer items-center rounded-[var(--radius-pill)] border px-4 text-[13px] font-semibold transition-colors ${
-                    session === s.value
-                      ? 'border-[var(--color-primary)] bg-[var(--color-primary-50)] text-[var(--color-primary)]'
-                      : 'border-[var(--neutral-200)] text-[var(--neutral-800)] hover:border-[var(--color-primary-200)]'
-                  }`}
-                >
-                  <input
-                    type="radio"
-                    name="schedule-session"
-                    value={s.value}
-                    checked={session === s.value}
-                    onChange={() => setSession(s.value)}
-                    className="sr-only"
-                  />
-                  {s.label}
-                </label>
-              ))}
-            </div>
-            {session === 'custom' && (
-              <input
-                type="time"
-                aria-label="Custom interview time"
-                value={customTime}
-                onChange={(e) => setCustomTime(e.target.value)}
-                className={`${INPUT_CLASS} mt-3 sm:max-w-[200px]`}
-              />
-            )}
-          </fieldset>
+          <ScheduleSlot
+            id="oral"
+            title="Oral examination"
+            today={today}
+            value={oral}
+            onChange={setOral}
+          />
 
           <div>
             <label htmlFor="schedule-rater" className={LABEL_CLASS}>Assigned rater<Required /></label>
