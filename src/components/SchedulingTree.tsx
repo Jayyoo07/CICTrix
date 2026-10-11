@@ -59,15 +59,15 @@ interface SchedulingTreeProps {
 
 export const SchedulingTree = ({ applicants, selected, onSelectionChange }: SchedulingTreeProps) => {
   const groups = useMemo(() => groupByDepartmentAndPosition(applicants), [applicants]);
-  // Departments start open so every position checkbox is visible; positions
-  // start closed and expand to show their applicants.
-  const [collapsedDepartments, setCollapsedDepartments] = useState<Set<string>>(new Set());
+  // Everything starts closed: departments first, then a department's
+  // positions, then a position's applicants.
+  const [openDepartments, setOpenDepartments] = useState<Set<string>>(new Set());
   const [expandedPositions, setExpandedPositions] = useState<Set<string>>(new Set());
 
   return (
     <div className="space-y-4">
       {groups.map((dept) => {
-        const deptOpen = !collapsedDepartments.has(dept.department);
+        const deptOpen = openDepartments.has(dept.department);
         const deptCount = dept.positions.reduce((n, p) => n + p.applicants.length, 0);
         return (
           <section
@@ -77,7 +77,7 @@ export const SchedulingTree = ({ applicants, selected, onSelectionChange }: Sche
             <button
               type="button"
               aria-expanded={deptOpen}
-              onClick={() => setCollapsedDepartments((prev) => toggleId(dept.department, prev))}
+              onClick={() => setOpenDepartments((prev) => toggleId(dept.department, prev))}
               className="flex w-full items-center gap-3 px-5 py-4 text-left transition-colors hover:bg-[var(--bg-row-hover)]"
             >
               {deptOpen

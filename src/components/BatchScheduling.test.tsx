@@ -40,8 +40,17 @@ const Harness = () => {
 };
 
 describe('SchedulingTree', () => {
+  it('shows only departments until one is opened', () => {
+    render(<Harness />);
+    expect(screen.queryByRole('checkbox')).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: /City Engineer's Office/ }));
+    expect(screen.getByRole('checkbox', { name: 'Select all 2 applicants for Engineer I' })).toBeTruthy();
+    expect(screen.queryByRole('checkbox', { name: /Budget Officer/ })).toBeNull();
+  });
+
   it('selects a whole position, and shows it as partial when one applicant is unchecked', () => {
     render(<Harness />);
+    fireEvent.click(screen.getByRole('button', { name: /City Engineer's Office/ }));
     const engineer = screen.getByRole('checkbox', { name: 'Select all 2 applicants for Engineer I' }) as HTMLInputElement;
 
     fireEvent.click(engineer);
