@@ -119,7 +119,14 @@ interface PerformanceStats {
 
 const FALLBACK_CYCLES: EvaluationCycle[] = [];
 
-export const PMDashboard = ({ isDashboardView = true }: { isDashboardView?: boolean }) => {
+/**
+ * `viewOnly` is the super admin looking at this division, not operating it.
+ * Distinct from isDashboardView, which is true for the PM admin's own route.
+ */
+export const PMDashboard = ({
+  isDashboardView = true,
+  viewOnly = false,
+}: { isDashboardView?: boolean; viewOnly?: boolean }) => {
   const [stats, setStats] = useState<PerformanceStats>({
     activeCycle: 'None',
     pendingReviews: 0
@@ -132,6 +139,13 @@ export const PMDashboard = ({ isDashboardView = true }: { isDashboardView?: bool
   const [activeSection, setActiveSection] = useState<
     'dashboard' | 'office-directory' | 'summary-of-ratings' | 'ipcr-management' | 'competency' | 'promotions' | 'analytics' | 'archive' | 'weighting' | 'settings'
   >('dashboard');
+
+  // Locked to the dashboard when a super admin is viewing: they have no PM
+  // navigation to leave it with, and a value left over from a previous visit
+  // would otherwise drop them into a working section.
+  useEffect(() => {
+    if (viewOnly) setActiveSection('dashboard');
+  }, [viewOnly]);
 
   const [newCycle, setNewCycle] = useState<{
     title: string;
@@ -929,18 +943,24 @@ export const PMDashboard = ({ isDashboardView = true }: { isDashboardView?: bool
         <AdminHeader userName="PM Admin" divisionLabel="PM Division" />
 
         <div className="flex">
-          {/* Side navigation rail (DESIGN_IDENTITY.md §9.12), same as the RSP portal. */}
-          <RailNav
-            items={sideNavItems.map((item) => ({
-              path: `pm:${item.key}`,
-              label: item.label,
-              icon: item.icon,
-              isActive: activeSection === item.key,
-              bottom: item.key === 'settings',
-              onSelect: () => setActiveSection(item.key),
-              title: item.subtitle || item.label,
-            }))}
-          />
+          {/* Side navigation rail (DESIGN_IDENTITY.md §9.12), same as the RSP
+              portal — unless a super admin is viewing, in which case they keep
+              their own sidebar rather than being handed PM's navigation. */}
+          {viewOnly ? (
+            <Sidebar activeModule="PM" userRole="super-admin" />
+          ) : (
+            <RailNav
+              items={sideNavItems.map((item) => ({
+                path: `pm:${item.key}`,
+                label: item.label,
+                icon: item.icon,
+                isActive: activeSection === item.key,
+                bottom: item.key === 'settings',
+                onSelect: () => setActiveSection(item.key),
+                title: item.subtitle || item.label,
+              }))}
+            />
+          )}
 
           <main className="min-w-0 flex-1 p-4 sm:p-6">
 

@@ -41,6 +41,7 @@ import {
   YAxis,
 } from 'recharts';
 import { AdminHeader } from '../../components/AdminHeader';
+import { Sidebar } from '../../components/Sidebar';
 import { RailNav, type RailNavItem } from '../../components/RailNav';
 import { supabase } from '../../lib/supabase';
 
@@ -938,8 +939,20 @@ const LndDashboardContent = () => {
   );
 };
 
-export const LNDDashboard = ({ isDashboardView = true }: { isDashboardView?: boolean }) => {
+/**
+ * `viewOnly` is the super admin looking at this division, not operating it.
+ * It is NOT the same as isDashboardView, which is true for the L&D admin's own
+ * portal route too — keying the rail off that would have taken the navigation
+ * away from the people whose portal this is.
+ */
+export const LNDDashboard = ({
+  isDashboardView = true,
+  viewOnly = false,
+}: { isDashboardView?: boolean; viewOnly?: boolean }) => {
   const [activeModule, setActiveModule] = useState<MenuId>('dashboard');
+  // In view-only mode the section is fixed: there is no navigation to leave it
+  // with, and a stale value from a previous visit would show a working section.
+  const effectiveModule: MenuId = viewOnly ? 'dashboard' : activeModule;
   // Deep-link support: /admin/lnd?module=archive&office=…&employee=… lands
   // straight on the L&D Archive at a specific office/employee (e.g. from a
   // Succession Planning candidate card). Read once on mount.
@@ -965,34 +978,40 @@ export const LNDDashboard = ({ isDashboardView = true }: { isDashboardView?: boo
         divisionLabel="L&D Division"
       />
       <div className="flex">
-        <LndSidebar activeModule={activeModule} onSelect={setActiveModule} />
+        {/* A super admin views this module; they do not operate it. Showing the
+            L&D rail here handed them L&D's own navigation and let them switch
+            into any section. They get their own sidebar instead. */}
+        {viewOnly ? (
+          <Sidebar activeModule="LND" userRole="super-admin" />
+        ) : (
+          <LndSidebar activeModule={activeModule} onSelect={setActiveModule} />
+        )}
         {/* min-w-0: without it this flex child defaults to min-width:auto and wide
             tables push the whole page (and the sticky header) sideways. */}
         <main className="min-w-0 flex-1">
-          {activeModule === 'dashboard' ? (
+          {effectiveModule === 'dashboard' ? (
             <LndDashboardContent />
-          ) : activeModule === 'summary-of-ratings' ? (
+          ) : effectiveModule === 'summary-of-ratings' ? (
             <LndSummaryOfRatings />
-          ) : activeModule === 'training-calendar' ? (
+          ) : effectiveModule === 'training-calendar' ? (
             <TrainingCalendar />
-          ) : activeModule === 'training-plan' ? (
+          ) : effectiveModule === 'training-plan' ? (
             <TrainingPlan />
-          ) : activeModule === 'training-needs' ? (
+          ) : effectiveModule === 'training-needs' ? (
             <LndTrainingNeeds />
-          ) : activeModule === 'seminar-enrollment' ? (
+          ) : effectiveModule === 'seminar-enrollment' ? (
             <SeminarEnrollment />
-          ) : activeModule === 'archive' ? (
+          ) : effectiveModule === 'archive' ? (
             <LndArchive initialOffice={archiveDeepLink.office} focusEmployeeId={archiveDeepLink.employee} />
-          ) : activeModule === 'office-directory' ? (
+          ) : effectiveModule === 'office-directory' ? (
             <OfficeDirectorySection showBulkRequest={false} />
-          ) : activeModule === 'idp-form' ? (
+          ) : effectiveModule === 'idp-form' ? (
             <LndIdpFormSettings />
           ) : (
-            <PlaceholderPage label={LND_MENU.find((item) => item.id === activeModule)?.label || 'Module'} />
+            <PlaceholderPage label={LND_MENU.find((item) => item.id === effectiveModule)?.label || 'Module'} />
           )}
         </main>
       </div>
-      {!isDashboardView ? null : null}
     </div>
   );
 };

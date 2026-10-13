@@ -17,6 +17,9 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { AlertTriangle, Check, Plus, Trash2, Wallet, X } from 'lucide-react';
 import { supabase as supabaseClient } from '../lib/supabase';
+import { AdminHeader } from './AdminHeader';
+import { Sidebar } from './Sidebar';
+import '../styles/admin.css';
 import {
   HIRING_STEP,
   MAX_STEP,
@@ -171,7 +174,12 @@ export const SalaryGradesPage = () => {
   }, [pending, affected]);
 
   return (
-    <div className="space-y-5 p-6">
+    <div className="min-h-screen bg-[#F1F5F9]">
+      <AdminHeader userName="Super Admin" divisionLabel="System Administrator" />
+      <div className="admin-layout">
+        <Sidebar activeModule="Super" userRole="super-admin" />
+        <main className="admin-content">
+          <div className="space-y-5">
       <div className="flex items-center gap-2.5">
         <Wallet className="h-6 w-6 text-[#363EE8]" />
         <div>
@@ -362,6 +370,9 @@ export const SalaryGradesPage = () => {
           </div>
         </div>
       )}
+          </div>
+        </main>
+      </div>
     </div>
   );
 };

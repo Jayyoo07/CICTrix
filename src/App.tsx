@@ -760,8 +760,8 @@ function AppContent() {
                   <>
                     {activeModule === 'dashboard' && <SuperAdminDashboard />}
                     {activeModule === 'rsp' && <RSPDashboard />}
-                    {activeModule === 'lnd' && <LNDDashboard isDashboardView={true} />}
-                    {activeModule === 'pm' && <PMDashboard isDashboardView={true} />}
+                    {activeModule === 'lnd' && <LNDDashboard isDashboardView={true} viewOnly />}
+                    {activeModule === 'pm' && <PMDashboard isDashboardView={true} viewOnly />}
                     {activeModule === 'settings' && <SettingsPage />}
                   </>
                 ) : (
