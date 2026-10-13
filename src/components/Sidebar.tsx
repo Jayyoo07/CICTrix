@@ -139,7 +139,7 @@ export const Sidebar = ({ activeModule, userRole }: SidebarProps) => {
       label: 'IPCR Management',
       sublabel: 'Onboarding, targets & ratings',
       isActive: location.pathname === '/admin/ipcr',
-      roles: ['super-admin', 'pm'],
+      roles: ['pm'],
     },
     {
       path: '/admin/competency',
@@ -147,7 +147,7 @@ export const Sidebar = ({ activeModule, userRole }: SidebarProps) => {
       label: 'Competency Framework',
       sublabel: 'Position requirements & review',
       isActive: location.pathname === '/admin/competency',
-      roles: ['super-admin', 'pm'],
+      roles: ['pm'],
     },
     {
       path: '/admin/supervisors',
@@ -271,9 +271,11 @@ export const Sidebar = ({ activeModule, userRole }: SidebarProps) => {
     return item.roles.includes(resolvedRole);
   });
 
-  // RSP portal uses the collapsible rail (DESIGN_IDENTITY §9.12); Settings is
-  // pinned to the bottom group. Other roles keep the classic sidebar for now.
-  if (isRspRole) {
+  // The collapsible rail (DESIGN_IDENTITY §9.12). RSP shipped it first and PM
+  // and L&D render RailNav directly; super admin was the last portal still on
+  // the classic sidebar, which is why it looked like a different product.
+  // Settings is pinned to the bottom group in both.
+  if (isRspRole || isSuperAdmin) {
     return (
       <RailNav
         items={filteredMenuItems.map((item) => ({
@@ -281,7 +283,8 @@ export const Sidebar = ({ activeModule, userRole }: SidebarProps) => {
           label: item.label,
           icon: item.icon,
           isActive: item.isActive,
-          bottom: item.path === '/admin/rsp/settings',
+          bottom: item.path === '/admin/rsp/settings' || item.path.startsWith('/admin?module=settings'),
+          title: item.sublabel || item.label,
         }))}
       />
     );

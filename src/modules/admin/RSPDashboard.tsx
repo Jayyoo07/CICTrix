@@ -3417,7 +3417,12 @@ export const RSPDashboard = () => {
         divisionLabel="RSP Division"
       />
       <div className="admin-layout">
-        <Sidebar activeModule="RSP" userRole="rsp" />
+        {/* The role is NOT forced to 'rsp' here. Doing that gave a super admin
+            viewing this module the full RSP navigation — Jobs, Applications,
+            Qualified — and the routes accepted them, so "view the RSP module"
+            became "operate the RSP portal". Letting Sidebar read the session
+            keeps a super admin on their own menu. */}
+        <Sidebar activeModule="RSP" />
 
         <main className="admin-content !p-0">
           <div className="border-b border-[var(--border-color)] bg-white px-4 py-5 sm:px-6 lg:px-8 lg:py-6">

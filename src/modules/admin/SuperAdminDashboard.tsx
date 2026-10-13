@@ -5,6 +5,39 @@ import { Sidebar } from '../../components/Sidebar';
 import { supabase } from '../../lib/supabase';
 import '../../styles/admin.css';
 
+/**
+ * KPI card per DESIGN_IDENTITY §9.7: icon chip, title, value.
+ *
+ * One component rather than four copies, and one chip colour rather than four.
+ * §9.7 reserves status colours for KPIs that are themselves a status — "all
+ * chips are brand blue, so a dashboard doesn't become a rainbow". None of these
+ * four is a status metric.
+ */
+const KpiCard = ({
+  title,
+  value,
+  caption,
+  icon: Icon,
+}: {
+  title: string;
+  value: string | number;
+  caption: string;
+  icon: typeof Users;
+}) => (
+  <div className="rounded-xl border border-[#E2E8F0] bg-white p-5">
+    <div className="flex items-start justify-between gap-3">
+      <div className="min-w-0">
+        <p className="text-[13px] font-medium text-[#515F69]">{title}</p>
+        <p className="mt-2 text-2xl font-bold leading-8 text-[#040E6B]">{value}</p>
+        <p className="mt-2 text-xs text-[#515F69]">{caption}</p>
+      </div>
+      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[10px] bg-[#EEF0FF]">
+        <Icon className="text-[#363EE8]" size={20} strokeWidth={1.75} />
+      </div>
+    </div>
+  </div>
+);
+
 export const SuperAdminDashboard = () => {
   const [loading, setLoading] = useState(true);
   const [rspStats, setRspStats] = useState({
@@ -82,168 +115,135 @@ export const SuperAdminDashboard = () => {
       <main className="min-w-0 flex-1 overflow-auto">
         <div className="p-4 sm:p-6 lg:p-8">
           <div className="mb-8">
-            <h1 className="text-3xl font-bold text-slate-900">Super Admin Dashboard</h1>
-            <p className="text-slate-500 mt-2">Comprehensive overview of all HRIS divisions</p>
+            <h1 className="text-2xl font-bold leading-8 text-[#040E6B]">Super Admin Dashboard</h1>
+            <p className="mt-2 text-sm text-[#515F69]">
+              Overview of all HRIS divisions. Viewing only — the division portals are operated by their own
+              administrators.
+            </p>
           </div>
 
           {/* Summary Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6 mb-10">
-            <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-slate-500">Total Applicants</p>
-                  <p className="text-3xl font-semibold text-slate-900 mt-2">
-                    {loading ? '...' : rspStats.totalApplicants}
-                  </p>
-                  <p className="text-xs text-slate-400 mt-2">RSP Division</p>
-                </div>
-                <div className="h-12 w-12 rounded-xl bg-blue-100 flex items-center justify-center">
-                  <Users className="text-blue-600" size={22} />
-                </div>
-              </div>
-            </div>
-
-            <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-slate-500">Active Trainings</p>
-                  <p className="text-3xl font-semibold text-slate-900 mt-2">
-                    {loading ? '...' : lndStats.activeTrainings}
-                  </p>
-                  <p className="text-xs text-slate-400 mt-2">L&D Division</p>
-                </div>
-                <div className="h-12 w-12 rounded-xl bg-emerald-100 flex items-center justify-center">
-                  <GraduationCap className="text-emerald-600" size={22} />
-                </div>
-              </div>
-            </div>
-
-            <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-slate-500">Evaluation Status</p>
-                  <p className="text-3xl font-semibold text-slate-900 mt-2">
-                    {loading ? '...' : pmStats.evaluationStatus}
-                  </p>
-                  <p className="text-xs text-slate-400 mt-2">PM Division</p>
-                </div>
-                <div className="h-12 w-12 rounded-xl bg-amber-100 flex items-center justify-center">
-                  <Award className="text-amber-600" size={22} />
-                </div>
-              </div>
-            </div>
-
-            <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-slate-500">Department Summary</p>
-                  <p className="text-3xl font-semibold text-slate-900 mt-2">5</p>
-                  <p className="text-xs text-slate-400 mt-2">Active Departments</p>
-                </div>
-                <div className="h-12 w-12 rounded-xl bg-purple-100 flex items-center justify-center">
-                  <Building2 className="text-purple-600" size={22} />
-                </div>
-              </div>
-            </div>
+          <div className="mb-10 grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-4">
+            <KpiCard
+              title="Total applicants"
+              value={loading ? '…' : rspStats.totalApplicants}
+              caption="RSP Division"
+              icon={Users}
+            />
+            <KpiCard
+              title="Active trainings"
+              value={loading ? '…' : lndStats.activeTrainings}
+              caption="L&D Division"
+              icon={GraduationCap}
+            />
+            <KpiCard
+              title="Evaluation status"
+              value={loading ? '…' : pmStats.evaluationStatus}
+              caption="PM Division"
+              icon={Award}
+            />
+            <KpiCard
+              title="Department summary"
+              value={5}
+              caption="Active departments"
+              icon={Building2}
+            />
           </div>
 
           {/* Division Cards */}
           <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
-            <div className="rounded-2xl overflow-hidden border border-slate-200 shadow-sm bg-white">
-              <div className="bg-blue-600 text-white p-5 flex items-center justify-between">
+            <div className="overflow-hidden rounded-xl border border-[#E2E8F0] bg-white">
+              <div className="flex items-center justify-between bg-[#363EE8] p-5 text-white">
                 <div>
                   <h3 className="text-lg font-semibold">RSP Division</h3>
-                  <p className="text-sm text-blue-100">Recruitment, Selection & Placement</p>
+                  <p className="text-sm text-white/85">Recruitment, Selection & Placement</p>
                 </div>
                 <Users size={22} />
               </div>
               <div className="p-5 space-y-4">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm text-slate-500">Job Openings</p>
-                    <p className="text-xs text-slate-400">+2 this month</p>
+                    <p className="text-[13px] font-medium text-[#515F69]">Job Openings</p>
                   </div>
-                  <p className="text-2xl font-semibold text-slate-900">{loading ? '...' : rspStats.totalJobs}</p>
+                  <p className="text-2xl font-bold leading-8 text-[#040E6B]">{loading ? '...' : rspStats.totalJobs}</p>
                 </div>
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm text-slate-500">Total Applicants</p>
-                    <p className="text-xs text-slate-400">+12 this week</p>
+                    <p className="text-[13px] font-medium text-[#515F69]">Total Applicants</p>
                   </div>
-                  <p className="text-2xl font-semibold text-slate-900">{loading ? '...' : rspStats.totalApplicants}</p>
+                  <p className="text-2xl font-bold leading-8 text-[#040E6B]">{loading ? '...' : rspStats.totalApplicants}</p>
                 </div>
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm text-slate-500">Shortlisted</p>
+                    <p className="text-[13px] font-medium text-[#515F69]">Shortlisted</p>
                     <p className="text-xs text-slate-400">{loading ? '...' : rspStats.pendingReviews} pending</p>
                   </div>
-                  <p className="text-2xl font-semibold text-slate-900">{loading ? '...' : rspStats.pendingReviews}</p>
+                  <p className="text-2xl font-bold leading-8 text-[#040E6B]">{loading ? '...' : rspStats.pendingReviews}</p>
                 </div>
               </div>
             </div>
 
-            <div className="rounded-2xl overflow-hidden border border-slate-200 shadow-sm bg-white">
-              <div className="bg-emerald-600 text-white p-5 flex items-center justify-between">
+            <div className="overflow-hidden rounded-xl border border-[#E2E8F0] bg-white">
+              <div className="flex items-center justify-between bg-[#363EE8] p-5 text-white">
                 <div>
                   <h3 className="text-lg font-semibold">L&D Division</h3>
-                  <p className="text-sm text-emerald-100">Learning & Development</p>
+                  <p className="text-sm text-white/85">Learning & Development</p>
                 </div>
                 <GraduationCap size={22} />
               </div>
               <div className="p-5 space-y-4">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm text-slate-500">Training Programs</p>
+                    <p className="text-[13px] font-medium text-[#515F69]">Training Programs</p>
                     <p className="text-xs text-slate-400">{loading ? '...' : lndStats.activeTrainings} upcoming</p>
                   </div>
-                  <p className="text-2xl font-semibold text-slate-900">{loading ? '...' : lndStats.totalPrograms}</p>
+                  <p className="text-2xl font-bold leading-8 text-[#040E6B]">{loading ? '...' : lndStats.totalPrograms}</p>
                 </div>
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm text-slate-500">Active Participants</p>
-                    <p className="text-xs text-slate-400">+22 this month</p>
+                    <p className="text-[13px] font-medium text-[#515F69]">Active Participants</p>
                   </div>
-                  <p className="text-2xl font-semibold text-slate-900">156</p>
+                  <p className="text-2xl font-bold leading-8 text-[#040E6B]">156</p>
                 </div>
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm text-slate-500">Completion Rate</p>
+                    <p className="text-[13px] font-medium text-[#515F69]">Completion Rate</p>
                     <p className="text-xs text-slate-400">+5% vs last month</p>
                   </div>
-                  <p className="text-2xl font-semibold text-slate-900">87%</p>
+                  <p className="text-2xl font-bold leading-8 text-[#040E6B]">87%</p>
                 </div>
               </div>
             </div>
 
-            <div className="rounded-2xl overflow-hidden border border-slate-200 shadow-sm bg-white">
-              <div className="bg-orange-500 text-white p-5 flex items-center justify-between">
+            <div className="overflow-hidden rounded-xl border border-[#E2E8F0] bg-white">
+              <div className="flex items-center justify-between bg-[#363EE8] p-5 text-white">
                 <div>
                   <h3 className="text-lg font-semibold">PM Division</h3>
-                  <p className="text-sm text-orange-100">Performance Management</p>
+                  <p className="text-sm text-white/85">Performance Management</p>
                 </div>
                 <Award size={22} />
               </div>
               <div className="p-5 space-y-4">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm text-slate-500">Active Employees</p>
+                    <p className="text-[13px] font-medium text-[#515F69]">Active Employees</p>
                     <p className="text-xs text-slate-400">Across all depts</p>
                   </div>
-                  <p className="text-2xl font-semibold text-slate-900">184</p>
+                  <p className="text-2xl font-bold leading-8 text-[#040E6B]">184</p>
                 </div>
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm text-slate-500">In Progress</p>
+                    <p className="text-[13px] font-medium text-[#515F69]">In Progress</p>
                     <p className="text-xs text-slate-400">Evaluations ongoing</p>
                   </div>
-                  <p className="text-2xl font-semibold text-slate-900">{loading ? '...' : rspStats.pendingReviews}</p>
+                  <p className="text-2xl font-bold leading-8 text-[#040E6B]">{loading ? '...' : rspStats.pendingReviews}</p>
                 </div>
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm text-slate-500">Avg Performance</p>
+                    <p className="text-[13px] font-medium text-[#515F69]">Avg Performance</p>
                     <p className="text-xs text-slate-400">Out of 5.0</p>
                   </div>
-                  <p className="text-2xl font-semibold text-slate-900">4.2</p>
+                  <p className="text-2xl font-bold leading-8 text-[#040E6B]">4.2</p>
                 </div>
               </div>
             </div>
@@ -286,7 +286,7 @@ export const SuperAdminDashboard = () => {
           {/* Lower Panels */}
           <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 mt-8">
             {/* Recent System Activity */}
-            <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
+            <div className="rounded-xl border border-[#E2E8F0] bg-white p-6">
               <div className="flex items-center justify-between mb-4">
                 <h2 className="text-lg font-semibold text-slate-900">Recent System Activity</h2>
                 <span className="text-slate-400">∿</span>
@@ -317,7 +317,7 @@ export const SuperAdminDashboard = () => {
             </div>
 
             {/* Department Overview */}
-            <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
+            <div className="rounded-xl border border-[#E2E8F0] bg-white p-6">
               <div className="flex items-center justify-between mb-4">
                 <h2 className="text-lg font-semibold text-slate-900">Department Overview</h2>
                 <span className="text-slate-400">🏢</span>
@@ -347,7 +347,7 @@ export const SuperAdminDashboard = () => {
           </div>
 
           {/* Quick Actions */}
-          <div className="mt-8 bg-blue-600 rounded-2xl p-6 text-white shadow-sm">
+          <div className="mt-8 rounded-xl bg-[#363EE8] p-6 text-white">
             <h2 className="text-lg font-semibold">Quick Actions</h2>
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mt-4">
               <button className="h-14 rounded-xl bg-white/15 hover:bg-white/20 transition" type="button" />
