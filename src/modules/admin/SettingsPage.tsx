@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { Bell, Settings, Shield, Mail, Palette, Globe, User, Check, AlertCircle, Download, Upload } from 'lucide-react';
 import { AdminHeader } from '../../components/AdminHeader';
 import { Sidebar } from '../../components/Sidebar';
+import { readAdminSession } from '../../lib/adminSession';
 import {
   type AccentColor,
   type ThemeMode,
@@ -176,11 +177,24 @@ export const SettingsPage = () => {
     setTimeout(() => setSuccess(''), 3000);
   };
 
+  // This page is shared by every admin role, so its identity and sidebar come
+  // from the session. They were hardcoded to RSP, which turned a super admin
+  // opening Settings into the RSP portal — same cause as the module views.
+  const sessionRole = (readAdminSession()?.role ?? '').replace(/_/g, '-').toLowerCase();
+  const isSuper = sessionRole === 'super-admin' || sessionRole === 'admin' || sessionRole === 'superadmin';
+  const chrome = isSuper
+    ? { userName: 'Super Admin', divisionLabel: 'System Administrator', module: 'Super' }
+    : sessionRole === 'lnd'
+      ? { userName: 'L&D Admin', divisionLabel: 'L&D Division', module: 'LND' }
+      : sessionRole === 'pm'
+        ? { userName: 'PM Admin', divisionLabel: 'PM Division', module: 'PM' }
+        : { userName: 'RSP Admin', divisionLabel: 'RSP Division', module: 'RSP' };
+
   return (
     <div className="rsp-ds min-h-screen bg-[#f8f9fa]">
-      <AdminHeader userName="RSP Admin" divisionLabel="RSP Division" />
+      <AdminHeader userName={chrome.userName} divisionLabel={chrome.divisionLabel} />
     <div className="admin-layout">
-      <Sidebar activeModule="RSP" userRole="rsp" />
+      <Sidebar activeModule={chrome.module} />
       <main className="admin-content">
         <div className="admin-header">
           <h1>Settings</h1>
