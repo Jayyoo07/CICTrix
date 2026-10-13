@@ -2,7 +2,17 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+    <!--
+      ABYAN mark on brand blue (DESIGN_IDENTITY §2: "the white mark centered on
+      solid #363EE8, square"). This pointed at Vite's starter logo, which was
+      never in public/, so browsers fell back to a blank globe.
+      .ico first for browsers that only look for one; the PNG is used where a
+      larger icon is wanted (bookmarks, PWA install, tab previews).
+    -->
+    <link rel="icon" href="/favicon.ico" sizes="any" />
+    <link rel="icon" type="image/png" href="/favicon-512.png" sizes="512x512" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <meta name="theme-color" content="#363EE8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate" />
     <meta http-equiv="Pragma" content="no-cache" />
