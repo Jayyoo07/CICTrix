@@ -11,6 +11,7 @@ import { ApplicationsListPage } from './components/ApplicationsListPage';
 import { QualifiedApplicantsRSPPage } from './components/QualifiedApplicantsRSPPage';
 import { RaterManagementPage } from './components/RaterManagementPage';
 import SuccessionReadinessEngine from './components/SuccessionReadinessEngine';
+import { SalaryGradesPage } from './components/SalaryGradesPage';
 import { findEmployeePortalAccount, findEmployeePortalAccountFromSupabase } from './lib/employeePortalData';
 import { fetchPortalEmployeeByNumber } from './lib/api/employeePortal';
 import { clearAdminSession, readAdminSession, writeAdminSession } from './lib/adminSession';
@@ -723,6 +724,14 @@ function AppContent() {
             element={
               <AdminRoute session={adminSession} allowedRoles={['super-admin']}>
                 <SystemAdministrationPage />
+              </AdminRoute>
+            }
+          />
+          <Route
+            path="/admin/salary-grades"
+            element={
+              <AdminRoute session={adminSession} allowedRoles={['super-admin']}>
+                <SalaryGradesPage />
               </AdminRoute>
             }
           />

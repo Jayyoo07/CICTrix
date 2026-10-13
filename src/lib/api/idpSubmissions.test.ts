@@ -28,11 +28,18 @@ describe('missingRequired', () => {
   });
 
   it('lists each unanswered personal-data question by its form label', () => {
-    const missing = missingRequired(complete({ office: '', salaryGrade: '', eligibility: '' }));
+    const missing = missingRequired(complete({ office: '', eligibility: '' }));
     expect(missing).toContain('Office');
-    expect(missing).toContain('Salary Grade');
     expect(missing).toContain('Eligibility');
-    expect(missing).toHaveLength(3);
+    expect(missing).toHaveLength(2);
+  });
+
+  it('does not require Salary Grade — it is filled from the position (D3)', () => {
+    // The field is read-only and resolved from employees -> positions. Where
+    // the position has no grade on file there is nothing the employee could
+    // enter, so requiring it would block a submission on a gap in someone
+    // else's record.
+    expect(missingRequired(complete({ salaryGrade: '' }))).toEqual([]);
   });
 
   it('treats whitespace as unanswered', () => {
@@ -76,9 +83,11 @@ describe('missingRequired', () => {
   it('flags every unanswered question on a blank form', () => {
     const blank = emptySubmission('EMP-1', 2026);
     const missing = missingRequired(blank);
-    // 14 text fields plus the yes/no question.
-    expect(missing).toHaveLength(15);
+    // 13 text fields plus the yes/no question. Salary Grade used to be the
+    // 14th; it is now read-only and filled from the employee's position (D3).
+    expect(missing).toHaveLength(14);
     expect(missing).toContain('Full Name');
+    expect(missing).not.toContain('Salary Grade');
     expect(missing).toContain('Are you performing work tasks outside your job description?');
   });
 });

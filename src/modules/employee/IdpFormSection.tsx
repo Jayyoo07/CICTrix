@@ -14,6 +14,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { CalendarClock, CheckCircle2, Lock, Pencil, Save, Send, Target, TriangleAlert } from 'lucide-react';
 import type { Employee } from '../../types/employee.types';
+import { listPositionSalaryGrades, salaryGradeForEmployee } from '../../lib/api/salaryGrades';
 import {
   closedReason,
   effectiveIdpState,
@@ -57,6 +58,27 @@ export const IdpFormSection = ({ employee }: { employee: Employee }) => {
 
   const [config, setConfig] = useState<IdpFormConfig>(EMPTY_IDP_CONFIG);
   const [form, setForm] = useState<IdpSubmission>(() => emptySubmission(employeeId, cycleYear));
+  // Decision D3: the salary grade comes from the employee's position, not from
+  // them. They were typing it themselves, which made it an unverified claim on
+  // a form HR reads. null means the position has no grade on file.
+  const [positionGrade, setPositionGrade] = useState<number | null>(null);
+  const [gradeResolved, setGradeResolved] = useState(false);
+  useEffect(() => {
+    let cancelled = false;
+    void listPositionSalaryGrades().then((res) => {
+      if (cancelled) return;
+      if (res.ok) {
+        setPositionGrade(
+          salaryGradeForEmployee(
+            { positionId: (employee as any)?.positionId ?? null, position: employee?.currentPosition ?? null },
+            res.data,
+          ),
+        );
+      }
+      setGradeResolved(true);
+    });
+    return () => { cancelled = true; };
+  }, [employee]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -101,6 +123,14 @@ export const IdpFormSection = ({ employee }: { employee: Employee }) => {
     })();
     return () => { cancelled = true; };
   }, [employeeId, cycleYear, employee]);
+
+  // Keep the stored value in step with the resolved grade, so a submitted IDP
+  // still carries the record even though the field is no longer typed.
+  useEffect(() => {
+    if (!gradeResolved) return;
+    const next = positionGrade == null ? '' : String(positionGrade);
+    setForm((prev) => (prev.salaryGrade === next ? prev : { ...prev, salaryGrade: next }));
+  }, [gradeResolved, positionGrade]);
 
   const state = effectiveIdpState(config);
   const missing = useMemo(() => missingRequired(form), [form]);
@@ -245,8 +275,18 @@ export const IdpFormSection = ({ employee }: { employee: Employee }) => {
               <input className={inputCls} value={form.position} onChange={(e) => set('position', e.target.value)} />
             </div>
             <div>
-              <label className={labelCls}>Salary Grade<Required /></label>
-              <input className={inputCls} value={form.salaryGrade} onChange={(e) => set('salaryGrade', e.target.value)} />
+              <label className={labelCls}>Salary Grade</label>
+              {/* Read-only (D3). It follows the employee's position, so it is
+                  shown rather than asked for. A position with no grade on file
+                  says so and does not block submission — that is a gap in the
+                  position record, not something the employee can answer. */}
+              <div className={`${inputCls} flex items-center bg-slate-50 text-slate-600`}>
+                {!gradeResolved
+                  ? 'Loading…'
+                  : positionGrade != null
+                    ? `SG ${positionGrade}`
+                    : 'No salary grade on file for this position'}
+              </div>
             </div>
             <div>
               <label className={labelCls}>Years in Position<Required /></label>

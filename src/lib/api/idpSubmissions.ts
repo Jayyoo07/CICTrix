@@ -242,7 +242,10 @@ export function missingRequired(s: IdpSubmission): string[] {
   need(s.office, 'Office');
   need(s.division, 'Division');
   need(s.position, 'Position');
-  need(s.salaryGrade, 'Salary Grade');
+  // Not required (D3): the salary grade is filled from the employee's position
+  // and is read-only on the form. Where the position has no grade on file there
+  // is nothing the employee could enter, so requiring it would block a
+  // submission on a gap in someone else's record.
   need(s.yearsInPosition, 'Years in Position');
   need(s.yearsGovernmentService, "Year's Gov't Service");
   need(s.eligibility, 'Eligibility');

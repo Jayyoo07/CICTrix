@@ -1,4 +1,4 @@
-import { BookOpen, Briefcase, ClipboardCheck, ClipboardList, FileText, GitBranch, LayoutDashboard, ListChecks, Settings, ShieldCheck, TrendingUp, UserCheck, UserCog, Users } from 'lucide-react';
+import { BookOpen, Briefcase, ClipboardCheck, ClipboardList, FileText, GitBranch, LayoutDashboard, ListChecks, Settings, ShieldCheck, TrendingUp, UserCheck, UserCog, Users, Wallet } from 'lucide-react';
 import { readAdminSession } from '../lib/adminSession';
 import { Link, useLocation } from 'react-router-dom';
 import { useEffect, useState } from 'react';
@@ -123,6 +123,14 @@ export const Sidebar = ({ activeModule, userRole }: SidebarProps) => {
       label: 'System Administration',
       sublabel: 'Offices, roles & cycle control',
       isActive: location.pathname === '/admin/system-admin',
+      roles: ['super-admin'],
+    },
+    {
+      path: '/admin/salary-grades',
+      icon: Wallet,
+      label: 'Salary Grades',
+      sublabel: 'CSC salary schedule',
+      isActive: location.pathname === '/admin/salary-grades',
       roles: ['super-admin'],
     },
     {

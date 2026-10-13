@@ -1,4 +1,6 @@
 import { useBackClosesView } from '../hooks/useHistoryBack';
+import { SalaryGradeSelect } from './SalaryGradeSelect';
+import { formatSalary, listSalaryGrades, type SalaryGradeRow } from '../lib/api/salaryGrades';
 import {
     Briefcase,
     Calendar,
@@ -229,6 +231,17 @@ export const JobPostingsPage = () => {
   const [showModal, setShowModal] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<JobPostFormValues>(buildDefaultJobForm());
+  // The CSC schedule, loaded once here and handed to every plantilla row's
+  // SalaryGradeSelect — a posting can have several rows, and each fetching the
+  // same 33 grades would be wasteful and could render them inconsistently.
+  const [salaryTable, setSalaryTable] = useState<SalaryGradeRow[]>([]);
+  useEffect(() => {
+    let cancelled = false;
+    void listSalaryGrades().then((res) => {
+      if (!cancelled && res.ok) setSalaryTable(res.data);
+    });
+    return () => { cancelled = true; };
+  }, []);
   const [toast, setToast] = useState('');
   const [lockConfirmJob, setLockConfirmJob] = useState<JobPosting | null>(null);
   const [unlockDialogJob, setUnlockDialogJob] = useState<JobPosting | null>(null);
@@ -1802,28 +1815,34 @@ export const JobPostingsPage = () => {
                             </div>
 
                             {/* Each plantilla carries its own salary; there is no
-                                shared Salary Grade / Monthly Salary field. */}
+                                shared Salary Grade / Monthly Salary field.
+
+                                The grade is picked from the CSC schedule and the
+                                amount follows it — both were free text, which let
+                                two postings at the same grade advertise different
+                                salaries. */}
                             <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
-                              <input
-                                type="number"
-                                min={1}
+                              <SalaryGradeSelect
+                                value={slot.salaryGrade === '' ? null : Number(slot.salaryGrade)}
+                                table={salaryTable}
                                 required
-                                aria-label={`Salary Grade of ${slot.label || `row ${index + 1}`}`}
                                 className="w-full rounded-lg border border-slate-200 px-3 py-1.5 text-xs"
-                                placeholder="Salary Grade *  e.g., 6"
-                                value={slot.salaryGrade}
-                                onChange={(event) => updateSlot(slot.key, { salaryGrade: event.target.value.replace(/[^0-9]/g, '') })}
+                                placeholder="Salary Grade *"
+                                onChange={(grade, monthly) =>
+                                  updateSlot(slot.key, {
+                                    salaryGrade: grade == null ? '' : String(grade),
+                                    monthlySalary: monthly == null ? '' : String(monthly),
+                                  })
+                                }
                               />
-                              <input
-                                type="number"
-                                min={0}
-                                required
+                              <div
                                 aria-label={`Monthly Salary of ${slot.label || `row ${index + 1}`}`}
-                                className="w-full rounded-lg border border-slate-200 px-3 py-1.5 text-xs"
-                                placeholder="Monthly Salary (PHP) *  e.g., 16113"
-                                value={slot.monthlySalary}
-                                onChange={(event) => updateSlot(slot.key, { monthlySalary: event.target.value.replace(/[^0-9]/g, '') })}
-                              />
+                                className="flex w-full items-center rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs text-slate-600"
+                              >
+                                {slot.monthlySalary
+                                  ? `${formatSalary(Number(slot.monthlySalary))} · Step 1`
+                                  : 'Monthly salary follows the grade'}
+                              </div>
                             </div>
 
                             {slot.id && (

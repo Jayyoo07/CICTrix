@@ -35,6 +35,7 @@ import { getAdminEmail } from '../../lib/adminSession';
 import { funnelBucket, normalizeStatus, type FunnelBucket } from '../../lib/api/applicantStatus';
 import { SuccessionPlanningPage } from '../../components/SuccessionPlanningPage';
 import { EligibilityPointsPanel } from '../../components/EligibilityPointsPanel';
+import { SalaryGradeSelect } from '../../components/SalaryGradeSelect';
 import { useEffect, useMemo, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { AdminHeader } from '../../components/AdminHeader';
@@ -6416,15 +6417,15 @@ export const RSPDashboard = () => {
                         <label className="mb-2 block text-base font-semibold text-[var(--text-primary)]">
                           Salary Grade
                         </label>
-                        <input
-                          type="number"
-                          min={1}
-                          max={33}
+                        {/* Picked from the CSC schedule rather than typed, so a
+                            position cannot carry a grade the schedule does not
+                            have. This field only ranks the position; the amount
+                            shown is context. */}
+                        <SalaryGradeSelect
+                          value={newJob.salary_grade === '' ? null : Number(newJob.salary_grade)}
                           className="w-full rounded-xl border border-[var(--border-color)] p-3 text-base"
-                          placeholder="e.g. 22"
-                          value={newJob.salary_grade}
-                          onChange={(event) =>
-                            setNewJob((prev) => ({ ...prev, salary_grade: event.target.value }))
+                          onChange={(grade) =>
+                            setNewJob((prev) => ({ ...prev, salary_grade: grade == null ? '' : String(grade) }))
                           }
                         />
                         <p className="mt-1 text-sm text-[var(--text-secondary)]">
