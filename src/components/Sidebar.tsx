@@ -157,14 +157,11 @@ export const Sidebar = ({ activeModule, userRole }: SidebarProps) => {
       isActive: location.pathname === '/admin/supervisors' || location.pathname === '/admin/users',
       roles: ['super-admin'],
     },
-    {
-      path: '/admin/reports',
-      icon: FileText,
-      label: 'Reports',
-      sublabel: '',
-      isActive: location.pathname === '/admin/reports',
-      roles: ['super-admin'],
-    },
+    // Reports: no item here on purpose. /admin/reports has no route, so this
+    // link fell through to the catch-all and redirected to the public landing
+    // page — clicking it logged the admin out of the portal, visually. There is
+    // no super-admin reports page to point it at yet; RSP's reports section is
+    // RSP's own. Restore this the moment one exists.
     {
       path: getPath('settings', '/admin/settings'),
       icon: Settings,
