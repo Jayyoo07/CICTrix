@@ -20,8 +20,10 @@
 select
   'job_posting'              as record,
   jp.id,
-  jp.title,
-  jp.salary_grade,
+  jp.title                   as identifier,
+  -- Cast to text on both sides of the union: this column is an integer in
+  -- production and text elsewhere, so an uncast union fails on type mismatch.
+  jp.salary_grade::text,
   jp.monthly_salary          as currently_posted,
   sg.monthly_salary          as official_rate
 from public.job_postings jp
@@ -36,8 +38,11 @@ union all
 select
   'plantilla_slot',
   ps.id,
-  ps.label,
-  ps.salary_grade,
+  -- item_number, not label: `label` is added by migration 20260928, which has
+  -- not run on every environment. item_number has been on the table since it
+  -- was created and identifies the slot just as well.
+  ps.item_number,
+  ps.salary_grade::text,
   ps.monthly_salary,
   sg.monthly_salary
 from public.plantilla_slots ps
