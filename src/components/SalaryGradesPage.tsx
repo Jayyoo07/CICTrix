@@ -37,7 +37,10 @@ const STEPS = Array.from({ length: MAX_STEP }, (_, i) => i + 1);
 
 type Pending =
   | { kind: 'edit'; grade: number; step: number; amount: number; current: number }
-  | { kind: 'add'; grade: number; step: number; amount: number }
+  // The amount is typed in the modal, so it starts empty rather than being
+  // collected by window.prompt — a browser dialog is not part of the system,
+  // cannot be styled or validated, and names the hostname rather than the app.
+  | { kind: 'add'; grade: number; step: number }
   | { kind: 'delete'; grade: number; step: number };
 
 const formatDate = (iso: string | null) => {
@@ -55,6 +58,8 @@ export const SalaryGradesPage = () => {
   const [savedKey, setSavedKey] = useState<string | null>(null);
   const [pending, setPending] = useState<Pending | null>(null);
   const [busy, setBusy] = useState(false);
+  /** Amount typed into the Add-step modal. */
+  const [draftAmount, setDraftAmount] = useState('');
   /** Postings a Step 1 change would rewrite; null while it is being counted. */
   const [affected, setAffected] = useState<number | null>(null);
 
@@ -102,6 +107,7 @@ export const SalaryGradesPage = () => {
 
   const ask = (next: Pending) => {
     setPending(next);
+    setDraftAmount('');
     setAffected(null);
     if (next.kind !== 'delete' && next.step === HIRING_STEP) void countAffected(next.grade);
   };
@@ -115,7 +121,7 @@ export const SalaryGradesPage = () => {
       pending.kind === 'edit'
         ? await updateSalaryStep(pending.grade, pending.step, pending.amount)
         : pending.kind === 'add'
-          ? await addSalaryStep(pending.grade, pending.step, pending.amount)
+          ? await addSalaryStep(pending.grade, pending.step, Number(draftAmount))
           : await deleteSalaryStep(pending.grade, pending.step);
 
     setBusy(false);
@@ -138,13 +144,23 @@ export const SalaryGradesPage = () => {
 
   const stepOf = (row: SalaryGradeRow, step: number) => row.steps.find((s) => s.step === step);
 
+  /** The amount the modal is about to write, whichever kind it is. */
+  const pendingAmount =
+    pending?.kind === 'edit' ? pending.amount : pending?.kind === 'add' ? Number(draftAmount) : null;
+  const amountValid = pendingAmount != null && Number.isFinite(pendingAmount) && pendingAmount > 0;
+
   const confirmBody = useMemo(() => {
     if (!pending) return null;
     if (pending.kind === 'delete') {
       return `Remove Step ${pending.step} from SG ${pending.grade}? Job posts are unaffected — they use Step ${HIRING_STEP}.`;
     }
-    const verb = pending.kind === 'add' ? 'Add' : 'Change';
-    const base = `${verb} SG ${pending.grade} Step ${pending.step} to ${formatSalary(pending.amount)}?`;
+    // On Add the amount is still being typed, so the consequence is described
+    // without quoting a number that does not exist yet.
+    const target = pending.kind === 'add' ? 'this step' : formatSalary(pending.amount);
+    const base =
+      pending.kind === 'add'
+        ? `Add Step ${pending.step} to SG ${pending.grade}.`
+        : `Change SG ${pending.grade} Step ${pending.step} to ${target}?`;
     if (pending.step !== HIRING_STEP) {
       return `${base} Steps above ${HIRING_STEP} are reference only, so no job post changes.`;
     }
@@ -227,16 +243,7 @@ export const SalaryGradesPage = () => {
                         <td key={n} className="px-4 py-3">
                           <button
                             type="button"
-                            onClick={() => {
-                              const raw = window.prompt(`Monthly salary for SG ${row.salaryGrade} Step ${n}`);
-                              if (raw == null) return;
-                              const amount = Number(String(raw).replace(/[^0-9.]/g, ''));
-                              if (!Number.isFinite(amount) || amount <= 0) {
-                                flash('err', 'Enter an amount greater than zero.');
-                                return;
-                              }
-                              ask({ kind: 'add', grade: row.salaryGrade, step: n, amount });
-                            }}
+                            onClick={() => ask({ kind: 'add', grade: row.salaryGrade, step: n })}
                             className="inline-flex items-center gap-1 rounded-lg border border-dashed border-[#CBD5E1] px-2 py-1 text-xs text-[#515F69] hover:border-[#363EE8] hover:text-[#363EE8]"
                             aria-label={`Add Step ${n} for SG ${row.salaryGrade}`}
                           >
@@ -309,6 +316,29 @@ export const SalaryGradesPage = () => {
               </button>
             </div>
             <p className="mt-3 text-sm text-[#28343D]">{confirmBody}</p>
+
+            {pending.kind === 'add' && (
+              <div className="mt-4">
+                <label htmlFor="new-step-amount" className="mb-1.5 block text-[13px] font-medium text-[#28343D]">
+                  Monthly salary <span className="text-[#E05252]">*</span>
+                </label>
+                <input
+                  id="new-step-amount"
+                  type="number"
+                  min={1}
+                  autoFocus
+                  value={draftAmount}
+                  onChange={(e) => setDraftAmount(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === 'Enter' && amountValid && !busy) void confirm(); }}
+                  placeholder="e.g. 15200"
+                  className="w-full rounded-lg border border-[#E2E8F0] px-3 py-2 text-sm focus:border-[#363EE8] focus:outline-none focus:ring-[3px] focus:ring-[rgba(54,62,232,.15)]"
+                />
+                {draftAmount !== '' && !amountValid && (
+                  <p className="mt-1 text-xs text-[#B42323]">Enter an amount greater than zero.</p>
+                )}
+              </div>
+            )}
+
             <div className="mt-5 flex justify-end gap-2">
               <button
                 type="button"
@@ -321,7 +351,7 @@ export const SalaryGradesPage = () => {
               <button
                 type="button"
                 onClick={() => void confirm()}
-                disabled={busy}
+                disabled={busy || (pending.kind === 'add' && !amountValid)}
                 className={`rounded-full px-5 py-2 text-sm font-semibold text-white disabled:opacity-50 ${
                   pending.kind === 'delete' ? 'bg-[#E05252] hover:bg-[#B42323]' : 'bg-[#363EE8] hover:bg-[#191FA8]'
                 }`}
