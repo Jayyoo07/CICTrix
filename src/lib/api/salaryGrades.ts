@@ -86,6 +86,26 @@ export function groupSteps(rows: SalaryStep[]): SalaryGradeRow[] {
     });
 }
 
+/**
+ * Has the table not been created yet?
+ *
+ * PostgREST answers a query against a missing table with PGRST205 and "Could
+ * not find the table ... in the schema cache". That is a deployment state, not
+ * a fault: the migration has not run. Callers show the "run the migration"
+ * empty state for it instead of surfacing the raw message, which reads as a
+ * broken page to an admin who has done nothing wrong.
+ */
+export function isMissingTable(error: { code?: string; message?: string } | null | undefined): boolean {
+  if (!error) return false;
+  const code = String(error.code ?? '');
+  const msg = String(error.message ?? '').toLowerCase();
+  return (
+    code === 'PGRST205' ||
+    code === '42P01' ||
+    (msg.includes('could not find the table') && msg.includes('salary_grades'))
+  );
+}
+
 export async function listSalaryGrades(): Promise<Result<SalaryGradeRow[]>> {
   try {
     const { data, error } = await supabase
@@ -93,7 +113,12 @@ export async function listSalaryGrades(): Promise<Result<SalaryGradeRow[]>> {
       .select('salary_grade, step, monthly_salary, updated_at')
       .order('salary_grade', { ascending: true })
       .order('step', { ascending: true });
-    if (error) return { ok: false, error: error.message ?? 'Failed to load the salary schedule.' };
+    if (error) {
+      // Not migrated yet: report it as an empty schedule so the page shows the
+      // "run migration 20261013" state rather than a PostgREST cache error.
+      if (isMissingTable(error)) return { ok: true, data: [] };
+      return { ok: false, error: error.message ?? 'Failed to load the salary schedule.' };
+    }
     return { ok: true, data: groupSteps((data ?? []).map(fromRow)) };
   } catch (err) {
     return { ok: false, error: err instanceof Error ? err.message : String(err) };
@@ -231,7 +256,12 @@ export async function listPositionSalaryGrades(): Promise<
 > {
   try {
     const { data, error } = await supabase.from('positions').select('id, name, salary_grade');
-    if (error) return { ok: false, error: error.message ?? 'Failed to load positions.' };
+    if (error) {
+      // An employee filling in their IDP must not be blocked because a lookup
+      // table is missing; the field falls back to "no grade on file".
+      if (isMissingTable(error)) return { ok: true, data: [] };
+      return { ok: false, error: error.message ?? 'Failed to load positions.' };
+    }
     return {
       ok: true,
       data: (data ?? []).map((r: any) => ({

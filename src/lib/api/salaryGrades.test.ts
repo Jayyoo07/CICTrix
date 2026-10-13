@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   HIRING_STEP,
+  isMissingTable,
   MAX_SALARY_GRADE,
   MIN_SALARY_GRADE,
   formatSalary,
@@ -126,5 +127,24 @@ describe('the hiring step', () => {
     // Job posts and plantilla items read this step and no other; the D1 sync
     // trigger fires only for it.
     expect(HIRING_STEP).toBe(1);
+  });
+});
+
+describe('isMissingTable', () => {
+  it('recognises the PostgREST schema-cache error for a table that does not exist', () => {
+    // The migration not having run is a deployment state, not a fault. The page
+    // shows "run migration 20261013" for it instead of a raw Postgres message.
+    expect(isMissingTable({ code: 'PGRST205', message: "Could not find the table 'public.salary_grades' in the schema cache" })).toBe(true);
+    expect(isMissingTable({ message: "Could not find the table 'public.salary_grades' in the schema cache" })).toBe(true);
+    expect(isMissingTable({ code: '42P01' })).toBe(true);
+  });
+
+  it('does not swallow a real failure', () => {
+    // A permission error must still surface: it means RLS rejected the caller,
+    // which an admin needs to see rather than read as "nothing configured".
+    expect(isMissingTable({ code: '42501', message: 'permission denied for table salary_grades' })).toBe(false);
+    expect(isMissingTable({ message: 'network error' })).toBe(false);
+    expect(isMissingTable(null)).toBe(false);
+    expect(isMissingTable(undefined)).toBe(false);
   });
 });
