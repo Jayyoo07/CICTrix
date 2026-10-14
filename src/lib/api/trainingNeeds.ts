@@ -246,3 +246,33 @@ export async function computeNeedsAssessment(): Promise<CompetencyNeed[]> {
 
   return needs.sort((a, b) => b.demand - a.demand);
 }
+
+// ── Workforce for the L&D Dashboard ──────────────────────────────────────────
+
+export type ActiveEmployee = { id: string; name: string; position: string; department: string };
+
+/**
+ * Active employees in the currently-active offices — the same population the
+ * needs assessment divides by, so dashboard denominators agree with each other.
+ */
+export async function listActiveEmployees(): Promise<ActiveEmployee[]> {
+  const [{ data, error }, activeOffices] = await Promise.all([
+    supabase
+      .from('employees_with_department')
+      .select('id, full_name, current_position, department, status')
+      .eq('status', 'Active'),
+    getActiveOfficeNameSet(),
+  ]);
+  if (error) {
+    console.error('Error loading active employees:', error);
+    return [];
+  }
+  return ((data ?? []) as any[])
+    .map((e) => ({
+      id: String(e.id),
+      name: e.full_name ?? 'Unnamed employee',
+      position: e.current_position ?? '',
+      department: e.department ?? 'Unassigned office',
+    }))
+    .filter((e) => activeOffices.size === 0 || activeOffices.has(e.department.trim().toLowerCase()));
+}

@@ -1,8 +1,6 @@
 import {
   AlertTriangle,
-  Award,
   BarChart2,
-  Building2,
   CalendarClock,
   CalendarDays,
   ChevronLeft,
@@ -24,17 +22,11 @@ import {
   Users,
   X,
 } from 'lucide-react';
-import { useEffect, useMemo, useState } from 'react';
+import { Fragment, useEffect, useMemo, useState } from 'react';
 import {
   Bar,
   BarChart,
   CartesianGrid,
-  Legend,
-  PolarAngleAxis,
-  PolarGrid,
-  PolarRadiusAxis,
-  Radar,
-  RadarChart,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -49,20 +41,20 @@ import { LndIdpFormSettings } from './LndIdpFormSettings';
 import { SeminarEnrollment } from './SeminarEnrollment';
 import { TrainingCalendar } from './TrainingCalendar';
 import { TrainingPlan } from './TrainingPlan';
-import { CATEGORY_COLORS, TRAINING_CATEGORIES } from './trainingCategories';
+import { CATEGORY_COLORS } from './trainingCategories';
 
 import { EmptyState } from '../../components/EmptyState';
-import { listTrainingRequestsDetailed, type TrainingRequest } from '../../lib/api/trainingRequests';
 import { listCalendarEvents, type CalendarEvent } from '../../lib/api/trainingCalendar';
 import { trainingProgress } from '../../lib/trainingProgress';
-import { computeNeedsAssessment, type CompetencyNeed } from '../../lib/api/trainingNeeds';
+import { computeNeedsAssessment, listActiveEmployees, type ActiveEmployee, type CompetencyNeed } from '../../lib/api/trainingNeeds';
+import { REQUIRED_TRAININGS_PER_YEAR, trainingCompliance } from '../../lib/trainingCompliance';
 import { listIncompleteLockedTrainings, listLockingSoonWithoutRoster, type IncompleteLockedTraining, type LockingSoonTraining } from '../../lib/api/trainingLifecycle';
 import { OfficeDirectorySection } from '../../components/OfficeDirectorySection';
 import { LndSummaryOfRatings } from './LndSummaryOfRatings';
 import { LndTrainingNeeds } from './LndTrainingNeeds';
 import { LndArchive } from './LndArchive';
 import { cycleYearFor, listSubmissions, type IdpSubmission } from '../../lib/api/idpSubmissions';
-import { idpOffices, matchOffice, officeTagShares, tagSelectionsByOffice, topTagPerOffice } from '../../lib/idpAnalytics';
+import { idpOffices, tagSelectionsByOffice } from '../../lib/idpAnalytics';
 
 type MenuId =
   | 'dashboard'
@@ -81,16 +73,6 @@ type MenuItem = {
   label: string;
   sublabel: string;
   icon: RailNavItem['icon'];
-};
-
-type StatCardColor = 'blue' | 'green' | 'orange' | 'purple';
-
-type StatCardProps = {
-  label: string;
-  value: string;
-  icon: React.ComponentType<{ className?: string }>;
-  color: StatCardColor;
-  sublabel: string;
 };
 
 // Module-scope mock data arrays removed in favor of component state
@@ -139,30 +121,6 @@ const PlaceholderPage = ({ label }: { label: string }) => {
   );
 };
 
-const StatCard = ({ label, value, icon: Icon, color, sublabel }: StatCardProps) => {
-  const colorStyles = {
-    blue: 'bg-blue-100 text-blue-600',
-    green: 'bg-green-100 text-green-600',
-    orange: 'bg-orange-100 text-orange-600',
-    purple: 'bg-purple-100 text-purple-600',
-  }[color];
-
-  return (
-    <article className="rounded-2xl border border-gray-200 bg-white p-5 transition hover:shadow-md">
-      <div className="flex items-start justify-between">
-        <div>
-          <p className="text-sm font-medium text-gray-500">{label}</p>
-          <p className="mt-1 text-3xl font-bold text-gray-900">{value}</p>
-          <p className="mt-1 text-xs text-gray-500">{sublabel}</p>
-        </div>
-        <div className={`flex h-12 w-12 items-center justify-center rounded-xl ${colorStyles}`}>
-          <Icon className="h-6 w-6" />
-        </div>
-      </div>
-    </article>
-  );
-};
-
 // ── Dashboard constants ───────────────────────────────────────────────────────
 
 // Categories and their colors are defined in ./trainingCategories so that
@@ -205,16 +163,6 @@ const DEPT_PALETTE = [
   '#2563eb', '#dc2626', '#059669', '#d97706', '#7c3aed',
   '#db2777', '#0891b2', '#65a30d', '#ea580c', '#6366f1',
 ];
-
-/** IDP tag bars: career tags dark, personal tags light, so the two form sections read apart. */
-const IDP_KIND_COLORS = { career: '#7c3aed', personal: '#c4b5fd' } as const;
-
-/** Small label marking which side of a TNA | IDP row a panel is on. */
-const PanelTag = ({ kind }: { kind: 'tna' | 'idp' }) => (
-  <p className={`text-[11px] font-semibold uppercase tracking-wide ${kind === 'tna' ? 'text-blue-600' : 'text-purple-600'}`}>
-    {kind === 'tna' ? 'TNA · assessed gaps' : 'IDP · employee requests'}
-  </p>
-);
 
 // ── Dismissible warning (DESIGN_IDENTITY.md §9.9, warning) ───────────────────
 
@@ -286,55 +234,169 @@ const DismissibleWarning = ({ storageKey, title, message, items }: {
   );
 };
 
+// ── Dashboard building blocks (Layout A, docs/mockups/2026-10-14-lnd-dashboard-layout-a.html) ──
+
+/** Module accents: TNA = brand, IDP = the purple the IDP panels already use, Trainings = success. */
+const MODULE_ACCENT = {
+  tna: 'var(--color-primary)',
+  idp: '#7c3aed',
+  trainings: 'var(--success-500)',
+} as const;
+type ModuleKey = keyof typeof MODULE_ACCENT;
+
+/** Heatmap buckets: upper bound (exclusive) of % of office headcount with the gap. */
+const HEAT_STEPS = [
+  { max: 15, label: '0–15%', mix: 8 },
+  { max: 30, label: '15–30%', mix: 22 },
+  { max: 45, label: '30–45%', mix: 42 },
+  { max: 60, label: '45–60%', mix: 62 },
+  { max: 75, label: '60–75%', mix: 82 },
+  { max: Infinity, label: '75%+', mix: 100 },
+] as const;
+/** Steps from this index up are dark enough to need white text. */
+const HEAT_DARK_FROM = 3;
+
+const heatStep = (pct: number) => HEAT_STEPS.findIndex((s) => pct < s.max);
+const heatBg = (i: number) => `color-mix(in srgb, var(--color-primary) ${HEAT_STEPS[i].mix}%, white)`;
+
+const COMPLIANCE_COLORS = { met: 'var(--success-500)', partial: 'var(--warning-500)', none: 'var(--error-500)' } as const;
+
+const pctOf = (n: number, d: number) => (d > 0 ? Math.round((n / d) * 100) : 0);
+
+const loadingVeil = <div className="absolute inset-0 z-10 rounded-2xl bg-white/50 backdrop-blur-[1px]" />;
+
+const ModuleLabel = ({ module, children }: { module: ModuleKey; children: React.ReactNode }) => (
+  <p className="text-caps" style={{ color: MODULE_ACCENT[module] }}>{children}</p>
+);
+
+const Kpi = ({ value, label, sub, tone }: { value: string; label: string; sub: string; tone?: 'muted' | 'alert' }) => (
+  <div className="min-w-0">
+    <p className="text-[28px] font-extrabold leading-tight" style={{ color: tone === 'muted' ? 'var(--neutral-300)' : 'var(--color-primary-900)' }}>{value}</p>
+    <p className="text-body-s mt-0.5" style={{ color: 'var(--neutral-600)' }}>{label}</p>
+    <p className="text-[11px] leading-4" style={{ color: tone === 'alert' ? 'var(--error-700)' : 'var(--neutral-400)' }}>{sub}</p>
+  </div>
+);
+
+const SummaryCard = ({ module, title, children, loading }: { module: ModuleKey; title: string; children: React.ReactNode; loading: boolean }) => (
+  <article
+    className="relative rounded-2xl border bg-white px-5 py-4"
+    style={{ borderColor: 'var(--neutral-200)', borderTop: `3px solid ${MODULE_ACCENT[module]}` }}
+  >
+    {loading && loadingVeil}
+    <ModuleLabel module={module}>{title}</ModuleLabel>
+    <div className="mt-2.5 grid grid-cols-3 gap-3">{children}</div>
+  </article>
+);
+
+const ChartCard = ({ title, caption, children, loading, action }: {
+  title: string;
+  caption?: string;
+  children: React.ReactNode;
+  loading: boolean;
+  action?: React.ReactNode;
+}) => (
+  <section className="relative flex min-w-0 flex-col rounded-2xl border bg-white px-5 py-4" style={{ borderColor: 'var(--neutral-200)' }}>
+    {loading && loadingVeil}
+    <div className="flex items-start justify-between gap-3">
+      <div className="min-w-0">
+        <h2 className="text-[15px] font-bold" style={{ color: 'var(--color-primary-900)' }}>{title}</h2>
+        {caption && <p className="text-body-s mt-0.5" style={{ color: 'var(--neutral-500)' }}>{caption}</p>}
+      </div>
+      {action}
+    </div>
+    <div className="mt-4 flex-1">{children}</div>
+  </section>
+);
+
+const LegendSwatch = ({ color, label }: { color: string; label: string }) => (
+  <span className="inline-flex items-center gap-1.5 text-[11px]" style={{ color: 'var(--neutral-600)' }}>
+    <span className="inline-block h-2.5 w-2.5 rounded-sm" style={{ backgroundColor: color }} />
+    {label}
+  </span>
+);
+
+/** One stacked 0 / 1 / 2-of-2 bar. */
+const ComplianceBar = ({ met, partial, none, height, showCounts }: { met: number; partial: number; none: number; height: number; showCounts?: boolean }) => {
+  const total = met + partial + none;
+  const segs = [
+    { key: 'met', n: met, color: COMPLIANCE_COLORS.met },
+    { key: 'partial', n: partial, color: COMPLIANCE_COLORS.partial },
+    { key: 'none', n: none, color: COMPLIANCE_COLORS.none },
+  ].filter((s) => s.n > 0);
+  if (total === 0) return <div className="rounded-md" style={{ height, background: 'var(--neutral-100)' }} />;
+  return (
+    <div className="flex overflow-hidden rounded-md text-xs font-bold text-white" style={{ height }}>
+      {segs.map((s) => (
+        <div
+          key={s.key}
+          className="flex items-center overflow-hidden whitespace-nowrap pl-2"
+          style={{ width: `${(s.n / total) * 100}%`, backgroundColor: s.color }}
+          title={`${s.n} employee${s.n === 1 ? '' : 's'}`}
+        >
+          {showCounts && `${s.n} · ${pctOf(s.n, total)}%`}
+        </div>
+      ))}
+    </div>
+  );
+};
+
+const csvCell = (v: string | number) => `"${String(v).replace(/"/g, '""')}"`;
+
+const downloadCsv = (filename: string, rows: (string | number)[][]) => {
+  const blob = new Blob([rows.map((r) => r.map(csvCell).join(',')).join('\r\n')], { type: 'text/csv;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+};
+
+/** Rows shown in the "still needs training" card before "View all". */
+const NEEDS_TRAINING_PREVIEW = 6;
+
 // ── Dashboard component ───────────────────────────────────────────────────────
 
 const LndDashboardContent = () => {
   const [loading, setLoading] = useState(true);
-  const [requests, setRequests] = useState<TrainingRequest[]>([]);
-  const [selectedRadarDept, setSelectedRadarDept] = useState('');
-  const [viewDeptDetails, setViewDeptDetails] = useState<string | null>(null);
   const [incompleteLocked, setIncompleteLocked] = useState<IncompleteLockedTraining[]>([]);
   const [lockingSoon, setLockingSoon] = useState<LockingSoonTraining[]>([]);
   /**
    * The AI needs assessment — competency gaps derived from the summary of
    * ratings and mapped onto the competency framework. This, not the manual
-   * request queue, is what the analytics below describe: requests are what
-   * offices thought to ask for, whereas this is what the ratings actually show.
+   * request queue, is what the TNA section describes.
    */
   const [needs, setNeeds] = useState<CompetencyNeed[]>([]);
-  /** Filed IDPs for this cycle — what employees asked for, shown beside the TNA. */
+  /** Filed IDPs for this cycle. */
   const [idpSubs, setIdpSubs] = useState<IdpSubmission[]>([]);
-  const [selectedIdpOffice, setSelectedIdpOffice] = useState('');
   const idpCycle = cycleYearFor();
-  /** This year's Training Calendar — drives the trainings-completed card. */
+  /** This year's Training Calendar — completion and the 2-training rule. */
   const [calendarEvents, setCalendarEvents] = useState<CalendarEvent[]>([]);
+  /** Active employees in active offices — the denominator for every section. */
+  const [employees, setEmployees] = useState<ActiveEmployee[]>([]);
+  const [trainingDept, setTrainingDept] = useState('');
+  const [needsFilter, setNeedsFilter] = useState<'all' | 'none' | 'partial'>('all');
+  const [showAllNeeds, setShowAllNeeds] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
-        const [data, locked, soon, assessed, idp, events] = await Promise.all([
-          listTrainingRequestsDetailed(),
+        const [locked, soon, assessed, idp, events, staff] = await Promise.all([
           listIncompleteLockedTrainings(),
           listLockingSoonWithoutRoster(),
           computeNeedsAssessment(),
-          listSubmissions(cycleYearFor()),
+          listSubmissions(idpCycle),
           listCalendarEvents(new Date().getFullYear()),
+          listActiveEmployees(),
         ]);
         if (cancelled) return;
-        if (idp.ok) setIdpSubs(idp.data);
-        setCalendarEvents(events);
-        setRequests(data);
         setIncompleteLocked(locked);
         setLockingSoon(soon);
         setNeeds(assessed);
-        // Offices come from the needs assessment, which covers everyone with
-        // rated IPCR data — not just offices that happened to file a request.
-        const assessedDepts = Array.from(new Set(assessed.flatMap((n) => n.offices.map((o) => o.office))));
-        const depts = assessedDepts.length
-          ? assessedDepts
-          : Array.from(new Set(data.map((r: TrainingRequest) => r.employees?.department).filter(Boolean))) as string[];
-        if (depts.length > 0) setSelectedRadarDept(depts[0] as string);
+        if (idp.ok) setIdpSubs(idp.data);
+        setCalendarEvents(events);
+        setEmployees(staff);
       } catch (err) {
         console.error('LND dashboard error', err);
       } finally {
@@ -342,17 +404,20 @@ const LndDashboardContent = () => {
       }
     })();
     return () => { cancelled = true; };
-  }, []);
+  }, [idpCycle]);
 
-  const currentYear = new Date().getFullYear().toString();
+  const currentYear = new Date().getFullYear();
 
-  // Offices with assessed needs, falling back to request-filing offices only
-  // when the assessment has produced nothing (e.g. before the matcher runs).
-  const departments = useMemo(() => {
-    const assessed = Array.from(new Set(needs.flatMap((n) => n.offices.map((o) => o.office))));
-    if (assessed.length) return assessed.sort();
-    return Array.from(new Set(requests.map(r => r.employees?.department).filter(Boolean))) as string[];
-  }, [needs, requests]);
+  // ── Shared population ──
+  const offices = useMemo(() => Array.from(new Set(employees.map((e) => e.department))).sort(), [employees]);
+  const headcount = employees.length;
+
+  // ── TNA ──
+  const assessedOffices = useMemo(
+    () => Array.from(new Set(needs.flatMap((n) => n.offices.map((o) => o.office)))).sort(),
+    [needs]
+  );
+  const officeTotal = Math.max(offices.length, assessedOffices.length);
 
   /** Distinct employees with at least one identified competency gap. */
   const employeesWithGaps = useMemo(() => {
@@ -367,85 +432,33 @@ const LndDashboardContent = () => {
     return [...perOffice.values()].reduce((a, b) => a + b, 0);
   }, [needs]);
 
-  const topNeed = useMemo(
-    () => [...needs].sort((a, b) => b.demand - a.demand || b.peakOfficeDemand - a.peakOfficeDemand)[0] ?? null,
+  /** All 12 framework competencies, most-needed LGU-wide first. */
+  const competencyRows = useMemo(() =>
+    COMPETENCY_LIST.map((comp) => {
+      const need = needs.find((n) => n.competency === comp);
+      return {
+        competency: comp,
+        short: COMPETENCY_SHORT[comp] ?? comp,
+        affected: need?.offices.reduce((sum, o) => sum + o.affected, 0) ?? 0,
+        byOffice: new Map((need?.offices ?? []).map((o) => [o.office, o.demand])),
+      };
+    }).sort((a, b) => b.affected - a.affected || a.competency.localeCompare(b.competency)),
     [needs]
   );
+  const competenciesWithGaps = competencyRows.filter((r) => r.affected > 0).length;
+  const tnaHeadcount = headcount || needs[0]?.offices.reduce((sum, o) => sum + o.total, 0) || 0;
 
-  const deptColorMap = useMemo(() => {
-    const map = new Map<string, string>();
-    departments.forEach((dept, i) => map.set(dept, DEPT_PALETTE[i % DEPT_PALETTE.length]));
-    return map;
-  }, [departments]);
-
-  const ytdCount = useMemo(
-    () => requests.filter(r => r.requested_at?.startsWith(currentYear)).length,
-    [requests, currentYear]
-  );
-
-  const topCategoryEntry = useMemo(() => {
-    const counts = TRAINING_CATEGORIES.map(cat => ({
-      cat,
-      count: requests.filter(r => r.category === cat && r.requested_at?.startsWith(currentYear)).length,
-    }));
-    return counts.reduce((best, cur) => (cur.count > best.count ? cur : best), { cat: '' as string, count: 0 });
-  }, [requests, currentYear]);
-
-  // Per-department request counts — shown in the stacked bar legend
-  const deptCounts = useMemo(() => {
-    const map = new Map<string, number>();
-    for (const r of requests) {
-      const dept = r.employees?.department;
-      if (dept) map.set(dept, (map.get(dept) ?? 0) + 1);
-    }
-    return map;
-  }, [requests]);
-
-  // Stacked bar: assessed competency gaps per framework category, split by
-  // office. Counts affected employees, so a category is tall because many
-  // people need it — not because someone filed paperwork for it.
-  const categoryChartData = useMemo(() =>
-    TRAINING_CATEGORIES.map(cat => {
-      const entry: Record<string, any> = { category: cat };
-      for (const dept of departments) {
-        entry[dept] = needs
-          .filter(n => n.category === cat)
-          .reduce((sum, n) => sum + (n.offices.find(o => o.office === dept)?.affected ?? 0), 0);
-      }
-      return entry;
+  // ── IDP ──
+  const submittedIds = useMemo(() => new Set(idpSubs.map((s) => s.employeeId)), [idpSubs]);
+  const idpByOffice = useMemo(() =>
+    offices.map((office) => {
+      const staff = employees.filter((e) => e.department === office);
+      const submitted = staff.filter((e) => submittedIds.has(e.id)).length;
+      return { office, total: staff.length, submitted };
     }),
-    [needs, departments]
+    [offices, employees, submittedIds]
   );
-
-  // Radar: for the selected office, the share of its headcount with a gap in
-  // each competency. Reads as "how much of this office needs this", which is
-  // the question the profile is meant to answer.
-  const radarData = useMemo(() =>
-    COMPETENCY_LIST.map(comp => ({
-      subject: COMPETENCY_SHORT[comp] ?? comp,
-      fullName: comp,
-      value: needs.find(n => n.competency === comp)?.offices
-        .find(o => o.office === selectedRadarDept)?.demand ?? 0,
-    })),
-    [needs, selectedRadarDept]
-  );
-
-  // Demand table: per office, its strongest assessed need. Demand is the share
-  // of that office's headcount affected, so offices are comparable regardless
-  // of how many requests they filed.
-  const demandTableData = useMemo(() => {
-    return departments.map(dept => {
-      let topComp = '—', demand = 0;
-      for (const n of needs) {
-        const o = n.offices.find(x => x.office === dept);
-        if (o && o.demand > demand) { topComp = n.competency; demand = o.demand; }
-      }
-      const priority: 'high' | 'medium' | 'emerging' = demand >= 60 ? 'high' : demand >= 30 ? 'medium' : 'emerging';
-      return { department: dept, topCompetency: topComp, demand, priority };
-    }).sort((a, b) => b.demand - a.demand);
-  }, [needs, departments]);
-
-  // ── IDP side ──
+  const officesWithIdps = idpByOffice.filter((o) => o.submitted > 0).length;
   const idpOfficeList = useMemo(() => idpOffices(idpSubs), [idpSubs]);
   const idpTagRows = useMemo(() => tagSelectionsByOffice(idpSubs), [idpSubs]);
   const idpTopTag = useMemo(
@@ -453,40 +466,45 @@ const LndDashboardContent = () => {
     [idpTagRows]
   );
   const idpChartData = useMemo(
-    () => idpTagRows.map(r => ({ category: r.label, ...r.byOffice })),
+    () => idpTagRows.map((r) => ({ category: r.label, ...r.byOffice })),
     [idpTagRows]
   );
-  const idpShares = useMemo(
-    () => (selectedIdpOffice ? officeTagShares(idpSubs, selectedIdpOffice) : []),
-    [idpSubs, selectedIdpOffice]
-  );
-  const idpTableData = useMemo(() => topTagPerOffice(idpSubs), [idpSubs]);
 
-  // An IDP office named like a TNA office shares its color; the rest continue
-  // the palette so they are not mistaken for one.
-  const idpColorMap = useMemo(() => {
-    const map = new Map<string, string>();
-    let next = departments.length;
-    for (const office of idpOfficeList) {
-      const tna = matchOffice(office, departments);
-      map.set(office, tna ? deptColorMap.get(tna)! : DEPT_PALETTE[next++ % DEPT_PALETTE.length]);
-    }
-    return map;
-  }, [idpOfficeList, departments, deptColorMap]);
-
-  // The IDP office follows the radar's office when the names match.
-  useEffect(() => {
-    const matched = matchOffice(selectedRadarDept, idpOfficeList);
-    setSelectedIdpOffice(prev => matched ?? (prev || idpOfficeList[0] || ''));
-  }, [selectedRadarDept, idpOfficeList]);
-
+  // ── Trainings ──
   const progress = useMemo(() => trainingProgress(calendarEvents), [calendarEvents]);
+  const compliance = useMemo(() => trainingCompliance(employees, calendarEvents), [employees, calendarEvents]);
+  const trainedAtLeastOnce = compliance.met + compliance.partial;
 
-  // Shared by the TNA and IDP stacked bars: one line per office in the hovered bar.
+  const deptCompliance = trainingDept
+    ? compliance.byDepartment.filter((d) => d.department === trainingDept)
+    : compliance.byDepartment;
+  const scope = trainingDept
+    ? deptCompliance[0] ?? { met: 0, partial: 0, none: 0, total: 0 }
+    : compliance;
+  const stillNeeds = useMemo(
+    () => compliance.employees.filter((e) =>
+      e.completed < REQUIRED_TRAININGS_PER_YEAR
+      && (!trainingDept || e.department === trainingDept)
+      && (needsFilter === 'all' || (needsFilter === 'none' ? e.completed === 0 : e.completed > 0))
+    ),
+    [compliance, trainingDept, needsFilter]
+  );
+  const stillNeedsCount = scope.partial + scope.none;
+
+  const exportStillNeeds = () =>
+    downloadCsv(
+      `employees-needing-training-${currentYear}${trainingDept ? `-${trainingDept}` : ''}.csv`,
+      [
+        ['Employee', 'Department', 'Position', `Trainings completed (of ${REQUIRED_TRAININGS_PER_YEAR})`],
+        ...stillNeeds.map((e) => [e.name, e.department, e.position, e.completed]),
+      ]
+    );
+
+  // Stacked IDP tag bar: one line per office in the hovered bar.
   const stackTooltip = ({ active, payload, label }: any) => {
     if (!active || !payload?.length) return null;
     return (
-      <div className="rounded-xl border border-gray-200 bg-white p-3 shadow-lg text-xs min-w-[160px]">
+      <div className="min-w-[160px] rounded-xl border border-gray-200 bg-white p-3 text-xs shadow-lg">
         <p className="mb-2 font-semibold text-gray-800">{label}</p>
         {payload.map((entry: any) => (
           <div key={entry.dataKey} className="flex items-center gap-2 py-0.5">
@@ -499,34 +517,31 @@ const LndDashboardContent = () => {
     );
   };
 
-  // Full request history for the department drill-down modal, most recent first
-  const deptDetailRequests = useMemo(() => {
-    if (!viewDeptDetails) return [];
-    return requests
-      .filter(r => r.employees?.department === viewDeptDetails)
-      .sort((a, b) => (b.requested_at ?? '').localeCompare(a.requested_at ?? ''));
-  }, [requests, viewDeptDetails]);
+  const fmt = (n: number) => n.toLocaleString('en-US');
 
   return (
-    <div className="space-y-6 p-4 sm:p-6 lg:p-8">
+    <div className="abyan-ds space-y-4 p-4 sm:p-6 lg:p-8">
       {/* Header */}
-      <section>
-        <p className="text-sm font-medium text-gray-500">
-          <span className="text-blue-600">L&D</span> <span className="mx-1 text-gray-400">/</span> Dashboard
-        </p>
-        <h1 className="mt-1 text-3xl font-bold text-gray-900">Dashboard & Analytics</h1>
-        <p className="mt-1 text-sm text-gray-500">Training volume, category demand, and competency gaps at a glance.</p>
+      <section className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <p className="text-body-s">
+            <span style={{ color: 'var(--color-primary)' }}>L&amp;D</span>
+            <span className="mx-1" style={{ color: 'var(--neutral-400)' }}>/</span>
+            <span style={{ color: 'var(--neutral-600)' }}>Dashboard</span>
+          </p>
+          <h1 className="mt-1 text-[28px] font-bold leading-9" style={{ color: 'var(--color-primary-900)' }}>Dashboard &amp; Analytics</h1>
+          <p className="text-body-l" style={{ color: 'var(--neutral-500)' }}>
+            Needs assessment, development plans and trainings for {currentYear}.
+          </p>
+        </div>
       </section>
 
-      {/* "Went live incomplete" warning — trainings that locked while still in planning */}
       <DismissibleWarning
         storageKey="abyan:lnd-dismissed-incomplete"
         title={`${incompleteLocked.length} training${incompleteLocked.length === 1 ? '' : 's'} went live incomplete`}
         message="These locked within 3 days of their start while still in planning, so their detail fields were never completed. Complete trainings before the cutoff next time."
         items={incompleteLocked}
       />
-
-      {/* Safeguard — trainings about to lock (3 days out) with no finalized roster */}
       <DismissibleWarning
         storageKey="abyan:lnd-dismissed-locking-soon"
         title={`${lockingSoon.length} training${lockingSoon.length === 1 ? '' : 's'} locking within 3 days, roster not finalized`}
@@ -534,407 +549,290 @@ const LndDashboardContent = () => {
         items={lockingSoon}
       />
 
-      {/* Metric Cards */}
-      <section className="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-5 relative">
-        {loading && <div className="absolute inset-0 bg-white/50 backdrop-blur-[1px] z-10 rounded-2xl" />}
-        <StatCard
-          label="Employees with identified skill gaps"
-          value={employeesWithGaps.toString()}
-          icon={ClipboardList}
-          color="blue"
-          sublabel={`From rated IPCR data · ${ytdCount} requests filed YTD`}
-        />
-        <article className="rounded-2xl border border-gray-200 bg-white p-5 transition hover:shadow-md">
-          <div className="flex items-start justify-between">
-            <div className="min-w-0 flex-1 pr-3">
-              <p className="text-sm font-medium text-gray-500">Top competency need</p>
-              <p className="mt-1 text-3xl font-bold text-gray-900 leading-tight truncate">
-                {topNeed ? (COMPETENCY_SHORT[topNeed.competency] ?? topNeed.competency) : '—'}
-              </p>
-              {topNeed && (
-                <p className="mt-1 text-xs text-gray-500">
-                  {topNeed.category} · {topNeed.demand}% LGU-wide, peaks at {topNeed.peakOfficeDemand}% in one office
-                </p>
-              )}
-            </div>
-            <div
-              className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl"
-              style={{
-                backgroundColor: topNeed && CATEGORY_COLORS[topNeed.category]
-                  ? `${CATEGORY_COLORS[topNeed.category]}22`
-                  : 'rgb(254 215 170)',
-                color: topNeed && CATEGORY_COLORS[topNeed.category]
-                  ? CATEGORY_COLORS[topNeed.category]
-                  : 'rgb(194 65 12)',
-              }}
-            >
-              <Award className="h-6 w-6" />
-            </div>
-          </div>
-        </article>
-        <StatCard label="Offices assessed" value={departments.length.toString()} icon={Building2} color="green" sublabel="With identified competency gaps" />
-        {/* Year progress — ring is completed ÷ (calendar trainings − cancelled) */}
-        <article className="rounded-2xl border border-gray-200 bg-white p-5 transition hover:shadow-md">
-          <p className="text-sm font-medium text-gray-500">Trainings completed ({currentYear})</p>
-          <div className="mt-2 flex items-center gap-4">
-            <div
-              className="flex h-[72px] w-[72px] shrink-0 items-center justify-center rounded-full"
-              style={{ background: `conic-gradient(#059669 0 ${progress.percent}%, #e5e7eb ${progress.percent}% 100%)` }}
-              role="img"
-              aria-label={`${progress.percent}% of trainings completed`}
-            >
-              <div className="flex h-[54px] w-[54px] items-center justify-center rounded-full bg-white text-base font-bold text-gray-900">
-                {progress.percent}%
-              </div>
-            </div>
-            <div className="min-w-0">
-              <p className="text-sm font-semibold text-gray-900">
-                {progress.completed} <span className="font-normal text-gray-500">of {progress.total} trainings done</span>
-              </p>
-              <p className="mt-1 text-xs leading-relaxed text-gray-500">
-                Completed <b className="text-gray-800">{progress.completed}</b> · Ongoing <b className="text-gray-800">{progress.ongoing}</b>
-                <br />
-                Scheduled <b className="text-gray-800">{progress.scheduled}</b> · Cancelled <b className="text-gray-800">{progress.cancelled}</b>
-              </p>
-            </div>
-          </div>
-        </article>
-        <StatCard
-          label={`IDPs submitted (${idpCycle})`}
-          value={idpSubs.length.toString()}
-          icon={Target}
-          color="purple"
-          sublabel={idpTopTag?.total ? `Most requested: ${idpTopTag.label} (${idpTopTag.total})` : `From ${idpOfficeList.length} offices`}
-        />
+      {/* Summary row — one card per module */}
+      <section className="grid grid-cols-1 gap-4 xl:grid-cols-3">
+        <SummaryCard module="tna" title="Training Needs Assessment" loading={loading}>
+          <Kpi value={fmt(employeesWithGaps)} label="With skill gaps" sub={`${pctOf(employeesWithGaps, tnaHeadcount)}% of ${fmt(tnaHeadcount)} employees`} />
+          <Kpi value={`${assessedOffices.length}/${officeTotal}`} label="Offices assessed" sub="From rated IPCR data" />
+          <Kpi value={`${competenciesWithGaps}/${COMPETENCY_LIST.length}`} label="Competencies with gaps" sub={competencyRows[0]?.affected ? `Top: ${competencyRows[0].short}` : 'No gaps found yet'} />
+        </SummaryCard>
+        <SummaryCard module="idp" title="Individual Development Plans" loading={loading}>
+          <Kpi
+            value={`${pctOf(idpSubs.length, headcount)}%`}
+            label="Submitted"
+            sub={`${fmt(idpSubs.length)} of ${fmt(headcount)} · ${idpCycle} cycle`}
+            tone={idpSubs.length === 0 ? 'alert' : undefined}
+          />
+          <Kpi value={`${officesWithIdps}/${offices.length}`} label="Offices with IDPs" sub="At least one submitted" />
+          <Kpi
+            value={idpTopTag?.total ? fmt(idpTopTag.total) : '—'}
+            label="Top requested tag"
+            sub={idpTopTag?.total ? idpTopTag.label : 'No IDPs yet'}
+            tone={idpTopTag?.total ? undefined : 'muted'}
+          />
+        </SummaryCard>
+        <SummaryCard module="trainings" title="Trainings Done" loading={loading}>
+          <Kpi value={`${progress.percent}%`} label="Completion" sub={`${progress.completed} of ${progress.total} trainings`} />
+          <Kpi
+            value={`${pctOf(compliance.met, compliance.total)}%`}
+            label={`Met ${REQUIRED_TRAININGS_PER_YEAR}-training rule`}
+            sub={`${fmt(compliance.partial + compliance.none)} still need training`}
+          />
+          <Kpi value={fmt(trainedAtLeastOnce)} label="Trained at least once" sub={`${pctOf(trainedAtLeastOnce, compliance.total)}% of employees`} />
+        </SummaryCard>
       </section>
 
-      {/* Each analytics row: TNA (assessed gaps) left, IDP (employee requests) right */}
-      <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
-      {/* Category chart — stacked bar, 4 categories × departments */}
-      <section className="rounded-2xl border border-gray-200 bg-white p-5 relative min-h-[380px]">
-        {loading && <div className="absolute inset-0 bg-white/50 backdrop-blur-[1px] z-10 rounded-2xl" />}
-        <div className="mb-1">
-          <PanelTag kind="tna" />
-          <h2 className="text-sm font-semibold text-gray-700">Assessed competency gaps by category and office</h2>
-        </div>
-        {departments.length === 0 && !loading ? (
-          <div className="mt-6"><EmptyState title="No request data" description="No training requests have been submitted yet." /></div>
-        ) : (
-          <div className="h-[310px] w-full mt-4">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={categoryChartData} margin={{ top: 4, right: 16, left: -20, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" vertical={false} />
-                <XAxis dataKey="category" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#374151' }} />
-                <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: '#6b7280' }} allowDecimals={false} />
-                <Tooltip cursor={{ fill: 'rgba(0,0,0,0.04)' }} content={stackTooltip} />
-                <Legend
-                  content={() => (
-                    <div className="mt-3 flex flex-wrap gap-x-5 gap-y-1.5 justify-center">
-                      {departments.map(dept => (
-                        <div key={dept} className="flex items-center gap-1.5 text-xs text-gray-600">
-                          <span className="inline-block h-3 w-3 shrink-0 rounded-sm" style={{ backgroundColor: deptColorMap.get(dept) }} />
-                          {dept} ({deptCounts.get(dept) ?? 0})
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                />
-                {departments.map(dept => (
-                  <Bar key={dept} dataKey={dept} stackId="a" fill={deptColorMap.get(dept)} />
-                ))}
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-        )}
-      </section>
-
-      {/* IDP tag selections — stacked by office, beside the TNA category chart */}
-      <section className="rounded-2xl border border-gray-200 bg-white p-5 relative min-h-[380px]">
-        {loading && <div className="absolute inset-0 bg-white/50 backdrop-blur-[1px] z-10 rounded-2xl" />}
-        <div className="mb-1">
-          <PanelTag kind="idp" />
-          <h2 className="text-sm font-semibold text-gray-700">IDP development requests by tag and office</h2>
-          <p className="text-xs text-gray-400 mt-0.5">Employees who ticked each tag · {idpCycle} cycle · one person can tick several</p>
-        </div>
-        {idpSubs.length === 0 && !loading ? (
-          <div className="mt-6"><EmptyState title="No IDPs yet" description={`No IDPs have been filed for ${idpCycle} yet.`} /></div>
-        ) : (
-          <div className="h-[310px] w-full mt-4">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={idpChartData} margin={{ top: 4, right: 16, left: -20, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" vertical={false} />
-                <XAxis dataKey="category" axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: '#374151' }} interval={0} />
-                <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: '#6b7280' }} allowDecimals={false} />
-                <Tooltip cursor={{ fill: 'rgba(0,0,0,0.04)' }} content={stackTooltip} />
-                <Legend
-                  content={() => (
-                    <div className="mt-3 flex flex-wrap gap-x-5 gap-y-1.5 justify-center">
-                      {idpOfficeList.map(office => (
-                        <div key={office} className="flex items-center gap-1.5 text-xs text-gray-600">
-                          <span className="inline-block h-3 w-3 shrink-0 rounded-sm" style={{ backgroundColor: idpColorMap.get(office) }} />
-                          {office} ({idpSubs.filter(s => s.office === office).length})
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                />
-                {idpOfficeList.map(office => (
-                  <Bar key={office} dataKey={office} stackId="idp" fill={idpColorMap.get(office)} />
-                ))}
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-        )}
-      </section>
-      </div>
-
-      <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
-      {/* Competency radar — one department at a time via dropdown */}
-      <section className="rounded-2xl border border-gray-200 bg-white p-5 relative min-h-[420px]">
-        {loading && <div className="absolute inset-0 bg-white/50 backdrop-blur-[1px] z-10 rounded-2xl" />}
-        <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <PanelTag kind="tna" />
-            <h2 className="text-lg font-semibold text-gray-900">Competency profile by department</h2>
-            <p className="text-xs text-gray-400 mt-0.5">Each axis shows the share of that office affected by the competency</p>
-          </div>
-          {departments.length > 0 && (
-            <select
-              value={selectedRadarDept}
-              onChange={e => setSelectedRadarDept(e.target.value)}
-              className="rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-700 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-            >
-              {departments.map(dept => (
-                <option key={dept} value={dept}>{dept}</option>
-              ))}
-            </select>
-          )}
-        </div>
-        {departments.length === 0 && !loading ? (
-          <EmptyState title="No data" description="No training requests available for competency analysis." />
-        ) : (
-          <div className="h-[340px] w-full">
-            <ResponsiveContainer width="100%" height="100%">
-              <RadarChart data={radarData} margin={{ top: 10, right: 40, bottom: 10, left: 40 }}>
-                <PolarGrid stroke="#e5e7eb" />
-                <PolarAngleAxis dataKey="subject" tick={{ fontSize: 11, fill: '#374151' }} />
-                <PolarRadiusAxis angle={90} domain={[0, 100]} tick={{ fontSize: 10, fill: '#9ca3af' }} tickCount={4} />
-                <Radar
-                  name={selectedRadarDept}
-                  dataKey="value"
-                  stroke="#2563eb"
-                  fill="#2563eb"
-                  fillOpacity={0.18}
-                  strokeWidth={2}
-                />
-                <Tooltip
-                  content={({ active, payload }: any) => {
-                    if (!active || !payload?.length) return null;
-                    const item = payload[0]?.payload;
-                    return (
-                      <div className="rounded-xl border border-gray-200 bg-white p-3 shadow-lg text-xs">
-                        <p className="font-semibold text-gray-800 mb-1">{item?.fullName}</p>
-                        <p className="text-gray-600">Demand: <span className="font-semibold text-gray-900">{item?.value}%</span></p>
-                      </div>
-                    );
-                  }}
-                />
-              </RadarChart>
-            </ResponsiveContainer>
-          </div>
-        )}
-      </section>
-
-      {/* IDP profile — share of the office's IDP submitters per tag */}
-      <section className="rounded-2xl border border-gray-200 bg-white p-5 relative min-h-[420px]">
-        {loading && <div className="absolute inset-0 bg-white/50 backdrop-blur-[1px] z-10 rounded-2xl" />}
-        <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <PanelTag kind="idp" />
-            <h2 className="text-lg font-semibold text-gray-900">IDP profile by department</h2>
-            <p className="text-xs text-gray-400 mt-0.5">Share of the office&rsquo;s IDP submitters who ticked each tag</p>
-          </div>
-          {idpOfficeList.length > 0 && (
-            <select
-              value={selectedIdpOffice}
-              onChange={e => setSelectedIdpOffice(e.target.value)}
-              className="max-w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-700 focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500"
-            >
-              {idpOfficeList.map(office => (
-                <option key={office} value={office}>{office}</option>
-              ))}
-            </select>
-          )}
-        </div>
-        {idpSubs.length === 0 && !loading ? (
-          <EmptyState title="No IDPs yet" description={`No IDPs have been filed for ${idpCycle} yet.`} />
-        ) : (
-          <>
-            <div className="space-y-3">
-              {idpShares.map(s => (
-                <div key={s.tag} className="grid grid-cols-[minmax(0,10rem)_1fr_3rem] items-center gap-3">
-                  <span className="truncate text-xs text-gray-700" title={s.tag}>{s.label}</span>
-                  <div className="h-3 overflow-hidden rounded-full bg-gray-100">
-                    <div className="h-full rounded-full transition-all" style={{ width: `${s.share}%`, backgroundColor: IDP_KIND_COLORS[s.kind] }} />
-                  </div>
-                  <span className="text-right text-xs font-semibold text-gray-700" title={`${s.count} employee${s.count === 1 ? '' : 's'}`}>{s.share}%</span>
-                </div>
-              ))}
-            </div>
-            <div className="mt-5 flex flex-wrap gap-x-5 gap-y-1.5 text-xs text-gray-600">
-              <span className="flex items-center gap-1.5"><span className="inline-block h-3 w-3 rounded-sm" style={{ backgroundColor: IDP_KIND_COLORS.career }} />Career development</span>
-              <span className="flex items-center gap-1.5"><span className="inline-block h-3 w-3 rounded-sm" style={{ backgroundColor: IDP_KIND_COLORS.personal }} />Personal development</span>
-            </div>
-          </>
-        )}
-      </section>
-      </div>
-
-      <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
-      {/* Competency demand table */}
-      <section className="rounded-2xl border border-gray-200 bg-white p-5 relative">
-        {loading && <div className="absolute inset-0 bg-white/50 backdrop-blur-[1px] z-10 rounded-2xl" />}
-        <div className="mb-4">
-          <PanelTag kind="tna" />
-          <h2 className="text-lg font-semibold text-gray-900">Competency demand by department</h2>
-          <p className="text-xs text-gray-400 mt-0.5">Top requested competency per department · all requests · sorted by demand</p>
-        </div>
-        {demandTableData.length === 0 && !loading ? (
-          <EmptyState title="No demand data" description="No department competency demand data available yet." />
-        ) : (
-          <>
-            {/* Column headers only make sense once the row is actually a grid (lg+) */}
-            <div className="hidden grid-cols-12 items-center border-b border-gray-100 px-4 py-2.5 text-xs font-medium text-gray-500 lg:grid">
-              <div className="col-span-3">Department</div>
-              <div className="col-span-4">Top requested competency</div>
-              <div className="col-span-2">Status</div>
-              <div className="col-span-2">Demand level</div>
-              <div className="col-span-1" />
-            </div>
-            <div className="divide-y divide-gray-100">
-              {demandTableData.map(row => (
-                <div key={row.department} className="flex flex-col gap-2 px-4 py-3.5 transition hover:bg-gray-50/50 lg:grid lg:grid-cols-12 lg:items-center lg:gap-0">
-                  <div className="min-w-0 break-words text-sm font-bold text-gray-900 lg:col-span-3">{row.department}</div>
-                  <div className="min-w-0 break-words text-xs leading-snug text-gray-600 lg:col-span-4 lg:pr-3">{row.topCompetency}</div>
-                  <div className="flex lg:col-span-2">
-                    {row.priority === 'high' && (
-                      <span className="inline-flex rounded-full px-2.5 py-1 text-xs font-semibold bg-red-100 text-red-700">High priority</span>
-                    )}
-                    {row.priority === 'medium' && (
-                      <span className="inline-flex rounded-full px-2.5 py-1 text-xs font-semibold bg-amber-100 text-amber-700">Medium priority</span>
-                    )}
-                    {row.priority === 'emerging' && (
-                      <span className="inline-flex rounded-full px-2.5 py-1 text-xs font-semibold bg-blue-100 text-blue-700">Emerging need</span>
-                    )}
-                  </div>
-                  <div className="flex min-w-0 items-center gap-2 lg:col-span-2">
-                    <div className="h-2 min-w-0 flex-1 overflow-hidden rounded-full bg-gray-100">
-                      <div className="h-full rounded-full bg-blue-600 transition-all" style={{ width: `${row.demand}%` }} />
-                    </div>
-                    <span className="text-xs font-semibold text-gray-700 w-9 shrink-0 text-right">{row.demand}%</span>
-                  </div>
-                  <div className="flex justify-start lg:col-span-1 lg:justify-end">
-                    <button
-                      type="button"
-                      onClick={() => setViewDeptDetails(row.department)}
-                      className="inline-flex min-h-[44px] items-center rounded-lg border border-gray-300 px-2.5 py-1.5 text-xs font-semibold text-gray-600 transition hover:border-blue-400 hover:text-blue-600 whitespace-nowrap lg:min-h-0"
-                    >
-                      View details
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </>
-        )}
-      </section>
-
-      {/* IDP top request per office, beside the TNA demand table */}
-      <section className="rounded-2xl border border-gray-200 bg-white p-5 relative">
-        {loading && <div className="absolute inset-0 bg-white/50 backdrop-blur-[1px] z-10 rounded-2xl" />}
-        <div className="mb-4">
-          <PanelTag kind="idp" />
-          <h2 className="text-lg font-semibold text-gray-900">IDP requests by department</h2>
-          <p className="text-xs text-gray-400 mt-0.5">Most-ticked IDP tag per department · {idpCycle} cycle · sorted by share</p>
-        </div>
-        {idpTableData.length === 0 && !loading ? (
-          <EmptyState title="No IDPs yet" description={`No IDPs have been filed for ${idpCycle} yet.`} />
-        ) : (
-          <>
-            <div className="hidden grid-cols-12 items-center border-b border-gray-100 px-4 py-2.5 text-xs font-medium text-gray-500 lg:grid">
-              <div className="col-span-5">Department</div>
-              <div className="col-span-3">Top request</div>
-              <div className="col-span-1 text-right">IDPs</div>
-              <div className="col-span-3 pl-3">Share of office</div>
-            </div>
-            <div className="divide-y divide-gray-100">
-              {idpTableData.map(row => (
-                <div key={row.office} className="flex flex-col gap-2 px-4 py-3.5 transition hover:bg-gray-50/50 lg:grid lg:grid-cols-12 lg:items-center lg:gap-0">
-                  <div className="min-w-0 break-words text-sm font-bold text-gray-900 lg:col-span-5 lg:pr-3">{row.office}</div>
-                  <div className="min-w-0 break-words text-xs leading-snug text-gray-600 lg:col-span-3">{row.label}</div>
-                  <div className="text-xs text-gray-600 lg:col-span-1 lg:text-right">{row.submitters}</div>
-                  <div className="flex min-w-0 items-center gap-2 lg:col-span-3 lg:pl-3">
-                    <div className="h-2 min-w-0 flex-1 overflow-hidden rounded-full bg-gray-100">
-                      <div className="h-full rounded-full bg-purple-600 transition-all" style={{ width: `${row.share}%` }} />
-                    </div>
-                    <span className="text-xs font-semibold text-gray-700 w-9 shrink-0 text-right">{row.share}%</span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </>
-        )}
-      </section>
-      </div>
-
-      {/* Department request history drill-down */}
-      {viewDeptDetails && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={() => setViewDeptDetails(null)}>
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-2xl mx-4 max-h-[85vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
-            <div className="flex items-center justify-between px-6 pt-6 pb-2 sticky top-0 bg-white">
-              <div>
-                <h2 className="text-xl font-bold text-slate-900">{viewDeptDetails}</h2>
-                <p className="text-sm text-slate-500 mt-0.5">{deptDetailRequests.length} training request{deptDetailRequests.length === 1 ? '' : 's'}</p>
-              </div>
-              <button type="button" onClick={() => setViewDeptDetails(null)} className="text-slate-400 hover:text-slate-600 transition">
-                <X className="h-5 w-5" />
-              </button>
-            </div>
-            <div className="px-6 pb-6 pt-4">
-              {deptDetailRequests.length === 0 ? (
-                <EmptyState title="No requests" description="This department has no training requests yet." />
-              ) : (
-                <div className="divide-y divide-gray-100">
-                  {deptDetailRequests.map(r => {
-                    const name = [r.employees?.first_name, r.employees?.last_name].filter(Boolean).join(' ').trim() || 'Unknown';
-                    return (
-                      <div key={r.id} className="py-3 flex items-center justify-between gap-3">
-                        <div className="min-w-0">
-                          <p className="text-sm font-semibold text-slate-900 truncate">{name}</p>
-                          <p className="text-xs text-slate-500 truncate">{r.competency ?? r.title}</p>
-                        </div>
-                        <div className="flex items-center gap-2 shrink-0">
-                          {r.category && (
-                            <span
-                              className="inline-flex rounded-full px-2.5 py-1 text-xs font-semibold"
-                              style={{ backgroundColor: `${CATEGORY_COLORS[r.category]}1a`, color: CATEGORY_COLORS[r.category] }}
+      {/* ── TNA row ── */}
+      <div className="pt-4"><ModuleLabel module="tna">TNA · Assessed gaps · {COMPETENCY_LIST.length} competencies</ModuleLabel></div>
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+        <div className="lg:col-span-2">
+          <ChartCard
+            title="Competency gaps by category and office"
+            caption="% of each office's employees with a gap · rows sorted by LGU-wide need"
+            loading={loading}
+          >
+            {assessedOffices.length === 0 && !loading ? (
+              <EmptyState title="No assessed gaps yet" description="Gaps appear once IPCR ratings have been matched to competencies." />
+            ) : (
+              <>
+                <div className="overflow-x-auto">
+                  <div
+                    className="grid min-w-[560px] items-center gap-1 text-[11px]"
+                    style={{ gridTemplateColumns: `minmax(150px, 190px) repeat(${assessedOffices.length}, minmax(64px, 1fr))`, color: 'var(--neutral-600)' }}
+                  >
+                    <div />
+                    {assessedOffices.map((o) => (
+                      <div key={o} className="truncate px-1 text-center font-semibold" title={o}>{o}</div>
+                    ))}
+                    {competencyRows.map((row) => (
+                      <Fragment key={row.competency}>
+                        <div className="truncate pr-2" title={row.competency}>{row.short}</div>
+                        {assessedOffices.map((o) => {
+                          const v = row.byOffice.get(o) ?? 0;
+                          const step = heatStep(v);
+                          return (
+                            <div
+                              key={o}
+                              className="flex h-[26px] items-center justify-center rounded font-semibold"
+                              style={{ background: heatBg(step), color: step >= HEAT_DARK_FROM ? 'var(--color-white)' : 'var(--neutral-800)' }}
+                              title={`${row.competency} · ${o}: ${v}% of employees`}
                             >
-                              {r.category}
-                            </span>
-                          )}
-                          <span className="text-xs text-slate-400 w-20 text-right">
-                            {r.requested_at ? new Date(r.requested_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—'}
-                          </span>
-                        </div>
-                      </div>
-                    );
-                  })}
+                              {v}%
+                            </div>
+                          );
+                        })}
+                      </Fragment>
+                    ))}
+                  </div>
                 </div>
-              )}
-            </div>
-          </div>
+                <div className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-2 text-[11px]" style={{ color: 'var(--neutral-600)' }}>
+                  <span className="font-semibold" style={{ color: 'var(--neutral-800)' }}>Legend · % of employees with a gap</span>
+                  <div className="flex overflow-hidden rounded text-center font-semibold">
+                    {HEAT_STEPS.map((s, i) => (
+                      <div
+                        key={s.label}
+                        className="w-[58px] py-1"
+                        style={{ background: heatBg(i), color: i >= HEAT_DARK_FROM ? 'var(--color-white)' : 'var(--neutral-800)' }}
+                      >
+                        {s.label}
+                      </div>
+                    ))}
+                  </div>
+                  <span style={{ color: 'var(--neutral-400)' }}>Low priority ← → High priority</span>
+                </div>
+                <p className="mt-1.5 text-[11px]" style={{ color: 'var(--neutral-400)' }}>
+                  Each cell is one office and one competency: the share of that office&rsquo;s employees whose ratings show a gap in it.
+                </p>
+              </>
+            )}
+          </ChartCard>
         </div>
-      )}
+        <ChartCard title="Top competency needs" caption="LGU-wide · employees with the gap / active employees" loading={loading}>
+          {competenciesWithGaps === 0 && !loading ? (
+            <EmptyState title="No gaps yet" description="Nothing to rank until ratings are matched to competencies." />
+          ) : (
+            <div className="grid gap-2.5 text-xs" style={{ color: 'var(--neutral-800)' }}>
+              {competencyRows.map((row) => (
+                <div key={row.competency} title={row.competency}>
+                  <div className="flex justify-between gap-2">
+                    <span className="truncate">{row.short}</span>
+                    <b className="whitespace-nowrap">{fmt(row.affected)} / {fmt(tnaHeadcount)}</b>
+                  </div>
+                  <div className="mt-1 h-2 overflow-hidden rounded" style={{ background: 'var(--color-primary-50)' }}>
+                    <div className="h-full rounded" style={{ width: `${pctOf(row.affected, tnaHeadcount)}%`, background: 'var(--color-primary)' }} />
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </ChartCard>
+      </div>
+
+      {/* ── IDP row ── */}
+      <div className="pt-4"><ModuleLabel module="idp">IDP · Development plans · {idpCycle} cycle</ModuleLabel></div>
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+        <div className="lg:col-span-2">
+          <ChartCard title="IDP submission by office" caption="Active employees who have submitted their IDP this cycle" loading={loading}>
+            {offices.length === 0 && !loading ? (
+              <EmptyState title="No employees" description="No active employees were found in the active offices." />
+            ) : (
+              <>
+                <div className="mb-3 flex flex-wrap gap-4">
+                  <LegendSwatch color={MODULE_ACCENT.idp} label="Submitted" />
+                  <LegendSwatch color="var(--neutral-200)" label="Not yet submitted" />
+                </div>
+                <div className="grid items-center gap-x-3 gap-y-2.5 text-[11px]" style={{ gridTemplateColumns: 'minmax(110px, 180px) 1fr 84px', color: 'var(--neutral-600)' }}>
+                  {idpByOffice.map((o) => (
+                    <Fragment key={o.office}>
+                      <div className="truncate" title={o.office}>{o.office}</div>
+                      <div className="h-4 overflow-hidden rounded" style={{ background: 'var(--neutral-200)' }}>
+                        <div className="h-full" style={{ width: `${pctOf(o.submitted, o.total)}%`, background: MODULE_ACCENT.idp }} />
+                      </div>
+                      <div className="text-right"><b style={{ color: 'var(--neutral-800)' }}>{o.submitted}</b> / {o.total}</div>
+                    </Fragment>
+                  ))}
+                </div>
+                {idpSubs.length === 0 && !loading && (
+                  <p className="text-body-s mt-4 rounded-lg px-3 py-2" style={{ background: '#f5f0ff', color: MODULE_ACCENT.idp }}>
+                    No IDPs have been submitted for the {idpCycle} cycle yet.
+                  </p>
+                )}
+              </>
+            )}
+          </ChartCard>
+        </div>
+        <ChartCard title="Development requests by tag" caption="Employees who ticked each tag · one person can tick several" loading={loading}>
+          {idpSubs.length === 0 && !loading ? (
+            <div className="flex h-full min-h-[220px] items-center justify-center rounded-xl border border-dashed px-4 text-center text-body-s" style={{ borderColor: 'var(--neutral-300)', color: 'var(--neutral-400)' }}>
+              Tag counts appear here once IDPs come in.
+            </div>
+          ) : (
+            <div className="h-[280px] w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={idpChartData} layout="vertical" margin={{ top: 0, right: 12, left: 0, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" horizontal={false} />
+                  <XAxis type="number" axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: '#6b7280' }} allowDecimals={false} />
+                  <YAxis type="category" dataKey="category" width={110} axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: '#374151' }} />
+                  <Tooltip cursor={{ fill: 'rgba(0,0,0,0.04)' }} content={stackTooltip} />
+                  {idpOfficeList.map((office, i) => (
+                    <Bar key={office} dataKey={office} stackId="idp" fill={DEPT_PALETTE[i % DEPT_PALETTE.length]} />
+                  ))}
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          )}
+        </ChartCard>
+      </div>
+
+      {/* ── Trainings row ── */}
+      <div className="flex flex-wrap items-center justify-between gap-3 pt-4">
+        <ModuleLabel module="trainings">Trainings done · {REQUIRED_TRAININGS_PER_YEAR}-training requirement</ModuleLabel>
+        <label className="flex items-center gap-2 text-body-s" style={{ color: 'var(--neutral-500)' }}>
+          Department
+          <select
+            value={trainingDept}
+            onChange={(e) => { setTrainingDept(e.target.value); setShowAllNeeds(false); }}
+            className="rounded-lg border bg-white px-3 py-1.5 text-sm"
+            style={{ borderColor: 'var(--neutral-300)', color: 'var(--neutral-800)' }}
+          >
+            <option value="">All departments</option>
+            {compliance.byDepartment.map((d) => (
+              <option key={d.department} value={d.department}>{d.department}</option>
+            ))}
+          </select>
+        </label>
+      </div>
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+        <div className="lg:col-span-2">
+          <ChartCard
+            title={`Employees who completed their ${REQUIRED_TRAININGS_PER_YEAR} required trainings`}
+            caption={`Each employee must attend ${REQUIRED_TRAININGS_PER_YEAR} trainings per year · counts finished trainings marked Present · ${fmt(scope.total)} employees · ${currentYear}`}
+            loading={loading}
+          >
+            <ComplianceBar met={scope.met} partial={scope.partial} none={scope.none} height={28} showCounts />
+            <div className="mt-2 flex flex-wrap gap-4">
+              <LegendSwatch color={COMPLIANCE_COLORS.met} label={`Completed ${REQUIRED_TRAININGS_PER_YEAR} of ${REQUIRED_TRAININGS_PER_YEAR}`} />
+              <LegendSwatch color={COMPLIANCE_COLORS.partial} label="1 so far, needs 1 more" />
+              <LegendSwatch color={COMPLIANCE_COLORS.none} label={`0 so far, needs ${REQUIRED_TRAININGS_PER_YEAR}`} />
+            </div>
+            <p className="text-body-s mt-5" style={{ color: 'var(--neutral-800)' }}>By department</p>
+            <div className="mt-2 grid items-center gap-x-3 gap-y-2.5 text-[11px]" style={{ gridTemplateColumns: 'minmax(110px, 180px) 1fr 72px', color: 'var(--neutral-600)' }}>
+              {deptCompliance.map((d) => (
+                <Fragment key={d.department}>
+                  <button
+                    type="button"
+                    onClick={() => { setTrainingDept(d.department); setShowAllNeeds(false); }}
+                    className="truncate text-left hover:underline"
+                    title={`Show only ${d.department}`}
+                  >
+                    {d.department}
+                  </button>
+                  <ComplianceBar met={d.met} partial={d.partial} none={d.none} height={16} />
+                  <div className="text-right"><b style={{ color: 'var(--neutral-800)' }}>{d.percentMet}%</b> done</div>
+                </Fragment>
+              ))}
+            </div>
+            <p className="mt-3 text-[11px]" style={{ color: 'var(--neutral-400)' }}>
+              Most complete department first. Click a department to filter this section. Trainings with no attendance marked count for no one.
+            </p>
+          </ChartCard>
+        </div>
+        <ChartCard
+          title="Still needs training"
+          caption={`Below ${REQUIRED_TRAININGS_PER_YEAR} of ${REQUIRED_TRAININGS_PER_YEAR} · fewest trainings first`}
+          loading={loading}
+          action={<span className="text-sm font-bold" style={{ color: 'var(--error-700)' }}>{fmt(stillNeedsCount)}</span>}
+        >
+          <div className="flex flex-wrap gap-1.5 text-[11px]">
+            {([
+              ['all', `All ${stillNeedsCount}`],
+              ['none', `0 of ${REQUIRED_TRAININGS_PER_YEAR} · ${scope.none}`],
+              ['partial', `1 of ${REQUIRED_TRAININGS_PER_YEAR} · ${scope.partial}`],
+            ] as const).map(([key, label]) => (
+              <button
+                key={key}
+                type="button"
+                onClick={() => setNeedsFilter(key)}
+                className="rounded-full border px-2.5 py-1"
+                style={needsFilter === key
+                  ? { background: 'var(--color-primary-900)', borderColor: 'var(--color-primary-900)', color: 'var(--color-white)' }
+                  : { borderColor: 'var(--neutral-200)', color: 'var(--neutral-600)' }}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+          {stillNeeds.length === 0 ? (
+            <p className="text-body-s mt-6 text-center" style={{ color: 'var(--neutral-400)' }}>
+              {loading ? 'Loading…' : 'Everyone here has met the requirement.'}
+            </p>
+          ) : (
+            <ul className={`mt-2 ${showAllNeeds ? 'max-h-[420px] overflow-y-auto' : ''}`}>
+              {(showAllNeeds ? stillNeeds : stillNeeds.slice(0, NEEDS_TRAINING_PREVIEW)).map((e) => (
+                <li key={e.id} className="flex items-center justify-between gap-2 border-b py-2 last:border-b-0" style={{ borderColor: 'var(--neutral-100)' }}>
+                  <div className="min-w-0">
+                    <p className="truncate text-xs font-medium" style={{ color: 'var(--neutral-800)' }}>{e.name}</p>
+                    <p className="truncate text-[11px]" style={{ color: 'var(--neutral-400)' }}>{e.department}{e.position ? ` · ${e.position}` : ''}</p>
+                  </div>
+                  <span className={`badge ${e.completed === 0 ? 'badge-error' : 'badge-warning'} shrink-0`}>
+                    {e.completed} / {REQUIRED_TRAININGS_PER_YEAR}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+          <div className="mt-3 flex justify-between text-xs font-medium">
+            {stillNeeds.length > NEEDS_TRAINING_PREVIEW ? (
+              <button type="button" onClick={() => setShowAllNeeds((v) => !v)} style={{ color: 'var(--color-primary)' }}>
+                {showAllNeeds ? 'Show fewer' : `View all ${fmt(stillNeeds.length)} →`}
+              </button>
+            ) : <span />}
+            <button type="button" onClick={exportStillNeeds} disabled={stillNeeds.length === 0} className="disabled:opacity-40" style={{ color: 'var(--color-primary)' }}>
+              Export list
+            </button>
+          </div>
+        </ChartCard>
+      </div>
     </div>
   );
 };
