@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Posting details</title>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --brand:#3b3fe4; --brand-deep:#2a1fb8; --brand-soft:#eef0ff; --brand-tint:#f7f7ff;
+    --ink:#1e1b4b; --ink-2:#4b4f6b; --muted:#6b6f8a; --faint:#8b8fa8; --ghost:#a3a6bd;
+    --line:#eceef5; --border:#e8e9f2; --canvas:#f4f5fb; --field:#c7cae0;
+    --ok-bg:#dcfce7; --ok:#15803d; --closed-bg:#f1f1f5; --closed:#8b8fa8;
+    --t-title:24px; --t-section:15px; --t-body:13.5px; --t-label:12px;
+    --max-w:1240px;   /* matches the inset of the existing header content */
+    --row-label:150px; /* label column width for one-line rows */
+  }
+  *{box-sizing:border-box;margin:0}
+  body{font-family:Poppins,system-ui,sans-serif;color:var(--ink);background:var(--canvas);font-size:var(--t-body);line-height:1.45}
+  .wrap{max-width:var(--max-w);margin:0 auto;padding:0 28px}
+
+  .hero{background:linear-gradient(180deg,var(--brand) 0%,var(--brand-deep) 100%);color:#fff;padding-bottom:14px}
+  .nav{display:flex;justify-content:space-between;align-items:center;padding:10px 0}
+  .nav b{font-size:17px}.nav .sys{opacity:.9;margin-left:8px;font-size:13.5px}
+  .nav nav{display:flex;gap:24px;font-weight:500;font-size:13.5px}
+  .back{display:inline-flex;align-items:center;gap:6px;border:1px solid rgba(255,255,255,.6);border-radius:999px;padding:2px 12px;font-size:var(--t-label);margin:2px 0 6px}
+  .hero h1{font-size:var(--t-title);font-weight:700;line-height:1.2}
+  .hero .sub{opacity:.9;font-size:13px;margin-top:1px}
+
+  .stepper{background:#fff;border-bottom:1px solid var(--border)}
+  .stepper .wrap{display:flex;gap:14px;align-items:center;padding-top:6px;padding-bottom:6px;color:var(--faint);font-size:var(--t-label)}
+  .stepper .on{color:var(--brand);font-weight:600}
+  .num{display:inline-flex;width:20px;height:20px;border-radius:50%;border:1.5px solid var(--field);align-items:center;justify-content:center;font-size:10px;margin-right:6px}
+  .on .num{background:var(--brand);border-color:var(--brand);color:#fff}
+
+  main.wrap{display:grid;grid-template-columns:1.2fr 1fr;gap:18px;padding-top:12px;padding-bottom:10px;align-items:start}
+  .card{background:#fff;border:1px solid var(--border);border-radius:14px;padding:14px 20px}
+  .head{display:flex;gap:12px;align-items:center;margin-bottom:6px}
+  .ico{width:30px;height:30px;border-radius:9px;background:var(--brand-soft);color:var(--brand);display:inline-flex;align-items:center;justify-content:center;font-size:14px;flex:none}
+  h2{font-size:var(--t-section);font-weight:600;line-height:1.3}
+  .hint{font-size:var(--t-label);color:var(--faint)}
+  .label{font-size:11px;font-weight:600;letter-spacing:.06em;color:var(--muted);text-transform:uppercase;margin:10px 0 0}
+
+  /* one-line list rows: label | value */
+  dl.rows{display:grid;grid-template-columns:var(--row-label) 1fr}
+  dl.rows dt, dl.rows dd{padding:4px 0;line-height:1.35;border-bottom:1px solid var(--line)}
+  dl.rows dt{color:var(--muted)}
+  dl.rows dd{font-weight:500}
+  dl.rows dd.none{color:var(--ghost);font-weight:400;font-style:italic}
+
+  ol.docs{list-style:none;padding:0;counter-reset:doc}
+  ol.docs li{counter-increment:doc;display:flex;gap:10px;padding:4px 0;line-height:1.35;border-bottom:1px solid var(--line);font-weight:500}
+  ol.docs li::before{content:counter(doc);color:var(--muted);font-weight:400;width:16px;flex:none}
+  .instr{color:var(--ink-2);font-size:var(--t-label);margin-top:6px;line-height:1.4}
+
+  /* plantilla picker */
+  .picker{position:sticky;top:14px;display:flex;flex-direction:column}
+  .pill{margin-left:auto;background:var(--brand-soft);color:var(--brand);border-radius:999px;padding:2px 9px;font-size:11px;font-weight:500;white-space:nowrap}
+  .toolbar{display:flex;justify-content:space-between;align-items:center;margin:10px 0 6px;font-size:var(--t-label)}
+  .toolbar .all{display:inline-flex;align-items:center;gap:8px;font-weight:500}
+  .toolbar .count{color:var(--faint)}
+  .list{border:1px solid var(--border);border-radius:10px;max-height:300px;overflow:auto}
+  .item{display:flex;align-items:center;gap:12px;padding:9px 14px;border-bottom:1px solid var(--line)}
+  .item:last-child{border-bottom:0}
+  .item.sel{background:var(--brand-tint)}
+  .item.closed{color:var(--ghost)}
+  .box{width:16px;height:16px;border-radius:4px;border:1.5px solid var(--field);display:inline-flex;align-items:center;justify-content:center;font-size:11px;flex:none;background:#fff}
+  .sel .box{background:var(--brand);border-color:var(--brand);color:#fff}
+  .closed .box{background:var(--closed-bg)}
+  .item .name{flex:1;font-weight:600}
+  .item .name small{display:block;font-weight:400;font-size:11.5px;color:var(--faint)}
+  .item .sg{font-size:12px;font-weight:600;width:44px;text-align:right}
+  .tag{border-radius:999px;padding:1px 8px;font-size:11px;font-weight:500;width:58px;text-align:center}
+  .tag.open{background:var(--ok-bg);color:var(--ok)}
+  .tag.shut{background:var(--closed-bg);color:var(--closed)}
+  .cta{background:var(--brand);color:#fff;border-radius:999px;padding:10px;font-weight:600;text-align:center;margin-top:12px}
+  .note{font-size:11.5px;color:var(--faint);text-align:center;margin-top:6px}
+</style>
+</head>
+<body>
+  <header class="hero">
+    <div class="wrap">
+      <div class="nav">
+        <div><b>ABYAN</b><span class="sys">Human Resource Information System</span></div>
+        <nav><span>Home</span><span>About</span></nav>
+      </div>
+      <span class="back">&larr; Back</span>
+      <h1>Engineer V</h1>
+      <div class="sub">Office of the City Engineer</div>
+    </div>
+  </header>
+
+  <div class="stepper">
+    <div class="wrap">
+      <span class="on"><span class="num">1</span>Choose plantilla</span><span>&rsaquo;</span>
+      <span><span class="num">2</span>Fill up application</span><span>&rsaquo;</span>
+      <span><span class="num">3</span>Review &amp; submit</span>
+    </div>
+  </div>
+
+  <main class="wrap">
+    <!-- Details: one card, list-style -->
+    <section class="card">
+      <div class="head">
+        <span class="ico">&#9638;</span>
+        <h2>Posting summary</h2>
+      </div>
+      <dl class="rows">
+        <dt>Place of assignment</dt><dd>Office of the City Engineer</dd>
+        <dt>Salary grade</dt><dd>SG 24</dd>
+        <dt>Monthly salary</dt><dd>&#8369;90,078</dd>
+        <dt>Posted</dt><dd>Oct 05, 2026</dd>
+        <dt>Application closes</dt><dd class="none">Not specified</dd>
+      </dl>
+
+      <div class="label">Qualification standards</div>
+      <div class="hint" style="margin-bottom:2px">"Not specified" means no stated requirement.</div>
+      <dl class="rows">
+        <dt>Education</dt><dd>Bachelor's degree in Civil Engineering</dd>
+        <dt>Experience</dt><dd>5 years</dd>
+        <dt>Training</dt><dd>40 hours</dd>
+        <dt>Eligibility</dt><dd>RA 1080</dd>
+        <dt>Competency</dt><dd class="none">Not specified</dd>
+      </dl>
+
+      <div class="label">Required documents</div>
+      <div class="hint" style="margin-bottom:2px">Submit these before the closing date as part of your application.</div>
+      <ol class="docs">
+        <li>Personal Data Sheet (PDS) with Work Experience Sheet</li>
+        <li>Application Letter</li>
+        <li>Proof of eligibility / rating / license</li>
+        <li>Transcript of Records</li>
+      </ol>
+      <p class="instr">Address your application letter to the head of office and attach the documents above. Applications received after the closing date may not be considered.</p>
+    </section>
+
+    <!-- Plantilla picker -->
+    <aside class="card picker">
+      <div class="head">
+        <span class="ico">&#9638;</span>
+        <h2>Choose your plantilla items</h2>
+        <span class="pill">2 selected</span>
+      </div>
+      <div class="hint">Select the items you want to apply for. You'll fill out a separate application for each one.</div>
+
+      <div class="toolbar">
+        <span class="all"><span class="box"></span>Select all open</span>
+        <span class="count">6 items &middot; 5 open</span>
+      </div>
+
+      <div class="list">
+        <div class="item sel"><span class="box">&#10003;</span><span class="name">Plantilla 1<small>Item no. OCE-ENG5-001</small></span><span class="sg">SG 24</span><span class="tag open">Open</span></div>
+        <div class="item sel"><span class="box">&#10003;</span><span class="name">Plantilla 2<small>Item no. OCE-ENG5-002</small></span><span class="sg">SG 24</span><span class="tag open">Open</span></div>
+        <div class="item"><span class="box"></span><span class="name">Plantilla 3<small>Item no. OCE-ENG5-003</small></span><span class="sg">SG 24</span><span class="tag open">Open</span></div>
+        <div class="item"><span class="box"></span><span class="name">Plantilla 4<small>Item no. OCE-ENG5-004</small></span><span class="sg">SG 24</span><span class="tag open">Open</span></div>
+        <div class="item closed"><span class="box"></span><span class="name">Plantilla 5<small>Item no. OCE-ENG5-005</small></span><span class="sg">SG 24</span><span class="tag shut">Filled</span></div>
+        <div class="item"><span class="box"></span><span class="name">Plantilla 6<small>Item no. OCE-ENG5-006</small></span><span class="sg">SG 24</span><span class="tag open">Open</span></div>
+      </div>
+
+      <div class="cta">Continue with 2 applications &rarr;</div>
+      <div class="note">The list scrolls inside this card when a job has many plantillas.</div>
+    </aside>
+  </main>
+</body>
+</html>
