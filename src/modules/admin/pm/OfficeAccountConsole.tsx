@@ -864,7 +864,7 @@ export const OfficeAccountConsole: React.FC = () => {
             <div className="hidden sm:block" style={{ width: '1px', height: '28px', backgroundColor: 'rgba(255,255,255,0.25)' }} />
 
             <LogoutConfirmPopover
-              buttonClassName="inline-flex min-h-[44px] min-w-[44px] items-center justify-center gap-2 rounded-xl border px-3 py-2 text-sm font-semibold transition hover:bg-white/20 sm:px-4"
+              buttonClassName="inline-flex min-h-[44px] min-w-[44px] items-center justify-center gap-2 rounded-full border px-3 py-2 text-sm font-semibold transition hover:bg-white/20 sm:px-4"
               buttonStyle={{
                 borderColor: 'rgba(255,255,255,0.35)',
                 backgroundColor: 'rgba(255,255,255,0.12)',
