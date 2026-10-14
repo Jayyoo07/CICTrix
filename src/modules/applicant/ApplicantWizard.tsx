@@ -199,6 +199,37 @@ export const ApplicantWizard: React.FC = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [completed, setCompleted] = useState<null | Array<{ key: string; label: string; outcome: SubmitOutcome }>>(null);
 
+  // Since 20261015 one person keeps one Reference No. across every plantilla.
+  // When this submission's numbers all agree, that is the person's number, and
+  // any applications under it beyond the ones just listed were filed earlier.
+  // Mixed numbers mean the migration has not been applied: keep per-row numbers.
+  const sharedReferenceNo = useMemo(() => {
+    if (!completed) return null;
+    const refs = new Set(
+      completed
+        .map((entry) => ('referenceNo' in entry.outcome ? entry.outcome.referenceNo?.trim() : undefined))
+        .filter((ref): ref is string => Boolean(ref)),
+    );
+    return refs.size === 1 ? [...refs][0] : null;
+  }, [completed]);
+  const [earlierApplicationCount, setEarlierApplicationCount] = useState(0);
+
+  useEffect(() => {
+    setEarlierApplicationCount(0);
+    if (!sharedReferenceNo || !completed) return;
+    let cancelled = false;
+    void (async () => {
+      const { count, error } = await (supabase as any)
+        .from('applicant_tracker_view')
+        .select('id', { count: 'exact', head: true })
+        .eq('reference_no_normalized', sharedReferenceNo.toUpperCase().replace(/[^A-Z0-9]/g, ''));
+      // A failed count only hides the note; the submission itself succeeded.
+      if (cancelled || error || typeof count !== 'number') return;
+      setEarlierApplicationCount(Math.max(0, count - completed.length));
+    })();
+    return () => { cancelled = true; };
+  }, [sharedReferenceNo, completed]);
+
   const [showEmployeeAuth, setShowEmployeeAuth] = useState(false);
   const [employeeNumber, setEmployeeNumber] = useState('');
   const [employeePassword, setEmployeePassword] = useState('');
@@ -1381,22 +1412,41 @@ export const ApplicantWizard: React.FC = () => {
                     ? 'Application submitted'
                     : `${submittedCount} applications submitted`}
               </h1>
-              <p className="af-text" style={{ marginTop: 8, color: 'var(--neutral-600)' }}>
-                Each plantilla item has its own Reference No. Keep them; you can track each application with it or with
-                your email address.
-              </p>
+              {sharedReferenceNo ? (
+                <>
+                  <p className="af-text" style={{ marginTop: 8, color: 'var(--neutral-600)' }}>
+                    Your Reference No. for all your applications
+                  </p>
+                  <p className="af-ref-no" style={{ marginTop: 4 }}>{sharedReferenceNo}</p>
+                  <p className="af-body-s" style={{ marginTop: 8, color: 'var(--neutral-600)' }}>
+                    It stays the same for every plantilla you apply to. Keep it; you can track all your applications with
+                    it or with your email address.
+                    {earlierApplicationCount > 0 &&
+                      ` Your ${earlierApplicationCount} earlier application${earlierApplicationCount === 1 ? ' is' : 's are'} under this same Reference No.`}
+                  </p>
+                </>
+              ) : (
+                <p className="af-text" style={{ marginTop: 8, color: 'var(--neutral-600)' }}>
+                  Each plantilla item has its own Reference No. Keep them; you can track each application with it or with
+                  your email address.
+                </p>
+              )}
 
               <ul className="af-refs">
                 {completed.map((entry) => (
                   <li key={entry.key} className="af-card af-ref" style={{ padding: 16 }}>
                     <div style={{ minWidth: 0 }}>
                       <p className="af-headline">{entry.label}</p>
-                      <p className="af-body-s" style={{ marginTop: 4 }}>
-                        {entry.outcome.status === 'already' ? 'Reference No. from your earlier application' : 'Reference No.'}
-                      </p>
-                      <p className="af-ref-no">
-                        {'referenceNo' in entry.outcome && entry.outcome.referenceNo ? entry.outcome.referenceNo : 'On file'}
-                      </p>
+                      {!sharedReferenceNo && (
+                        <>
+                          <p className="af-body-s" style={{ marginTop: 4 }}>
+                            {entry.outcome.status === 'already' ? 'Reference No. from your earlier application' : 'Reference No.'}
+                          </p>
+                          <p className="af-ref-no">
+                            {'referenceNo' in entry.outcome && entry.outcome.referenceNo ? entry.outcome.referenceNo : 'On file'}
+                          </p>
+                        </>
+                      )}
                     </div>
                     {/* §10: Submitted / Received = Info */}
                     <span className="badge badge-info">
@@ -1822,7 +1872,7 @@ export const ApplicantWizard: React.FC = () => {
       >
         {pendingKeys.length === 1
           ? 'Your application will be sent to HR. You can’t edit it after submitting.'
-          : `Each plantilla item is filed as its own application with its own Reference No. You can’t edit them after submitting.`}
+          : `Each plantilla item is filed as its own application, all under one Reference No. You can’t edit them after submitting.`}
       </ConfirmModal>
 
       <ConfirmModal
