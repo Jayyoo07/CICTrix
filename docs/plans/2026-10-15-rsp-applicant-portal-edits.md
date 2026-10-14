@@ -1,7 +1,7 @@
 ---
 title: RSP and applicant-portal edits
 date: 2026-10-15
-status: In Progress
+status: Done
 summary: Nine small UI and workflow edits across Job Posts, the public vacancies table, the About page, the L&D Summary of Ratings, and the RSP applicant details page.
 ---
 
