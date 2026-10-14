@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import abyanLogo from '../assets/abyan-logo.png';
 import { SharedFooter } from './SharedFooter';
+import '../styles/landing-hero.css';
 import { getAuthoritativeJobPostings, getJobPostingsLoadError, loadJobPostings } from '../lib/recruitmentData';
 import type { JobPosting } from '../types/recruitment.types';
 
@@ -303,8 +304,16 @@ export const LandingPage = () => {
       {/* ─── Hero ────────────────────────────────────────────────── */}
       <section className="relative overflow-hidden">
         <div className="absolute inset-0 bg-gradient-to-br from-[#363EE8] to-[#050D65]" />
-        <div className="absolute -right-24 -top-28 h-80 w-80 rounded-full border border-white/15" />
-        <div className="absolute -bottom-32 -left-20 h-96 w-96 rounded-full border border-white/10" />
+        <div className="landing-hero-bg" aria-hidden="true">
+          <div className="landing-hero-ring landing-hero-ring--tr" />
+          <div className="landing-hero-ring landing-hero-ring--bl" />
+          <div className="landing-hero-ring landing-hero-ring--br" />
+          <div className="landing-hero-bg">
+            <div className="landing-hero-pulse" />
+            <div className="landing-hero-pulse" />
+            <div className="landing-hero-pulse" />
+          </div>
+        </div>
         <div className="relative mx-auto max-w-7xl px-6 py-20 text-center text-white sm:py-28">
           <h1 className="mx-auto mt-6 max-w-3xl text-4xl font-bold leading-tight tracking-tight text-white sm:text-5xl">
             Your gateway to public service.
