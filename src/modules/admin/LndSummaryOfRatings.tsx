@@ -5,7 +5,6 @@ import { useRealtimeRefresh } from '../../hooks/useRealtimeRefresh';
 import { EmptyState } from '../../components/EmptyState';
 import { getActiveHeadcountByDepartment, getIPCRRecordsFromGapView } from '../../lib/api/competencyGapAnalysis';
 import {
-  DeptCompletionCell,
   REPORT_PERIOD,
   buildDeptCompletionRows,
   getAdjectival,
@@ -176,10 +175,9 @@ export const LndSummaryOfRatings = () => {
 
         {/* Column headers */}
         <div className="grid grid-cols-12 items-center border-b border-gray-100 px-5 py-2.5 text-[11px] font-semibold uppercase tracking-wide text-gray-400">
-          <div className="col-span-5">Department</div>
+          <div className="col-span-6">Department</div>
           <div className="col-span-2 text-center">Employees</div>
-          <div className="col-span-2 text-center">IPCR Completion</div>
-          <div className="col-span-2 text-center">Needs Attention</div>
+          <div className="col-span-3 text-center">IPCR Completion</div>
           <div className="col-span-1" />
         </div>
 
@@ -200,29 +198,15 @@ export const LndSummaryOfRatings = () => {
                   onClick={() => enterDept(d.department)}
                   className="grid w-full grid-cols-12 items-center px-5 py-4 text-left transition hover:bg-blue-50/40"
                 >
-                  <div className="col-span-5 flex items-center gap-3">
+                  <div className="col-span-6 flex items-center gap-3">
                     <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-blue-50 text-blue-600">
                       <Building2 className="h-4 w-4" />
                     </span>
                     <span className="text-sm font-semibold text-gray-900">{d.department}</span>
                   </div>
                   <div className="col-span-2 text-center text-sm text-gray-600">{d.total}</div>
-                  <div className="col-span-2 flex justify-center">
-                    <DeptCompletionCell row={d} />
-                  </div>
-                  <div className="col-span-2 text-center">
-                    {d.lowCount > 0 ? (
-                      <span className="inline-flex items-center rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-semibold text-amber-700">
-                        {d.lowCount} low
-                      </span>
-                    ) : (
-                      <span className="text-xs text-gray-400">—</span>
-                    )}
-                    {d.nonSubmission > 0 && (
-                      <span className="ml-1 inline-flex items-center rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-semibold text-blue-700">
-                        {d.nonSubmission} no sub
-                      </span>
-                    )}
+                  <div className="col-span-3 text-center text-sm font-bold text-gray-900">
+                    {d.completed} / {d.total}
                   </div>
                   <div className="col-span-1 flex justify-end">
                     <ChevronRight className="h-4 w-4 text-gray-400" />
