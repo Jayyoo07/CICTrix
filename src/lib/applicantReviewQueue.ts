@@ -30,3 +30,19 @@ export function nextUndecidedIndex(queue: ReviewQueueEntry[], fromIndex: number)
   }
   return -1;
 }
+
+type PositionKeyed = { position?: string | null; office?: string | null };
+
+const squash = (value: string | null | undefined) => String(value ?? '').trim().toLowerCase().replace(/\s+/g, ' ');
+const positionKey = (row: PositionKeyed): string => `${squash(row.position)}|${squash(row.office)}`;
+
+/**
+ * The rows applying for the same position as `target`, in their given order.
+ * RSP reviews one position at a time, so Next/Back never crosses into another
+ * post. Matches on title + office, not item_number: that is per plantilla, so
+ * one post's applicants can carry different item numbers.
+ */
+export function samePositionRows<T extends PositionKeyed>(rows: T[], target: T): T[] {
+  const key = positionKey(target);
+  return rows.filter((row) => positionKey(row) === key);
+}

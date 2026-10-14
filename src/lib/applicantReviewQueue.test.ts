@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { nextUndecidedIndex, reviewOutcome, type ReviewQueueEntry } from './applicantReviewQueue';
+import { nextUndecidedIndex, reviewOutcome, samePositionRows, type ReviewQueueEntry } from './applicantReviewQueue';
 
 const entry = (id: string, status: string): ReviewQueueEntry => ({ id, name: id, status });
 
@@ -38,5 +38,19 @@ describe('nextUndecidedIndex', () => {
   it('returns -1 when everyone else is decided', () => {
     const queue = [entry('a', 'Shortlisted'), entry('b', 'Submitted'), entry('c', 'Disqualified')];
     expect(nextUndecidedIndex(queue, 1)).toBe(-1);
+  });
+});
+
+describe('samePositionRows', () => {
+  const row = (id: string, position: string, office: string) => ({ id, position, office });
+
+  it('keeps only rows for the same title and office, in order', () => {
+    const rows = [row('a', 'Nurse 2', 'Health'), row('b', 'Engineer V', 'Engineering'), row('c', 'Nurse  2', 'health')];
+    expect(samePositionRows(rows, rows[2]).map((r) => r.id)).toEqual(['a', 'c']);
+  });
+
+  it('keeps the same title in another office out of the queue', () => {
+    const rows = [row('a', 'Nurse 2', 'Health'), row('b', 'Nurse 2', 'Legal')];
+    expect(samePositionRows(rows, rows[0]).map((r) => r.id)).toEqual(['a']);
   });
 });

@@ -10,6 +10,7 @@ import { ChevronLeft, ChevronRight, Search, Undo2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { fetchApplicantSlotLinks, fetchSlotsByJobPosting } from '../lib/plantillaSlots';
 import { plantillaLabel } from '../lib/plantillaRules';
+import { samePositionRows } from '../lib/applicantReviewQueue';
 import { SortHeader, toTime, useTableSort } from './tableSort';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -277,14 +278,18 @@ export const ApplicationsListPage = () => {
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / ITEMS_PER_PAGE));
   const safePage   = Math.min(page, totalPages);
-  // Passes the table's rows, in shown order, so the details page can step through them.
-  const openApplicant = (id: string, rows: Applicant[]) =>
+  // Passes the table's rows for the clicked applicant's position, in shown
+  // order, so the details page steps through one position at a time.
+  const openApplicant = (id: string, rows: Applicant[]) => {
+    const target = rows.find((row) => row.id === id);
+    const queueRows = target ? samePositionRows(rows, target) : rows;
     navigate(`/admin/rsp/applicant/${id}`, {
       state: {
         from: '/admin/rsp/applications',
-        navQueue: rows.map((row) => ({ id: row.id, name: row.full_name, status: row.status })),
+        navQueue: queueRows.map((row) => ({ id: row.id, name: row.full_name, status: row.status })),
       },
     });
+  };
   const paged      = sortedApplicants.slice((safePage - 1) * ITEMS_PER_PAGE, safePage * ITEMS_PER_PAGE);
 
   // ── Loading ────────────────────────────────────────────────────────────────
