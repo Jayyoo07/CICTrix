@@ -1,20 +1,12 @@
 import {
   ArrowLeft,
   ArrowRight,
-  Award,
-  BookOpen,
   Briefcase,
   Building2,
-  Calendar,
   CheckCircle2,
   ChevronDown,
-  Clock,
-  FileText,
-  Info,
   ListChecks,
   Lock,
-  MapPin,
-  Wallet,
 } from 'lucide-react';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import { useHistoryBack } from '../hooks/useHistoryBack';
@@ -22,7 +14,6 @@ import { useState, useEffect, useMemo, type ReactNode } from 'react';
 import { getJobPostings, loadJobPostings } from '../lib/recruitmentData';
 import { supabase } from '../lib/supabase';
 import { JobPosting } from '../types/recruitment.types';
-import { QualificationGapPanel } from './QualificationGapPanel';
 import { fetchSlotApplicantCounts } from '../lib/plantillaSlots';
 import { plantillaLabel } from '../lib/plantillaRules';
 import { isCurriculumVitae } from '../lib/applicationDocuments';
@@ -64,18 +55,11 @@ const DISABLED_REASON: Record<string, string> = {
 const formatPeso = (value: number) =>
   `Php ${Number(value).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
-/** One qualification standard. An unstated requirement reads as muted italic text, never a made-up value. */
-const RequirementTile = ({ icon, label, value, emptyText }: { icon: ReactNode; label: string; value: string; emptyText: string }) => (
-  <div className="af-req">
-    <dt>{icon}{label}</dt>
+/** One line of the summary list. An unstated value reads as muted italic text, never a made-up value. */
+const Row = ({ label, value, emptyText = 'Not specified' }: { label: string; value: ReactNode; emptyText?: string }) => (
+  <div className="af-row">
+    <dt>{label}</dt>
     <dd className={value ? '' : 'is-empty'}>{value || emptyText}</dd>
-  </div>
-);
-
-const Detail = ({ icon, label, children }: { icon: ReactNode; label: string; children: ReactNode }) => (
-  <div className="af-detail">
-    <dt>{icon}{label}</dt>
-    <dd>{children}</dd>
   </div>
 );
 
@@ -95,7 +79,6 @@ export const JobDetailsPage = () => {
     // already loaded. Seed from it so the qualifications render on that path too.
     () => (location.state?.landingJob?.originalJob as JobPosting | undefined) ?? null,
   );
-  const [allPostings, setAllPostings] = useState<JobPosting[]>([]);
   /** False until the postings cache has been checked, so a direct link shows a skeleton, not "not found". */
   const [loaded, setLoaded] = useState(() => Boolean(location.state?.landingJob?.originalJob));
   /** Name of the applicant placed in each filled slot, for the admin view. */
@@ -110,7 +93,6 @@ export const JobDetailsPage = () => {
     const find = (jobs: JobPosting[]) => jobs.find((j) => j.id === jobId || j.jobCode === jobId) ?? null;
 
     const cached = getJobPostings();
-    setAllPostings(cached);
     setJob((current) => current ?? find(cached));
     if (find(cached)) setLoaded(true);
 
@@ -119,7 +101,6 @@ export const JobDetailsPage = () => {
       .then((fresh) => {
         if (cancelled) return;
         const jobs = fresh.length > 0 ? fresh : getJobPostings();
-        setAllPostings(jobs);
         // Prefer the fresh row: its plantilla slot statuses are current.
         const match = find(jobs);
         if (match) setJob(match);
@@ -316,6 +297,17 @@ export const JobDetailsPage = () => {
     });
   };
 
+  // Curriculum Vitae is no longer required; older postings may still list it.
+  const requiredDocs = (job && !landingJob
+    ? job.requiredDocuments || ['Application Letter']
+    : [
+        'Personal Data Sheet (PDS) with Work Experience Sheet',
+        'Application Letter',
+        'Proof of eligibility/rating/license',
+        'Transcript of Records',
+      ]).filter((doc) => !isCurriculumVitae(doc));
+  const deadlineText = closingDate ? formatShortDate(closingDate) : 'the closing date';
+
   const summaryCard = (
     <details
       className="af-card af-collapse"
@@ -332,55 +324,36 @@ export const JobDetailsPage = () => {
         <ChevronDown className="af-collapse-icon" size={20} strokeWidth={1.75} aria-hidden="true" />
       </summary>
 
-      <dl className="af-details">
-        <Detail icon={<MapPin size={18} strokeWidth={1.75} />} label="Place of Assignment">
-          {department || 'Not specified'}
-        </Detail>
-        <Detail icon={<Award size={18} strokeWidth={1.75} />} label="Salary Grade">
-          {salaryGradeText}
-        </Detail>
-        <Detail icon={<Calendar size={18} strokeWidth={1.75} />} label="Posted">
-          {formatShortDate(postingDate)}
-        </Detail>
-        <Detail icon={<Clock size={18} strokeWidth={1.75} />} label="Application Closes">
-          {formatShortDate(closingDate)}
-        </Detail>
-        {job?.monthlySalary != null && (
-          <Detail icon={<Wallet size={18} strokeWidth={1.75} />} label="Monthly Salary">
-            {formatPeso(job.monthlySalary)}
-          </Detail>
-        )}
+      <dl className="af-rows">
+        <Row label="Place of assignment" value={department} />
+        <Row label="Salary grade" value={salaryGradeText} />
+        {job?.monthlySalary != null && <Row label="Monthly salary" value={formatPeso(job.monthlySalary)} />}
+        <Row label="Posted" value={formatShortDate(postingDate)} />
+        <Row label="Application closes" value={formatShortDate(closingDate)} />
       </dl>
 
       {job?.summary && (
         <>
-          <hr className="af-divider" />
-          <p className="af-caps">Position summary</p>
+          <p className="af-caps af-rows-title">Position summary</p>
           <p className="af-text">{job.summary}</p>
         </>
       )}
 
       {job && (
         <>
-          <hr className="af-divider" />
-          <p className="af-caps">Qualification standards</p>
-          <p className="af-body-m" style={{ marginBottom: 16 }}>
-            What this position requires. Anything marked "Not specified" has no stated requirement.
-          </p>
-          <dl className="af-req-grid">
-            <RequirementTile
-              icon={<Award size={18} strokeWidth={1.75} />}
+          <p className="af-caps af-rows-title">Qualification standards</p>
+          <p className="af-body-s">Anything marked "Not specified" has no stated requirement.</p>
+          <dl className="af-rows">
+            <Row
               label="Education"
               value={
                 job.qualifications.education
                   ? `${job.qualifications.education}${job.qualifications.educationField ? ` in ${job.qualifications.educationField}` : ' (any field)'}`
                   : ''
               }
-              emptyText="Not specified"
             />
-            <RequirementTile
-              icon={<Briefcase size={18} strokeWidth={1.75} />}
-              label="Work Experience"
+            <Row
+              label="Experience"
               value={(() => {
                 const total = Number(job.qualifications.experience.years || 0);
                 const field = job.qualifications.experience.field;
@@ -398,14 +371,14 @@ export const JobDetailsPage = () => {
               })()}
               emptyText="None required"
             />
-            <RequirementTile icon={<BookOpen size={18} strokeWidth={1.75} />} label="Training" value={job.training ?? ''} emptyText="None required" />
-            <RequirementTile icon={<Award size={18} strokeWidth={1.75} />} label="Eligibility" value={job.eligibility ?? ''} emptyText="Not specified" />
-            <RequirementTile icon={<ListChecks size={18} strokeWidth={1.75} />} label="Competency" value={job.competency ?? ''} emptyText="Not specified" />
+            <Row label="Training" value={job.training ?? ''} emptyText="None required" />
+            <Row label="Eligibility" value={job.eligibility ?? ''} />
+            <Row label="Competency" value={job.competency ?? ''} />
           </dl>
 
           {job.qualifications.skills.length > 0 && (
             <>
-              <p className="af-caps" style={{ marginTop: 20 }}>Required skills</p>
+              <p className="af-caps af-rows-title">Required skills</p>
               <div className="af-tags">
                 {job.qualifications.skills.map((skill) => (
                   <span key={skill} className="badge badge-tint">{skill}</span>
@@ -415,25 +388,25 @@ export const JobDetailsPage = () => {
           )}
         </>
       )}
+
+      <section aria-labelledby="jd-docs">
+        <h2 className="af-caps af-rows-title" id="jd-docs">Required documents</h2>
+        <p className="af-body-s">Submit these before {deadlineText} as part of your application.</p>
+        <ol className="af-rows af-rows-numbered">
+          {requiredDocs.map((doc, idx) => (
+            <li key={idx}>{doc}</li>
+          ))}
+        </ol>
+        <p className="af-body-s" style={{ marginTop: 8 }}>
+          Address your application letter to the head of office and attach the required documents listed above.
+          Applications received after {deadlineText} may not be considered.
+        </p>
+      </section>
     </details>
   );
 
-  // Curriculum Vitae is no longer required; older postings may still list it.
-  const requiredDocs = (job && !landingJob
-    ? job.requiredDocuments || ['Application Letter']
-    : [
-        'Personal Data Sheet (PDS) with Work Experience Sheet',
-        'Application Letter',
-        'Proof of eligibility/rating/license',
-        'Transcript of Records',
-      ]).filter((doc) => !isCurriculumVitae(doc));
-  const deadlineText = closingDate ? formatShortDate(closingDate) : 'the closing date';
-
   const moreCards = (
     <div className="af-stack" style={{ gridArea: 'more' }}>
-      {/* Where do I stand? — self-assessment against this posting */}
-      {job && <QualificationGapPanel posting={job} allPostings={allPostings} department={department} />}
-
       {job && !landingJob && job.responsibilities && job.responsibilities.filter((r) => r.trim()).length > 0 && (
         <section className="af-card" aria-labelledby="jd-resp">
           <div className="af-card-head">
@@ -447,42 +420,6 @@ export const JobDetailsPage = () => {
           </ul>
         </section>
       )}
-
-      <section className="af-card" aria-labelledby="jd-docs">
-        <div className="af-card-head">
-          <span className="af-chip" aria-hidden="true"><FileText size={20} strokeWidth={1.75} /></span>
-          <div className="af-card-head-text">
-            <h2 className="af-title-s" id="jd-docs">Required documents</h2>
-            <p className="af-caption">Submit these before {deadlineText} as part of your application.</p>
-          </div>
-        </div>
-        <ul className="af-list">
-          {requiredDocs.map((doc, idx) => (
-            <li key={idx}><CheckCircle2 size={16} strokeWidth={1.75} aria-hidden="true" />{doc}</li>
-          ))}
-        </ul>
-
-        <hr className="af-divider" />
-        <p className="af-caps">Important instructions</p>
-        <p className="af-body-m">
-          Address your application letter to the head of office and attach the required documents listed above.
-          Applications received after {deadlineText} may not be considered.
-        </p>
-
-        <div className="af-alert af-alert-info" style={{ marginTop: 20 }}>
-          <Info size={20} strokeWidth={1.75} aria-hidden="true" />
-          <div>
-            <p className="af-alert-title">Equal opportunities for employment</p>
-            <p className="af-alert-body">
-              This Office highly encourages all interested and qualified applicants to apply, which include persons with
-              disability (PWD) and members of the indigenous communities, irrespective of sexual orientation and gender
-              identities and/or expression, civil status, religion, and political affiliation. This Office does not
-              discriminate in the selection of employees based on the aforementioned pursuant to Equal Opportunities for
-              Employment Principle (EOP).
-            </p>
-          </div>
-        </div>
-      </section>
     </div>
   );
 
@@ -530,22 +467,20 @@ export const JobDetailsPage = () => {
         </div>
       ) : null}
 
-      <ul className="af-choices">
+      <ul className="af-choices af-choices-scroll">
         {choices.map((choice) => {
           const selected = selectedKeys.includes(choice.key);
           const meta = (
-            <div className="af-choice-body">
-              <div className="af-choice-row">
-                {/* A plantilla shows its name and salary grade only, never a code. */}
-                <span className="af-choice-name">{choiceLabel(choice)}</span>
-                {choice.salaryGrade != null && <span className="af-choice-sg">SG {choice.salaryGrade}</span>}
-              </div>
-              <div className="af-choice-row" style={{ marginTop: 6, justifyContent: 'flex-end' }}>
-                <StatusBadge status={choice.status} />
-              </div>
-              {choice.monthlySalary != null && (
-                <p className="af-choice-meta">{formatPeso(choice.monthlySalary)} monthly</p>
-              )}
+            <div className="af-choice-body af-choice-line">
+              {/* A plantilla shows its name and salary grade only, never a code. */}
+              <span className="af-choice-name">
+                {choiceLabel(choice)}
+                {choice.monthlySalary != null && (
+                  <span className="af-choice-meta">{formatPeso(choice.monthlySalary)} monthly</span>
+                )}
+              </span>
+              {choice.salaryGrade != null && <span className="af-choice-sg">SG {choice.salaryGrade}</span>}
+              <StatusBadge status={choice.status} />
             </div>
           );
 
