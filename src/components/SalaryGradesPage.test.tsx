@@ -69,3 +69,24 @@ describe('SalaryGradesPage pagination', () => {
     expect(screen.queryByRole('navigation', { name: 'Salary grade pages' })).not.toBeInTheDocument();
   });
 });
+
+describe('SalaryGradesPage Step 1 notice', () => {
+  beforeEach(() => {
+    window.localStorage.clear();
+    listSalaryGrades.mockResolvedValue({ ok: true, data: schedule });
+  });
+
+  it('can be dismissed and stays dismissed on the next visit', async () => {
+    const { unmount } = render(<SalaryGradesPage />);
+    await screen.findByText('SG 1');
+    expect(screen.getByText(/Step 1 is the hiring rate/)).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Dismiss notice' }));
+    expect(screen.queryByText(/Step 1 is the hiring rate/)).not.toBeInTheDocument();
+
+    unmount();
+    render(<SalaryGradesPage />);
+    await screen.findByText('SG 1');
+    expect(screen.queryByText(/Step 1 is the hiring rate/)).not.toBeInTheDocument();
+  });
+});
