@@ -51,6 +51,7 @@ import { isMockModeEnabled, supabase } from '../lib/supabase';
 import { JobPosting, PlantillaSlotStatus } from '../types/recruitment.types';
 import { RecruitmentNavigationGuide } from './RecruitmentNavigationGuide';
 import { isCurriculumVitae } from '../lib/applicationDocuments';
+import { reviewOutcome } from '../lib/applicantReviewQueue';
 import { AdminHeader } from './AdminHeader';
 import { Sidebar } from './Sidebar';
 
@@ -558,7 +559,7 @@ export const JobPostingsPage = () => {
 
   // Fuzzy applicant count: match by job title/office, not just jobPostingId
   const applicantCountsByJob = useMemo(() => {
-    const counts = new Map<string, { applicants: number; qualified: number }>();
+    const counts = new Map<string, { applicants: number; qualified: number; toReview: number }>();
     const normalize = (value: string) =>
       String(value ?? '').trim().toLowerCase().replace(/\s+/g, ' ');
     const expandAbbrev = (value: string) =>
@@ -582,20 +583,25 @@ export const JobPostingsPage = () => {
         const s = normalize(status);
         return s.includes('recommend') || s.includes('hired') || s === 'qualified';
       };
+      // "Left to review" = screening not ended: not yet qualified/shortlisted, not disqualified.
+      let toReview = 0;
+      const tally = (row: any) => {
+        applicants++;
+        if (isQualifiedStatus(row?.status)) qualified++;
+        if (reviewOutcome(row?.status) === 'undecided') toReview++;
+      };
 
       for (const row of allApplicantsRaw) {
         const rowItem = normalize(row?.item_number ?? '');
         if (jobItemKey && rowItem && rowItem === jobItemKey) {
-          applicants++;
-          if (isQualifiedStatus(row?.status)) qualified++;
+          tally(row);
           continue;
         }
         const rowPositionNormalized = normalize(row?.position);
         const rowPositionExpanded = expandAbbrev(row?.position);
         if (!jobTitleKey || !rowPositionNormalized) continue;
         if (rowPositionNormalized === jobTitleKey || rowPositionExpanded === jobTitleExpanded || rowPositionExpanded.includes(jobTitleExpanded) || jobTitleExpanded.includes(rowPositionExpanded)) {
-          applicants++;
-          if (isQualifiedStatus(row?.status)) qualified++;
+          tally(row);
           continue;
         }
         const rowTokens = tokens(row?.position);
@@ -603,12 +609,11 @@ export const JobPostingsPage = () => {
         if (jobTitleTokens.size > 0 && overlap / jobTitleTokens.size >= 0.75) {
           const rowOffice = normalize(row?.office);
           if (!jobOfficeKey || !rowOffice || rowOffice === jobOfficeKey) {
-            applicants++;
-            if (isQualifiedStatus(row?.status)) qualified++;
+            tally(row);
           }
         }
       }
-      counts.set(job.id, { applicants, qualified });
+      counts.set(job.id, { applicants, qualified, toReview });
     });
     return counts;
   }, [jobs, allApplicantsRaw]);
@@ -1234,7 +1239,7 @@ export const JobPostingsPage = () => {
           <p className="!mb-0 text-base text-slate-500">Manage and monitor all job positions and their applicants</p>
         </div>
         <div className="p-6">
-        <div className="mb-5 flex justify-end">
+        <div className="mb-5 flex justify-start">
           <button className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white" onClick={openCreateModal}>
             <Plus className="h-4 w-4" />
             Add New Position
@@ -1548,7 +1553,7 @@ export const JobPostingsPage = () => {
               </thead>
               <tbody>
                 {currentPageJobs.map((job) => {
-                  const liveCount = applicantCountsByJob.get(job.id) ?? { applicants: 0, qualified: 0 };
+                  const liveCount = applicantCountsByJob.get(job.id) ?? { applicants: 0, qualified: 0, toReview: 0 };
                   const officeLabel = formatOfficeLabel(job.department, job.division);
                   const slots = job.plantillaSlots ?? [];
                   const slotSummary = summarizeSlots(slots);
@@ -1600,6 +1605,11 @@ export const JobPostingsPage = () => {
                       <td className="px-5 py-4 text-sm text-slate-600 whitespace-nowrap">{formatPHDate(job.postedDate)}</td>
                       <td className="px-5 py-4 text-center">
                         <span className="font-bold text-slate-900 text-sm">{liveCount.applicants}</span>
+                        {liveCount.applicants > 0 && (
+                          <p className={`!mb-0 mt-0.5 whitespace-nowrap text-xs font-medium ${liveCount.toReview > 0 ? 'text-amber-700' : 'text-slate-500'}`}>
+                            {liveCount.toReview > 0 ? `${liveCount.toReview} left to review` : 'All reviewed'}
+                          </p>
+                        )}
                       </td>
                       <td className="px-5 py-4 text-center">
                         <span className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-semibold ${statusClass}`}>{statusLabel}</span>
