@@ -123,7 +123,7 @@ export const LogoutConfirmPopover = ({
             <button
               type="button"
               onClick={handleConfirmLogout}
-              className="rounded-full bg-red-600 px-3.5 py-1.5 text-xs font-semibold text-white hover:bg-red-700 transition"
+              className="rounded-full bg-red-600 px-3.5 py-1.5 text-xs font-semibold text-white hover:bg-red-700 hover:text-white transition"
             >
               Log Out
             </button>
