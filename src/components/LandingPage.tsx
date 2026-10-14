@@ -17,6 +17,7 @@ import { SharedFooter } from './SharedFooter';
 import '../styles/landing-hero.css';
 import { getAuthoritativeJobPostings, getJobPostingsLoadError, loadJobPostings } from '../lib/recruitmentData';
 import type { JobPosting } from '../types/recruitment.types';
+import { formatSalary } from '../lib/api/salaryGrades';
 
 /* ── trish UI theme tokens ──────────────────────────────────────────
    Brand: Indigo #363EE8 · Hover #2E35D4 · Soft #EEF2FF
@@ -41,6 +42,20 @@ type VacancyRow = {
 
 // A posting is open to the public when RSP left it Active and its closing date
 // (if it has one) is today or later. The deadline is a date, so "today" counts.
+// Monthly salary of the plantillas still open, falling back to the posting's
+// own figure. Plantillas of one post can differ, so a spread shows as a range.
+const vacancySalaryLabel = (job: JobPosting): string => {
+  const amounts = (job.plantillaSlots ?? [])
+    .filter((slot) => slot.status !== 'closed')
+    .map((slot) => Number(slot.monthlySalary))
+    .filter((amount) => Number.isFinite(amount) && amount > 0);
+  if (amounts.length === 0 && Number(job.monthlySalary) > 0) amounts.push(Number(job.monthlySalary));
+  if (amounts.length === 0) return 'Not specified';
+  const low = Math.min(...amounts);
+  const high = Math.max(...amounts);
+  return low === high ? formatSalary(low) : `${formatSalary(low)} – ${formatSalary(high)}`;
+};
+
 const isOpenToday = (job: JobPosting, today: string): boolean => {
   if (job.status !== 'Active') return false;
   const deadline = job.applicationDeadline ? String(job.applicationDeadline).slice(0, 10) : '';
@@ -406,22 +421,21 @@ export const LandingPage = () => {
                   <th className="px-4 py-3 text-left font-semibold text-[#050D65]">Position Title</th>
                   <th className="px-4 py-3 text-left font-semibold text-[#050D65]">Department / Office</th>
                   <th className="px-4 py-3 text-left font-semibold text-[#050D65]">Plantilla</th>
-                  <th className="px-4 py-3 text-left font-semibold text-[#050D65]">Posting Date</th>
+                  <th className="px-4 py-3 text-left font-semibold text-[#050D65]">Monthly Salary</th>
                   <th className="px-4 py-3 text-left font-semibold text-[#050D65]">Closing Date</th>
-                  <th className="px-4 py-3 text-center font-semibold text-[#050D65]">Details</th>
                   <th className="px-4 py-3 text-center font-semibold text-[#050D65]">Apply</th>
                 </tr>
               </thead>
               <tbody>
                 {vacanciesLoading ? (
                   <tr>
-                    <td colSpan={7} className="px-4 py-10 text-center text-slate-500" role="status">
+                    <td colSpan={6} className="px-4 py-10 text-center text-slate-500" role="status">
                       Loading vacancies…
                     </td>
                   </tr>
                 ) : vacanciesError ? (
                   <tr>
-                    <td colSpan={7} className="px-4 py-10 text-center" role="alert">
+                    <td colSpan={6} className="px-4 py-10 text-center" role="alert">
                       <p className="font-medium text-[#B42323]">We couldn't load the vacancies. Check your connection and try again.</p>
                       <p className="mt-1 text-xs text-slate-500">{vacanciesError}</p>
                       <button
@@ -435,7 +449,7 @@ export const LandingPage = () => {
                   </tr>
                 ) : filteredAndSortedJobs.length === 0 ? (
                   <tr>
-                    <td colSpan={7} className="px-4 py-10 text-center text-slate-500">
+                    <td colSpan={6} className="px-4 py-10 text-center text-slate-500">
                       {vacancyJobs.length === 0
                         ? 'No vacant positions are open at the moment. Please check back later.'
                         : 'No vacancies match your search.'}
@@ -453,20 +467,11 @@ export const LandingPage = () => {
                         <td className="px-4 py-3 text-slate-600">
                           {job.openSlots} open {job.openSlots === 1 ? 'slot' : 'slots'}
                         </td>
-                        <td className="px-4 py-3 text-slate-600">{formatDate(job.postingDate)}</td>
+                        <td className="whitespace-nowrap px-4 py-3 text-slate-600">{vacancySalaryLabel(job.originalJob)}</td>
                         <td className="px-4 py-3 text-slate-600">
                           {job.closingDate ? formatDate(job.closingDate) : 'Until filled'}
                         </td>
-                        {/* Table actions (§9.5): Details = Small secondary, Apply = Small primary. */}
-                        <td className="abyan-ds px-4 py-3 text-center">
-                          <button
-                            type="button"
-                            onClick={() => navigate(`/job-details/${encodeURIComponent(job.originalJob.id)}`, { state: { landingJob: job } })}
-                            className="btn btn-sm btn-secondary"
-                          >
-                            Details
-                          </button>
-                        </td>
+                        {/* Apply = Small primary (§9.5); it opens the job details first. */}
                         <td className="abyan-ds px-4 py-3 text-center">
                           <button
                             type="button"
