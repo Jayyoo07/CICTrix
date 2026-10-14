@@ -17,7 +17,7 @@ import { SharedFooter } from './SharedFooter';
 import '../styles/landing-hero.css';
 import { getAuthoritativeJobPostings, getJobPostingsLoadError, loadJobPostings } from '../lib/recruitmentData';
 import type { JobPosting } from '../types/recruitment.types';
-import { formatSalary } from '../lib/api/salaryGrades';
+import { vacancySalaryLabel } from '../lib/vacancySalary';
 
 /* ── trish UI theme tokens ──────────────────────────────────────────
    Brand: Indigo #363EE8 · Hover #2E35D4 · Soft #EEF2FF
@@ -42,20 +42,6 @@ type VacancyRow = {
 
 // A posting is open to the public when RSP left it Active and its closing date
 // (if it has one) is today or later. The deadline is a date, so "today" counts.
-// Monthly salary of the plantillas still open, falling back to the posting's
-// own figure. Plantillas of one post can differ, so a spread shows as a range.
-const vacancySalaryLabel = (job: JobPosting): string => {
-  const amounts = (job.plantillaSlots ?? [])
-    .filter((slot) => slot.status !== 'closed')
-    .map((slot) => Number(slot.monthlySalary))
-    .filter((amount) => Number.isFinite(amount) && amount > 0);
-  if (amounts.length === 0 && Number(job.monthlySalary) > 0) amounts.push(Number(job.monthlySalary));
-  if (amounts.length === 0) return 'Not specified';
-  const low = Math.min(...amounts);
-  const high = Math.max(...amounts);
-  return low === high ? formatSalary(low) : `${formatSalary(low)} – ${formatSalary(high)}`;
-};
-
 const isOpenToday = (job: JobPosting, today: string): boolean => {
   if (job.status !== 'Active') return false;
   const deadline = job.applicationDeadline ? String(job.applicationDeadline).slice(0, 10) : '';
