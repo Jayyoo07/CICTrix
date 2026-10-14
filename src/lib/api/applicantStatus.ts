@@ -25,6 +25,11 @@
  *
  * Ending anywhere: Disqualified (failed, or failed to attend) or Not Selected
  * (someone else was appointed).
+ *
+ * Withdrawn - Hired Elsewhere is the third ending, and the only one no button
+ * writes. The database sets it on a person's other open applications the moment
+ * one of them is hired (migration 20261015), and restores them if that hire is
+ * reverted.
  */
 
 export const APPLICANT_STATUSES = [
@@ -38,12 +43,18 @@ export const APPLICANT_STATUSES = [
   'Selected',
   'Disqualified',
   'Not Selected',
+  'Withdrawn - Hired Elsewhere',
 ] as const;
 
 export type ApplicantWorkflowStatus = (typeof APPLICANT_STATUSES)[number];
 
 /** Nothing follows a terminal status; the application is closed. */
-export const TERMINAL_STATUSES: ApplicantWorkflowStatus[] = ['Selected', 'Disqualified', 'Not Selected'];
+export const TERMINAL_STATUSES: ApplicantWorkflowStatus[] = [
+  'Selected',
+  'Disqualified',
+  'Not Selected',
+  'Withdrawn - Hired Elsewhere',
+];
 
 export const isTerminal = (s: ApplicantWorkflowStatus): boolean => TERMINAL_STATUSES.includes(s);
 
@@ -66,6 +77,8 @@ export const APPLICANT_MESSAGES: Record<ApplicantWorkflowStatus, string> = {
   Selected: 'Congratulations. You have been selected for this position.',
   Disqualified: 'We regret to inform you that your application has been disqualified.',
   'Not Selected': 'We regret to inform you that you were not selected for this position.',
+  'Withdrawn - Hired Elsewhere':
+    'You have been appointed to another position under this Reference No. This application is now closed.',
 } as const;
 
 /**
@@ -133,6 +146,11 @@ const LEGACY_MAP: Record<string, ApplicantWorkflowStatus> = {
   withdrawn: 'Disqualified',
   'document verified': 'Under Initial Screening',
   'action required': 'Pending',
+
+  // Written by the database, never typed by hand; the en dash variant covers
+  // copy pasted from the plan or a document.
+  'withdrawn - hired elsewhere': 'Withdrawn - Hired Elsewhere',
+  'withdrawn – hired elsewhere': 'Withdrawn - Hired Elsewhere',
 };
 
 /**
@@ -171,9 +189,14 @@ const TRANSITIONS: Record<ApplicantWorkflowStatus, ApplicantWorkflowStatus[]> = 
   Selected: [],
   Disqualified: [],
   'Not Selected': [],
+  'Withdrawn - Hired Elsewhere': [],
 };
 
-/** Endings reachable from any status that is not already terminal. */
+/**
+ * Endings reachable from any status that is not already terminal.
+ * Withdrawn - Hired Elsewhere is deliberately absent: only a hire on another
+ * plantilla produces it, so no screen should offer it as an action.
+ */
 const ALWAYS_AVAILABLE: ApplicantWorkflowStatus[] = ['Disqualified', 'Not Selected'];
 
 export function nextStatuses(from: ApplicantWorkflowStatus): ApplicantWorkflowStatus[] {
@@ -192,7 +215,14 @@ export function canTransition(from: ApplicantWorkflowStatus, to: ApplicantWorkfl
  * is what previously counted "Not Qualified" as qualified and dropped everyone
  * who was Hired out of the funnel entirely.
  */
-export type FunnelBucket = 'pending' | 'screening' | 'assessment' | 'qualified' | 'selected' | 'closed';
+export type FunnelBucket =
+  | 'pending'
+  | 'screening'
+  | 'assessment'
+  | 'qualified'
+  | 'selected'
+  | 'closed'
+  | 'withdrawn';
 
 export function funnelBucket(status: ApplicantWorkflowStatus): FunnelBucket {
   switch (status) {
@@ -212,5 +242,9 @@ export function funnelBucket(status: ApplicantWorkflowStatus): FunnelBucket {
     case 'Disqualified':
     case 'Not Selected':
       return 'closed';
+    // Not a failure: the person was hired, on another plantilla. Kept out of
+    // 'closed' so the dashboard does not count them as Not Qualified.
+    case 'Withdrawn - Hired Elsewhere':
+      return 'withdrawn';
   }
 }
