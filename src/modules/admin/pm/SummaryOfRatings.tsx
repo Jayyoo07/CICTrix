@@ -3,7 +3,7 @@ import { ArrowUpDown, Building2, ChevronDown, ChevronRight, RefreshCw, Search } 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRealtimeRefresh } from '../../../hooks/useRealtimeRefresh';
 import { EmptyState } from '../../../components/EmptyState';
-import { getIPCRRecordsFromGapView } from '../../../lib/api/competencyGapAnalysis';
+import { getActiveHeadcountByDepartment, getIPCRRecordsFromGapView, normDeptKey } from '../../../lib/api/competencyGapAnalysis';
 import { CompetencyGapPanel } from './CompetencyGapPanel';
 import { SemesterSummarySection } from './SemesterSummarySection';
 
@@ -112,6 +112,77 @@ export function groupByDept(records: IPCRRatingRecord[]) {
   return groups;
 }
 
+export interface DeptCompletionRow {
+  department: string;
+  /** Active employees in the office (never less than `completed`). */
+  total: number;
+  /** Employees with a completed (rated) IPCR. */
+  completed: number;
+  /** completed / total, or null when the office has nobody to count. */
+  rate: number | null;
+  lowCount: number;
+  nonSubmission: number;
+}
+
+// Department landing rows: IPCR completion = employees with a rated IPCR over
+// the office's Active headcount. Offices with nobody rated yet still appear
+// (0 / N) — they are the ones that most need chasing.
+export function buildDeptCompletionRows(
+  records: IPCRRatingRecord[],
+  headcount: Map<string, { name: string; count: number }>,
+  ascending: boolean,
+): DeptCompletionRow[] {
+  const groups = groupByDept(records);
+  const rows = new Map<string, DeptCompletionRow>();
+
+  for (const [department, g] of groups.entries()) {
+    rows.set(normDeptKey(department), {
+      department,
+      total: 0,
+      completed: g._count,
+      rate: null,
+      lowCount: g.distribution.Unsatisfactory + g.distribution.Poor,
+      nonSubmission: g.distribution['Non-Submission'],
+    });
+  }
+  for (const [key, { name, count }] of headcount.entries()) {
+    const row = rows.get(key) ?? { department: name, total: 0, completed: 0, rate: null, lowCount: 0, nonSubmission: 0 };
+    row.total = count;
+    rows.set(key, row);
+  }
+
+  return Array.from(rows.values())
+    .map(row => {
+      const total = Math.max(row.total, row.completed);
+      return { ...row, total, rate: total > 0 ? row.completed / total : null };
+    })
+    .sort((a, b) => {
+      const diff = (a.rate ?? -1) - (b.rate ?? -1);
+      if (diff !== 0) return ascending ? diff : -diff;
+      return a.department.localeCompare(b.department);
+    });
+}
+
+/** "8 / 10" with a progress bar and percent — the department landing cell. */
+export const DeptCompletionCell = ({ row }: { row: DeptCompletionRow }) => {
+  const pct = row.rate !== null ? Math.round(row.rate * 100) : null;
+  const barClass =
+    pct === null ? 'bg-gray-300' : pct >= 100 ? 'bg-emerald-500' : pct >= 50 ? 'bg-blue-500' : 'bg-amber-500';
+  return (
+    <div className="flex w-full max-w-[9rem] flex-col items-center gap-1">
+      <span className="text-sm font-bold text-gray-900">
+        {row.completed} / {row.total}
+      </span>
+      <div className="h-1.5 w-full overflow-hidden rounded-full bg-gray-100">
+        <div className={`h-full rounded-full ${barClass}`} style={{ width: `${pct ?? 0}%` }} />
+      </div>
+      <span className="text-[10px] font-semibold uppercase text-gray-500">
+        {pct !== null ? `${pct}% complete` : 'No employees'}
+      </span>
+    </div>
+  );
+};
+
 export const REPORT_PERIOD = 'January–June 2025';
 
 const NEEDS_IMPROVEMENT_THRESHOLD = 3;
@@ -127,6 +198,7 @@ const fmtDate = (d: Date) =>
 
 export const SummaryOfRatings = () => {
   const [records, setRecords] = useState<IPCRRatingRecord[]>([]);
+  const [headcount, setHeadcount] = useState<Map<string, { name: string; count: number }>>(new Map());
   const [loading, setLoading] = useState(true);
   const [lastSynced, setLastSynced] = useState<Date | null>(null);
   const [sortAsc, setSortAsc] = useState(true);
@@ -143,9 +215,18 @@ export const SummaryOfRatings = () => {
     const loadId = ++latestLoadId.current;
     if (!isSilent) setLoading(true);
     try {
-      const data = await getIPCRRecordsFromGapView(REPORT_PERIOD);
+      // Headcount is the completion denominator; if it fails, fall back to the
+      // rated employees alone rather than blanking the whole page.
+      const [data, roster] = await Promise.all([
+        getIPCRRecordsFromGapView(REPORT_PERIOD),
+        getActiveHeadcountByDepartment().catch(err => {
+          console.error('Error loading office headcount:', err);
+          return new Map<string, { name: string; count: number }>();
+        }),
+      ]);
       if (loadId !== latestLoadId.current) return;
       setRecords(data);
+      setHeadcount(roster);
       setLastSynced(new Date());
     } catch (err) {
       console.error('Error loading IPCR records:', err);
@@ -168,25 +249,14 @@ export const SummaryOfRatings = () => {
     }, [fetchRecords]),
   });
 
-  // Department landing rows — grouped, with avg rating and low-performer counts.
-  const deptRows = useMemo(() => {
-    const groups = groupByDept(records);
-    const rows = Array.from(groups.entries()).map(([department, g]) => {
-      const lowCount = g.distribution.Unsatisfactory + g.distribution.Poor;
-      return {
-        department,
-        count: g.records.length,
-        avg: g._count > 0 ? g.avg : null,
-        lowCount,
-        nonSubmission: g.distribution['Non-Submission'],
-      };
-    });
-    return rows.sort((a, b) => {
-      const aAvg = a.avg ?? -1;
-      const bAvg = b.avg ?? -1;
-      return deptSortAsc ? aAvg - bAvg : bAvg - aAvg;
-    });
-  }, [records, deptSortAsc]);
+  // Department landing rows — IPCR completion (rated / Active headcount) and
+  // low-performer counts.
+  const deptRows = useMemo(
+    () => buildDeptCompletionRows(records, headcount, deptSortAsc),
+    [records, headcount, deptSortAsc],
+  );
+  const totalEmployees = deptRows.reduce((sum, d) => sum + d.total, 0);
+  const totalCompleted = deptRows.reduce((sum, d) => sum + d.completed, 0);
 
   // Employees within the drilled-in department, searched + sorted by rating.
   const filteredSorted = useMemo(() => {
@@ -262,7 +332,7 @@ export const SummaryOfRatings = () => {
 
         <div className="flex items-center justify-between border-b border-gray-100 bg-gray-50 px-5 py-3">
           <span className="text-[11px] font-semibold uppercase tracking-wide text-gray-400">
-            {deptRows.length} department{deptRows.length !== 1 ? 's' : ''} · {records.length} employees
+            {deptRows.length} department{deptRows.length !== 1 ? 's' : ''} · {totalCompleted} of {totalEmployees} employees with complete IPCR
           </span>
           <button
             type="button"
@@ -270,7 +340,7 @@ export const SummaryOfRatings = () => {
             className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-semibold text-gray-600 hover:border-blue-400 hover:text-blue-600 transition"
           >
             <ArrowUpDown className="h-3.5 w-3.5" />
-            {deptSortAsc ? 'Lowest avg first' : 'Highest avg first'}
+            {deptSortAsc ? 'Lowest completion first' : 'Highest completion first'}
           </button>
         </div>
 
@@ -278,7 +348,7 @@ export const SummaryOfRatings = () => {
         <div className="grid grid-cols-12 items-center border-b border-gray-100 px-5 py-2.5 text-[11px] font-semibold uppercase tracking-wide text-gray-400">
           <div className="col-span-5">Department</div>
           <div className="col-span-2 text-center">Employees</div>
-          <div className="col-span-2 text-center">Avg Rating</div>
+          <div className="col-span-2 text-center">IPCR Completion</div>
           <div className="col-span-2 text-center">Needs Attention</div>
           <div className="col-span-1" />
         </div>
@@ -293,7 +363,6 @@ export const SummaryOfRatings = () => {
         ) : (
           <div className="divide-y divide-gray-100">
             {deptRows.map(d => {
-              const adj = getAdjectival(d.avg);
               return (
                 <button
                   key={d.department}
@@ -307,16 +376,9 @@ export const SummaryOfRatings = () => {
                     </span>
                     <span className="text-sm font-semibold text-gray-900">{d.department}</span>
                   </div>
-                  <div className="col-span-2 text-center text-sm text-gray-600">{d.count}</div>
-                  <div className="col-span-2 flex flex-col items-center gap-1">
-                    <span className="text-sm font-bold text-gray-900">
-                      {d.avg !== null ? d.avg.toFixed(2) : '—'}
-                    </span>
-                    <span
-                      className={`inline-flex rounded px-1.5 py-0.5 text-[10px] font-bold uppercase ${adj.pillClass}`}
-                    >
-                      {adj.label}
-                    </span>
+                  <div className="col-span-2 text-center text-sm text-gray-600">{d.total}</div>
+                  <div className="col-span-2 flex justify-center">
+                    <DeptCompletionCell row={d} />
                   </div>
                   <div className="col-span-2 text-center">
                     {d.lowCount > 0 ? (
