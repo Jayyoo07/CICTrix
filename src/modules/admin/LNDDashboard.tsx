@@ -352,8 +352,10 @@ const downloadCsv = (filename: string, rows: (string | number)[][]) => {
   URL.revokeObjectURL(url);
 };
 
-/** Rows shown in the "still needs training" card before "View all". */
-const NEEDS_TRAINING_PREVIEW = 6;
+/** Employees per page of the "still needs training" table. */
+const NEEDS_PAGE_SIZE = 10;
+/** Page-number buttons shown around the current page. */
+const NEEDS_PAGE_WINDOW = 5;
 
 // ── Dashboard component ───────────────────────────────────────────────────────
 
@@ -376,7 +378,7 @@ const LndDashboardContent = () => {
   const [employees, setEmployees] = useState<ActiveEmployee[]>([]);
   const [trainingDept, setTrainingDept] = useState('');
   const [needsFilter, setNeedsFilter] = useState<'all' | 'none' | 'partial'>('all');
-  const [showAllNeeds, setShowAllNeeds] = useState(false);
+  const [needsPage, setNeedsPage] = useState(1);
 
   useEffect(() => {
     let cancelled = false;
@@ -490,6 +492,13 @@ const LndDashboardContent = () => {
     [compliance, trainingDept, needsFilter]
   );
   const stillNeedsCount = scope.partial + scope.none;
+  const needsPageCount = Math.max(1, Math.ceil(stillNeeds.length / NEEDS_PAGE_SIZE));
+  // Clamped so a filter that shrinks the list never strands the view on an empty page.
+  const needsCurrentPage = Math.min(needsPage, needsPageCount);
+  const needsPageStart = (needsCurrentPage - 1) * NEEDS_PAGE_SIZE;
+  const needsPageRows = stillNeeds.slice(needsPageStart, needsPageStart + NEEDS_PAGE_SIZE);
+  const needsFirstShown = Math.max(1, Math.min(needsCurrentPage - Math.floor(NEEDS_PAGE_WINDOW / 2), needsPageCount - NEEDS_PAGE_WINDOW + 1));
+  const needsPageNumbers = Array.from({ length: Math.min(NEEDS_PAGE_WINDOW, needsPageCount) }, (_, i) => needsFirstShown + i);
 
   const exportStillNeeds = () =>
     downloadCsv(
@@ -731,7 +740,7 @@ const LndDashboardContent = () => {
           Department
           <select
             value={trainingDept}
-            onChange={(e) => { setTrainingDept(e.target.value); setShowAllNeeds(false); }}
+            onChange={(e) => { setTrainingDept(e.target.value); setNeedsPage(1); }}
             className="rounded-lg border bg-white px-3 py-1.5 text-sm"
             style={{ borderColor: 'var(--neutral-300)', color: 'var(--neutral-800)' }}
           >
@@ -742,97 +751,147 @@ const LndDashboardContent = () => {
           </select>
         </label>
       </div>
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-        <div className="lg:col-span-2">
-          <ChartCard
-            title={`Employees who completed their ${REQUIRED_TRAININGS_PER_YEAR} required trainings`}
-            caption={`Each employee must attend ${REQUIRED_TRAININGS_PER_YEAR} trainings per year · counts finished trainings marked Present · ${fmt(scope.total)} employees · ${currentYear}`}
-            loading={loading}
-          >
-            <ComplianceBar met={scope.met} partial={scope.partial} none={scope.none} height={28} showCounts />
-            <div className="mt-2 flex flex-wrap gap-4">
-              <LegendSwatch color={COMPLIANCE_COLORS.met} label={`Completed ${REQUIRED_TRAININGS_PER_YEAR} of ${REQUIRED_TRAININGS_PER_YEAR}`} />
-              <LegendSwatch color={COMPLIANCE_COLORS.partial} label="1 so far, needs 1 more" />
-              <LegendSwatch color={COMPLIANCE_COLORS.none} label={`0 so far, needs ${REQUIRED_TRAININGS_PER_YEAR}`} />
+      <ChartCard
+        title={`Employees who completed their ${REQUIRED_TRAININGS_PER_YEAR} required trainings`}
+        caption={`Each employee must attend ${REQUIRED_TRAININGS_PER_YEAR} trainings per year · counts finished trainings marked Present · ${fmt(scope.total)} employees · ${currentYear}`}
+        loading={loading}
+      >
+        <ComplianceBar met={scope.met} partial={scope.partial} none={scope.none} height={28} showCounts />
+        <div className="mt-2 flex flex-wrap gap-4">
+          <LegendSwatch color={COMPLIANCE_COLORS.met} label={`Completed ${REQUIRED_TRAININGS_PER_YEAR} of ${REQUIRED_TRAININGS_PER_YEAR}`} />
+          <LegendSwatch color={COMPLIANCE_COLORS.partial} label="1 so far, needs 1 more" />
+          <LegendSwatch color={COMPLIANCE_COLORS.none} label={`0 so far, needs ${REQUIRED_TRAININGS_PER_YEAR}`} />
+        </div>
+        <p className="text-body-s mt-5" style={{ color: 'var(--neutral-800)' }}>By department</p>
+        <div className="mt-2 grid items-center gap-x-3 gap-y-2.5 text-[11px]" style={{ gridTemplateColumns: 'minmax(110px, 180px) 1fr 72px', color: 'var(--neutral-600)' }}>
+          {deptCompliance.map((d) => (
+            <Fragment key={d.department}>
+              <button
+                type="button"
+                onClick={() => { setTrainingDept(d.department); setNeedsPage(1); }}
+                className="truncate text-left hover:underline"
+                title={`Show only ${d.department}`}
+              >
+                {d.department}
+              </button>
+              <ComplianceBar met={d.met} partial={d.partial} none={d.none} height={16} />
+              <div className="text-right"><b style={{ color: 'var(--neutral-800)' }}>{d.percentMet}%</b> done</div>
+            </Fragment>
+          ))}
+        </div>
+        <p className="mt-3 text-[11px]" style={{ color: 'var(--neutral-400)' }}>
+          Most complete department first. Click a department to filter this section. Trainings with no attendance marked count for no one.
+        </p>
+      </ChartCard>
+      <ChartCard
+        title="Still needs training"
+        caption={`${fmt(stillNeedsCount)} employee${stillNeedsCount === 1 ? '' : 's'} below ${REQUIRED_TRAININGS_PER_YEAR} of ${REQUIRED_TRAININGS_PER_YEAR} · fewest trainings first`}
+        loading={loading}
+        action={
+          <button type="button" onClick={exportStillNeeds} disabled={stillNeeds.length === 0} className="btn btn-secondary btn-sm shrink-0 disabled:opacity-40">
+            Export list
+          </button>
+        }
+      >
+        <div className="flex flex-wrap gap-1.5 text-[11px]">
+          {([
+            ['all', `All ${stillNeedsCount}`],
+            ['none', `0 of ${REQUIRED_TRAININGS_PER_YEAR} · ${scope.none}`],
+            ['partial', `1 of ${REQUIRED_TRAININGS_PER_YEAR} · ${scope.partial}`],
+          ] as const).map(([key, label]) => (
+            <button
+              key={key}
+              type="button"
+              onClick={() => { setNeedsFilter(key); setNeedsPage(1); }}
+              className="rounded-full border px-2.5 py-1"
+              style={needsFilter === key
+                ? { background: 'var(--color-primary-900)', borderColor: 'var(--color-primary-900)', color: 'var(--color-white)' }
+                : { borderColor: 'var(--neutral-200)', color: 'var(--neutral-600)' }}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+        {stillNeeds.length === 0 ? (
+          <p className="text-body-s py-8 text-center" style={{ color: 'var(--neutral-400)' }}>
+            {loading ? 'Loading…' : 'Everyone here has met the requirement.'}
+          </p>
+        ) : (
+          <>
+            <div className="mt-3 overflow-x-auto">
+              <table className="w-full min-w-[640px] text-left text-xs">
+                <thead>
+                  <tr className="border-b" style={{ borderColor: 'var(--neutral-200)', color: 'var(--neutral-500)' }}>
+                    <th className="px-3 py-2.5 font-semibold">Employee</th>
+                    <th className="px-3 py-2.5 font-semibold">Department</th>
+                    <th className="px-3 py-2.5 font-semibold">Position</th>
+                    <th className="px-3 py-2.5 text-right font-semibold">Trainings completed</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {needsPageRows.map((e) => (
+                    <tr key={e.id} className="border-b last:border-b-0 hover:bg-[var(--bg-row-hover)]" style={{ borderColor: 'var(--neutral-100)' }}>
+                      <td className="px-3 py-2.5 font-medium" style={{ color: 'var(--neutral-800)' }}>{e.name}</td>
+                      <td className="px-3 py-2.5" style={{ color: 'var(--neutral-600)' }}>{e.department}</td>
+                      <td className="px-3 py-2.5" style={{ color: 'var(--neutral-600)' }}>{e.position || '—'}</td>
+                      <td className="px-3 py-2.5 text-right">
+                        <span className={`badge ${e.completed === 0 ? 'badge-error' : 'badge-warning'}`}>
+                          {e.completed} / {REQUIRED_TRAININGS_PER_YEAR}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
-            <p className="text-body-s mt-5" style={{ color: 'var(--neutral-800)' }}>By department</p>
-            <div className="mt-2 grid items-center gap-x-3 gap-y-2.5 text-[11px]" style={{ gridTemplateColumns: 'minmax(110px, 180px) 1fr 72px', color: 'var(--neutral-600)' }}>
-              {deptCompliance.map((d) => (
-                <Fragment key={d.department}>
+            <nav
+              aria-label="Still needs training pages"
+              className="mt-2 flex flex-wrap items-center justify-between gap-3 border-t pt-3"
+              style={{ borderColor: 'var(--neutral-200)' }}
+            >
+              <p className="!mb-0 text-xs" style={{ color: 'var(--neutral-600)' }}>
+                Showing {needsPageStart + 1}–{needsPageStart + needsPageRows.length} of {fmt(stillNeeds.length)} entries
+              </p>
+              {needsPageCount > 1 && (
+                <div className="flex flex-wrap items-center gap-2">
                   <button
                     type="button"
-                    onClick={() => { setTrainingDept(d.department); setShowAllNeeds(false); }}
-                    className="truncate text-left hover:underline"
-                    title={`Show only ${d.department}`}
+                    onClick={() => setNeedsPage(needsCurrentPage - 1)}
+                    disabled={needsCurrentPage === 1}
+                    className="inline-flex h-10 items-center gap-1 rounded-lg border border-[#E2E8F0] bg-white px-4 text-sm font-medium text-[#28343D] hover:border-[#C8D1FF] hover:bg-[#EEF0FF] disabled:cursor-not-allowed disabled:border-[#E2E8F0] disabled:bg-[#F8FAFC] disabled:text-[#94A3B8]"
                   >
-                    {d.department}
+                    <ChevronLeft className="h-4 w-4" /> Previous
                   </button>
-                  <ComplianceBar met={d.met} partial={d.partial} none={d.none} height={16} />
-                  <div className="text-right"><b style={{ color: 'var(--neutral-800)' }}>{d.percentMet}%</b> done</div>
-                </Fragment>
-              ))}
-            </div>
-            <p className="mt-3 text-[11px]" style={{ color: 'var(--neutral-400)' }}>
-              Most complete department first. Click a department to filter this section. Trainings with no attendance marked count for no one.
-            </p>
-          </ChartCard>
-        </div>
-        <ChartCard
-          title="Still needs training"
-          caption={`Below ${REQUIRED_TRAININGS_PER_YEAR} of ${REQUIRED_TRAININGS_PER_YEAR} · fewest trainings first`}
-          loading={loading}
-          action={<span className="text-sm font-bold" style={{ color: 'var(--error-700)' }}>{fmt(stillNeedsCount)}</span>}
-        >
-          <div className="flex flex-wrap gap-1.5 text-[11px]">
-            {([
-              ['all', `All ${stillNeedsCount}`],
-              ['none', `0 of ${REQUIRED_TRAININGS_PER_YEAR} · ${scope.none}`],
-              ['partial', `1 of ${REQUIRED_TRAININGS_PER_YEAR} · ${scope.partial}`],
-            ] as const).map(([key, label]) => (
-              <button
-                key={key}
-                type="button"
-                onClick={() => setNeedsFilter(key)}
-                className="rounded-full border px-2.5 py-1"
-                style={needsFilter === key
-                  ? { background: 'var(--color-primary-900)', borderColor: 'var(--color-primary-900)', color: 'var(--color-white)' }
-                  : { borderColor: 'var(--neutral-200)', color: 'var(--neutral-600)' }}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
-          {stillNeeds.length === 0 ? (
-            <p className="text-body-s mt-6 text-center" style={{ color: 'var(--neutral-400)' }}>
-              {loading ? 'Loading…' : 'Everyone here has met the requirement.'}
-            </p>
-          ) : (
-            <ul className={`mt-2 ${showAllNeeds ? 'max-h-[420px] overflow-y-auto' : ''}`}>
-              {(showAllNeeds ? stillNeeds : stillNeeds.slice(0, NEEDS_TRAINING_PREVIEW)).map((e) => (
-                <li key={e.id} className="flex items-center justify-between gap-2 border-b py-2 last:border-b-0" style={{ borderColor: 'var(--neutral-100)' }}>
-                  <div className="min-w-0">
-                    <p className="truncate text-xs font-medium" style={{ color: 'var(--neutral-800)' }}>{e.name}</p>
-                    <p className="truncate text-[11px]" style={{ color: 'var(--neutral-400)' }}>{e.department}{e.position ? ` · ${e.position}` : ''}</p>
-                  </div>
-                  <span className={`badge ${e.completed === 0 ? 'badge-error' : 'badge-warning'} shrink-0`}>
-                    {e.completed} / {REQUIRED_TRAININGS_PER_YEAR}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          )}
-          <div className="mt-3 flex justify-between text-xs font-medium">
-            {stillNeeds.length > NEEDS_TRAINING_PREVIEW ? (
-              <button type="button" onClick={() => setShowAllNeeds((v) => !v)} style={{ color: 'var(--color-primary)' }}>
-                {showAllNeeds ? 'Show fewer' : `View all ${fmt(stillNeeds.length)} →`}
-              </button>
-            ) : <span />}
-            <button type="button" onClick={exportStillNeeds} disabled={stillNeeds.length === 0} className="disabled:opacity-40" style={{ color: 'var(--color-primary)' }}>
-              Export list
-            </button>
-          </div>
-        </ChartCard>
-      </div>
+                  {needsPageNumbers.map((n) => (
+                    <button
+                      key={n}
+                      type="button"
+                      onClick={() => setNeedsPage(n)}
+                      aria-label={`Page ${n}`}
+                      aria-current={n === needsCurrentPage ? 'page' : undefined}
+                      className={`h-10 w-10 rounded-lg text-sm font-medium ${
+                        n === needsCurrentPage
+                          ? 'bg-[#363EE8] text-white'
+                          : 'border border-[#E2E8F0] bg-white text-[#28343D] hover:border-[#C8D1FF] hover:bg-[#EEF0FF]'
+                      }`}
+                    >
+                      {n}
+                    </button>
+                  ))}
+                  <button
+                    type="button"
+                    onClick={() => setNeedsPage(needsCurrentPage + 1)}
+                    disabled={needsCurrentPage === needsPageCount}
+                    className="inline-flex h-10 items-center gap-1 rounded-lg border border-[#E2E8F0] bg-white px-4 text-sm font-medium text-[#28343D] hover:border-[#C8D1FF] hover:bg-[#EEF0FF] disabled:cursor-not-allowed disabled:border-[#E2E8F0] disabled:bg-[#F8FAFC] disabled:text-[#94A3B8]"
+                  >
+                    Next <ChevronRight className="h-4 w-4" />
+                  </button>
+                </div>
+              )}
+            </nav>
+          </>
+        )}
+      </ChartCard>
     </div>
   );
 };

@@ -23,3 +23,9 @@ Mockup: `docs/mockups/2026-10-14-lnd-dashboard-layout-a.html`
 - `npx vitest run`: 27 files, 291 tests passed.
 - `npx tsc --noEmit`: clean.
 - `npm run build`: built (existing chunk-size warning only).
+
+## Follow-up: full-width "Still needs training" table
+
+- The compliance chart and the "Still needs training" list are now separate full-width rows.
+- The list is a table (Employee, Department, Position, Trainings completed) paged 10 per page, using the Salary Grades pager style (Previous, up to 5 page numbers, Next, "Showing x–y of n entries"). Export moved to a button in the card header; "View all" removed.
+- Checks: `npx vitest run` 295 passed, `npx tsc --noEmit` clean, `npm run build` built.
