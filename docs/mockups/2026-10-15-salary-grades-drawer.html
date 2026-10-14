@@ -1,0 +1,131 @@
+<style>
+  .sg { font-family: Poppins, system-ui, sans-serif; font-size: 12px; color: #28343D; background: #F1F5F9; padding: 14px; border-radius: 10px; text-align: left; }
+  .sg h4 { margin: 0; color: #040E6B; font-size: 15px; }
+  .sg .sub { color: #515F69; font-size: 11px; margin: 2px 0 10px; }
+  .sg .bar { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; flex-wrap: wrap; }
+  .sg .in { background: #fff; border: 1px solid #E2E8F0; border-radius: 8px; padding: 6px 10px; color: #94A3B8; font-size: 11px; }
+  .sg .chip { background: #fff; border: 1px solid #E2E8F0; border-radius: 999px; padding: 4px 10px; font-size: 11px; color: #28343D; }
+  .sg .chip.on { background: #EEF0FF; border-color: #C8D1FF; color: #191FA8; }
+  .sg .note { display: flex; gap: 6px; align-items: center; color: #515F69; font-size: 11px; margin-left: auto; }
+  .sg table { width: 100%; border-collapse: collapse; background: #fff; border: 1px solid #E2E8F0; border-radius: 10px; overflow: hidden; }
+  .sg th { background: #F1F5F9; color: #040E6B; font-weight: 600; font-size: 11px; padding: 7px 8px; text-align: right; white-space: nowrap; }
+  .sg th:first-child, .sg td:first-child { text-align: left; }
+  .sg td { padding: 7px 8px; border-top: 1px solid #E2E8F0; text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .sg td.g { font-weight: 600; color: #040E6B; }
+  .sg .hire { background: #F8FAFF; font-weight: 600; color: #040E6B; }
+  .sg .nil { color: #64748B; }
+  .sg .act { color: #363EE8; font-weight: 600; }
+  .sg tr.hov td { background: #F8FAFF; }
+  .sg .tag { display: inline-block; background: #E0E5FF; color: #191FA8; border-radius: 999px; padding: 1px 7px; font-size: 11px; font-weight: 500; }
+  .sg .btn { display: inline-block; border-radius: 999px; padding: 6px 14px; font-weight: 600; font-size: 11px; }
+  .sg .btn.p { background: #363EE8; color: #fff; }
+  .sg .btn.s { border: 1.5px solid #363EE8; color: #363EE8; background: #fff; }
+  .sg .pager { display: flex; justify-content: space-between; color: #515F69; font-size: 11px; margin-top: 8px; }
+  .sg .drawer { background: #fff; border: 1px solid #E2E8F0; border-radius: 12px; padding: 12px; box-shadow: 0 12px 32px rgba(16,30,41,.16); }
+  .sg .row { display: flex; justify-content: space-between; align-items: center; padding: 6px 0; border-top: 1px solid #E2E8F0; }
+  .sg .field { background: #fff; border: 1px solid #E2E8F0; border-radius: 8px; padding: 4px 8px; width: 90px; text-align: right; }
+  .sg .field.on { border: 1.5px solid #363EE8; box-shadow: 0 0 0 3px rgba(54,62,232,.15); }
+  .sg .field.chg { background: #FCE8C8; border-color: #F0B478; }
+  .sg .impact { background: #FCE8C8; color: #A8590A; border-radius: 8px; padding: 8px; font-size: 11px; margin: 8px 0; }
+  .sg .list { background: #fff; border: 1px solid #E2E8F0; border-radius: 10px; }
+  .sg .li { display: flex; justify-content: space-between; padding: 7px 10px; border-top: 1px solid #E2E8F0; }
+  .sg .li.sel { background: #EEF0FF; color: #191FA8; }
+  .sg .savebar { display: flex; align-items: center; gap: 10px; background: #040E6B; color: #fff; border-radius: 12px; padding: 8px 12px; margin-top: 8px; }
+  .sg .savebar span { color: #fff; }
+</style>
+
+<h2>Which Salary Grades layout should we build?</h2>
+<p class="subtitle">All three fix the same problems: 231 "+ Add" buttons, raw unformatted numbers, always-editable inputs that save on blur, and a notice that dominates the page. They differ in <b>how editing works</b>.</p>
+
+<div class="cards">
+
+  <div class="card" data-choice="a" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div class="sg">
+        <h4>Salary Grades</h4>
+        <div class="sub">Official CSC salary schedule · Tranche effective Jan 1, 2026</div>
+        <div class="bar">
+          <div class="in">🔍 Find SG…</div>
+          <div class="note">ⓘ Step 1 is the hiring rate used by job posts</div>
+        </div>
+        <table>
+          <tr><th>SG</th><th>Step 1 <span class="tag">Hiring</span></th><th>Step 2</th><th>Step 3</th><th>…</th><th>Step 8</th><th></th></tr>
+          <tr><td class="g">SG 1</td><td class="hire">₱14,634</td><td class="nil">—</td><td class="nil">—</td><td class="nil">…</td><td class="nil">—</td><td></td></tr>
+          <tr class="hov"><td class="g">SG 2</td><td class="hire">₱15,522</td><td class="nil">—</td><td class="nil">—</td><td class="nil">…</td><td class="nil">—</td><td class="act">✎ Edit</td></tr>
+          <tr><td class="g">SG 3</td><td class="hire">₱16,486</td><td class="nil">—</td><td class="nil">—</td><td class="nil">…</td><td class="nil">—</td><td></td></tr>
+        </table>
+        <div class="pager"><span>Showing 1–10 of 33</span><span>‹ 1 2 3 4 ›</span></div>
+        <div style="margin-top:10px" class="drawer">
+          <h4>Edit SG 2</h4>
+          <div class="sub">Side panel · opens from the row's Edit</div>
+          <div class="row"><span><b>Step 1</b> <span class="tag">Hiring</span></span><span class="field on">16,000</span></div>
+          <div class="row"><span>Step 2</span><span class="field">15,700</span></div>
+          <div class="row"><span>Step 3 … 8</span><span class="field" style="color:#94A3B8">Optional</span></div>
+          <div class="impact">⚠ Saving updates <b>12 job posts</b> at SG 2, including 3 published.</div>
+          <div style="text-align:right"><span class="btn s">Cancel</span> <span class="btn p">Save SG 2</span></div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>A. Read-only table + edit drawer (recommended)</h3>
+      <p>The table is for reading: formatted ₱, right-aligned, empty steps shown as a quiet "—". Hovering a row shows Edit, which opens a side panel for one grade with all 8 steps and the impact count shown before you save. This is the usual pattern for payroll and compensation tables (Workday, BambooHR, Rippling), and it makes a mistyped digit hard to save by accident.</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="b" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div class="sg">
+        <h4>Salary Grades</h4>
+        <div class="sub">Official CSC salary schedule</div>
+        <div style="display:grid;grid-template-columns:1fr 1.5fr;gap:10px">
+          <div class="list">
+            <div class="li" style="border-top:0"><div class="in" style="width:100%">🔍 Find SG…</div></div>
+            <div class="li"><b>SG 1</b><span>₱14,634</span></div>
+            <div class="li sel"><b>SG 2</b><span>₱15,522</span></div>
+            <div class="li"><b>SG 3</b><span>₱16,486</span></div>
+            <div class="li"><b>SG 4</b><span>₱17,506</span></div>
+            <div class="li" style="color:#94A3B8">… SG 33</div>
+          </div>
+          <div class="drawer" style="box-shadow:none">
+            <h4>SG 2</h4>
+            <div class="sub">Used by 12 job posts · 5 plantilla items</div>
+            <div class="row"><span><b>Step 1</b> <span class="tag">Hiring</span></span><span class="field">15,522</span></div>
+            <div class="row"><span>Step 2</span><span class="field" style="color:#94A3B8">—</span></div>
+            <div class="row"><span>Step 3</span><span class="field" style="color:#94A3B8">—</span></div>
+            <div class="row"><span>Steps 4–8</span><span class="field" style="color:#94A3B8">—</span></div>
+            <div style="text-align:right;margin-top:8px"><span class="btn p">Save changes</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>B. Grade list + detail panel</h3>
+      <p>A list of all 33 grades on the left with no pagination, and the selected grade's steps and usage on the right. It's calm and gives each grade room to show context, like how many job posts it feeds. The cost is that you lose the side-by-side schedule view, so you can't compare grades across steps at a glance.</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="c" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div class="sg">
+        <h4>Salary Grades</h4>
+        <div class="sub">Official CSC salary schedule</div>
+        <div class="bar">
+          <div class="in">🔍 Find SG…</div>
+          <span class="chip on">All</span><span class="chip">Missing steps</span>
+        </div>
+        <table>
+          <tr><th>SG</th><th>Step 1 <span class="tag">Hiring</span></th><th>Step 2</th><th>Step 3</th><th>…</th><th>Step 8</th></tr>
+          <tr><td class="g">SG 1</td><td class="hire">₱14,634</td><td class="nil">—</td><td class="nil">—</td><td class="nil">…</td><td class="nil">—</td></tr>
+          <tr><td class="g">SG 2</td><td><span class="field chg">16,000</span></td><td><span class="field on">15,7|</span></td><td class="nil">—</td><td class="nil">…</td><td class="nil">—</td></tr>
+          <tr><td class="g">SG 3</td><td class="hire">₱16,486</td><td class="nil">+</td><td class="nil">—</td><td class="nil">…</td><td class="nil">—</td></tr>
+        </table>
+        <div class="savebar"><span>2 unsaved changes · affects 12 job posts</span><span style="margin-left:auto" class="btn s">Discard</span><span class="btn p" style="background:#fff;color:#040E6B">Review &amp; save</span></div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>C. Spreadsheet edit + save bar</h3>
+      <p>Click any cell to edit it in place, with changed cells highlighted. A sticky bar collects every change and asks for one review-and-confirm, instead of a dialog per cell. It's the fastest way to enter a whole new CSC tranche (Airtable and Google Sheets work this way), but it's easier to change something by mistake.</p>
+    </div>
+  </div>
+
+</div>
