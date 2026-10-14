@@ -9,6 +9,7 @@ import {
   FileText,
   Lock,
   Mail,
+  Pencil,
   MessageSquare,
   RefreshCw,
   Send,
@@ -22,6 +23,7 @@ import { Sidebar } from '../../components/Sidebar';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { useHistoryBack } from '../../hooks/useHistoryBack';
+import { EditApplicantDetailsModal } from './EditApplicantDetailsModal';
 import { getPreferredDataSourceMode } from '../../lib/dataSourceMode';
 import { mockDatabase } from '../../lib/mockDatabase';
 import { sendEmail } from '../../lib/email';
@@ -788,6 +790,7 @@ function ApplicantDetailsPageView() {
   const [confirmSubmitting, setConfirmSubmitting] = useState(false);
 
   const [applicant, setApplicant] = useState<ApplicantRecord | null>(null);
+  const [showEditDetails, setShowEditDetails] = useState(false);
   const [recruitmentApplicant, setRecruitmentApplicant] = useState<Applicant | null>(routeState?.applicant ?? null);
   const [attachments, setAttachments] = useState<AttachmentRecord[]>([]);
   const [evaluation, setEvaluation] = useState<EvaluationRecord | null>(null);
@@ -2085,7 +2088,17 @@ function ApplicantDetailsPageView() {
                 {activeTab === 'overview' && (
                   <div className="space-y-3">
                     <article className="rounded-xl border border-slate-200">
-                      <h3 className="border-b border-slate-200 px-4 py-2.5 text-sm font-bold uppercase tracking-wide text-slate-500">Personal Information</h3>
+                      <div className="flex items-center justify-between border-b border-slate-200 px-4 py-2.5">
+                        <h3 className="!mb-0 text-sm font-bold uppercase tracking-wide text-slate-500">Personal Information</h3>
+                        {/* RSP corrects submitted details; the interviewer view stays read-only. */}
+                        {isRspAdmin && (
+                          <span className="abyan-ds">
+                            <button type="button" className="btn btn-sm btn-secondary" onClick={() => setShowEditDetails(true)}>
+                              <Pencil size={16} /> Edit
+                            </button>
+                          </span>
+                        )}
+                      </div>
                       <div className="divide-y divide-slate-100 px-4">
                         <div className="flex items-start justify-between py-2.5"><span className="text-xs font-semibold text-slate-500 w-36 shrink-0">Full Name</span><span className="text-sm text-slate-800 text-right">{fullName}</span></div>
                         <div className="flex items-start justify-between py-2.5"><span className="text-xs font-semibold text-slate-500 w-36 shrink-0">Email Address</span><span className="text-sm text-slate-800 text-right">{applicant.email || '--'}</span></div>
@@ -2103,7 +2116,7 @@ function ApplicantDetailsPageView() {
                           <span className="text-sm text-slate-800 text-right">
                             {(() => {
                               const row = applicant as any;
-                              const attainment = String(row?.education_attainment ?? '').trim();
+                              const attainment = String(row?.education_attainment ?? row?.education_level ?? '').trim();
                               const degree = String(row?.education_degree ?? '').trim();
                               const school = String(row?.education_school ?? '').trim();
                               const parts = [attainment, degree, school].filter(Boolean);
@@ -2323,6 +2336,24 @@ function ApplicantDetailsPageView() {
             </div>
           </section>
         </main>
+
+        {showEditDetails && (
+          <EditApplicantDetailsModal
+            applicant={applicant}
+            onClose={() => setShowEditDetails(false)}
+            onSaved={(patch) => {
+              // Mirror the saved columns, plus the aliases this page reads first.
+              setApplicant((prev) => prev && ({
+                ...prev,
+                ...patch,
+                education_attainment: patch.education_level,
+                work_experience_years: patch.years_of_experience,
+                work_experience_months: null,
+              } as ApplicantRecord));
+              setShowEditDetails(false);
+            }}
+          />
+        )}
 
         {showSendEmailModal && (
           <div className="fixed inset-0 z-[270] flex items-center justify-center bg-black/60 p-4" onClick={() => setShowSendEmailModal(false)}>
