@@ -41,6 +41,19 @@ const STEPS = Array.from({ length: MAX_STEP }, (_, i) => i + 1);
 /** Grades shown per page of the schedule table. */
 const PAGE_SIZE = 10;
 
+/** localStorage key remembering that this browser dismissed the Step 1 notice. */
+const NOTICE_DISMISSED_KEY = 'abyan.salaryGrades.noticeDismissed';
+
+// Storage can be unavailable (private mode, blocked site data); the notice then
+// just shows again, which is the safe default.
+const readNoticeDismissed = () => {
+  try {
+    return window.localStorage.getItem(NOTICE_DISMISSED_KEY) === '1';
+  } catch {
+    return false;
+  }
+};
+
 type Pending =
   | { kind: 'edit'; grade: number; step: number; amount: number; current: number }
   // The amount is typed in the modal, so it starts empty rather than being
@@ -69,6 +82,16 @@ export const SalaryGradesPage = () => {
   /** Postings a Step 1 change would rewrite; null while it is being counted. */
   const [affected, setAffected] = useState<number | null>(null);
   const [page, setPage] = useState(1);
+  const [noticeDismissed, setNoticeDismissed] = useState(readNoticeDismissed);
+
+  const dismissNotice = () => {
+    setNoticeDismissed(true);
+    try {
+      window.localStorage.setItem(NOTICE_DISMISSED_KEY, '1');
+    } catch {
+      // Hidden for this visit only.
+    }
+  };
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -200,14 +223,25 @@ export const SalaryGradesPage = () => {
         </div>
       </div>
 
-      <div className="flex items-start gap-2 rounded-xl border border-[#F0B478] bg-[#FCE8C8] px-4 py-3">
-        <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-[#E8821A]" />
-        <p className="text-xs text-[#A8590A]">
-          Step 1 is the hiring rate. Changing it rewrites the salary on every job post at that grade,
-          including vacancies already published. Steps 2–8 are the rest of the schedule and change nothing
-          on their own.
-        </p>
-      </div>
+      {!noticeDismissed && (
+        <div className="flex items-start gap-2 rounded-xl border border-[#F0B478] bg-[#FCE8C8] px-4 py-3">
+          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-[#E8821A]" />
+          <p className="!mb-0 flex-1 text-xs text-[#A8590A]">
+            Step 1 is the hiring rate. Changing it rewrites the salary on every job post at that grade,
+            including vacancies already published. Steps 2–8 are the rest of the schedule and change nothing
+            on their own.
+          </p>
+          <button
+            type="button"
+            onClick={dismissNotice}
+            aria-label="Dismiss notice"
+            title="Dismiss"
+            className="-my-1 shrink-0 rounded p-1 text-[#A8590A] hover:bg-[#F0B478]/40"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+      )}
 
       {error && (
         <div className="rounded-xl border border-[#EF9A9A] bg-[#FDE2E2] px-4 py-3 text-sm text-[#B42323]">{error}</div>
