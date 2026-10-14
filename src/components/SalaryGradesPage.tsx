@@ -15,7 +15,7 @@
  */
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { AlertTriangle, Check, Plus, Trash2, Wallet, X } from 'lucide-react';
+import { AlertTriangle, Check, ChevronLeft, ChevronRight, Plus, Trash2, Wallet, X } from 'lucide-react';
 import { supabase as supabaseClient } from '../lib/supabase';
 import { AdminHeader } from './AdminHeader';
 import { Sidebar } from './Sidebar';
@@ -37,6 +37,9 @@ const supabase = supabaseClient as any;
 const SAVED_FLASH_MS = 2000;
 
 const STEPS = Array.from({ length: MAX_STEP }, (_, i) => i + 1);
+
+/** Grades shown per page of the schedule table. */
+const PAGE_SIZE = 10;
 
 type Pending =
   | { kind: 'edit'; grade: number; step: number; amount: number; current: number }
@@ -65,6 +68,7 @@ export const SalaryGradesPage = () => {
   const [draftAmount, setDraftAmount] = useState('');
   /** Postings a Step 1 change would rewrite; null while it is being counted. */
   const [affected, setAffected] = useState<number | null>(null);
+  const [page, setPage] = useState(1);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -146,6 +150,12 @@ export const SalaryGradesPage = () => {
   };
 
   const stepOf = (row: SalaryGradeRow, step: number) => row.steps.find((s) => s.step === step);
+
+  const pageCount = Math.max(1, Math.ceil(rows.length / PAGE_SIZE));
+  // Clamped so a reload that returns fewer rows never strands the view on an empty page.
+  const currentPage = Math.min(page, pageCount);
+  const pageStart = (currentPage - 1) * PAGE_SIZE;
+  const pageRows = rows.slice(pageStart, pageStart + PAGE_SIZE);
 
   /** The amount the modal is about to write, whichever kind it is. */
   const pendingAmount =
@@ -238,7 +248,7 @@ export const SalaryGradesPage = () => {
               </tr>
             </thead>
             <tbody>
-              {rows.map((row) => (
+              {pageRows.map((row) => (
                 <tr key={row.salaryGrade} className="border-t border-[#E2E8F0] hover:bg-[#F8FAFF]">
                   <th scope="row" className="px-4 py-3 text-left font-semibold text-[#040E6B]">
                     SG {row.salaryGrade}
@@ -301,6 +311,50 @@ export const SalaryGradesPage = () => {
               ))}
             </tbody>
           </table>
+          {pageCount > 1 && (
+            <nav
+              aria-label="Salary grade pages"
+              className="flex flex-wrap items-center justify-between gap-3 border-t border-[#E2E8F0] px-4 py-3"
+            >
+              <p className="!mb-0 text-xs text-[#515F69]">
+                Showing {pageStart + 1}–{pageStart + pageRows.length} of {rows.length} entries
+              </p>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setPage(currentPage - 1)}
+                  disabled={currentPage === 1}
+                  className="inline-flex h-10 items-center gap-1 rounded-lg border border-[#E2E8F0] bg-white px-4 text-sm font-medium text-[#28343D] hover:border-[#C8D1FF] hover:bg-[#EEF0FF] disabled:cursor-not-allowed disabled:border-[#E2E8F0] disabled:bg-[#F8FAFC] disabled:text-[#94A3B8]"
+                >
+                  <ChevronLeft className="h-4 w-4" /> Previous
+                </button>
+                {Array.from({ length: pageCount }, (_, i) => i + 1).map((n) => (
+                  <button
+                    key={n}
+                    type="button"
+                    onClick={() => setPage(n)}
+                    aria-label={`Page ${n}`}
+                    aria-current={n === currentPage ? 'page' : undefined}
+                    className={`h-10 w-10 rounded-lg text-sm font-medium ${
+                      n === currentPage
+                        ? 'bg-[#363EE8] text-white'
+                        : 'border border-[#E2E8F0] bg-white text-[#28343D] hover:border-[#C8D1FF] hover:bg-[#EEF0FF]'
+                    }`}
+                  >
+                    {n}
+                  </button>
+                ))}
+                <button
+                  type="button"
+                  onClick={() => setPage(currentPage + 1)}
+                  disabled={currentPage === pageCount}
+                  className="inline-flex h-10 items-center gap-1 rounded-lg border border-[#E2E8F0] bg-white px-4 text-sm font-medium text-[#28343D] hover:border-[#C8D1FF] hover:bg-[#EEF0FF] disabled:cursor-not-allowed disabled:border-[#E2E8F0] disabled:bg-[#F8FAFC] disabled:text-[#94A3B8]"
+                >
+                  Next <ChevronRight className="h-4 w-4" />
+                </button>
+              </div>
+            </nav>
+          )}
         </div>
       )}
 
