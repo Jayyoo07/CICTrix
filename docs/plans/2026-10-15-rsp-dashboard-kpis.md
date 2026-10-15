@@ -1,7 +1,7 @@
 ---
 title: RSP dashboard KPIs grouped by function
 date: 2026-10-15
-status: In Progress
+status: Done
 summary: Replace the RSP dashboard's cards, quick actions, urgent items, funnel, recent activity and department list with three function sections (Recruitment, Exams & interviews, Succession planning) under a gradient header strip with period and department filters.
 spec: docs/mockups/2026-10-15-rsp-dashboard-kpis.html (chosen 2026-10-15, v11)
 ---
