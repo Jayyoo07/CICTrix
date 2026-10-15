@@ -1,0 +1,185 @@
+/* ============================================================================
+   RSP dashboard overview (docs/mockups/2026-10-15-rsp-dashboard-kpis.html)
+   ----------------------------------------------------------------------------
+   Colors are DESIGN_IDENTITY.md tokens only (§3, §9.8, §9.11). Everything is
+   scoped to .rspdash. The reset below beats globals.css, which colors every
+   span / p / button / heading directly and would otherwise override us.
+   ============================================================================ */
+
+.rspdash {
+  --rd-ink: #040E6B;
+  --rd-ink-2: #515F69;
+  --rd-muted: #94A3B8;
+  --rd-line: #E2E8F0;
+  --rd-bg: #F1F5F9;
+  --rd-accent: #363EE8;
+  --rd-accent-soft: #EEF0FF;
+  --rd-tint: #C8D1FF;
+  --rd-series2: #8A96FF;
+  --rd-warn: #E8821A;
+  --rd-warn-soft: #FCE8C8;
+  --rd-warn-t: #A8590A;
+  --rd-risk: #E05252;
+  --rd-risk-soft: #FDE2E2;
+  --rd-risk-t: #B42323;
+  --rd-ok: #16A85A;
+  --rd-ok-soft: #DCFCE7;
+  --rd-ok-t: #0F7A40;
+  --rd-info-soft: #E0E5FF;
+  --rd-info-t: #191FA8;
+  --rd-n-soft: #F1F5F9;
+  --rd-n-t: #28343D;
+
+  background: var(--rd-bg);
+  color: var(--rd-ink);
+  font-family: 'Poppins', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.rspdash :is(h1, h2, h3, p, span, b, small, button, label, a, td, th, div) {
+  color: inherit;
+  margin: 0;
+  letter-spacing: normal;
+}
+.rspdash :is(h1, h2, h3) { line-height: 1.3; }
+.rspdash button { font: inherit; background: none; border: 0; padding: 0; cursor: pointer; }
+
+/* ── Header strip ─────────────────────────────────────────────────────────── */
+.rspdash .rd-hero {
+  background: linear-gradient(180deg, #363EE8 0%, #040E6B 100%);
+  color: #fff;
+  padding: 18px 24px 22px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 12px;
+}
+.rspdash .rd-hero-title { font-size: 22px; font-weight: 700; color: #fff; }
+.rspdash .rd-hero-sub { font-size: 13px; color: rgba(255, 255, 255, .9); margin-top: 2px; }
+.rspdash .rd-filters { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.rspdash .rd-seg { display: flex; gap: 4px; padding: 3px; border-radius: 999px; background: rgba(255, 255, 255, .12); border: 1px solid rgba(255, 255, 255, .3); }
+.rspdash .rd-seg button { padding: 4px 12px; border-radius: 999px; font-size: 12px; font-weight: 500; color: #fff; }
+.rspdash .rd-seg button.on { background: #fff; color: var(--rd-ink); font-weight: 600; }
+.rspdash .rd-seg button:focus-visible,
+.rspdash .rd-select:focus-within { outline: 2px solid #fff; outline-offset: 2px; }
+.rspdash .rd-select { position: relative; display: flex; align-items: center; height: 30px; border-radius: 999px; border: 1px solid rgba(255, 255, 255, .5); color: #fff; }
+.rspdash .rd-select select { appearance: none; background: transparent; border: 0; color: #fff; font: 500 12px 'Poppins', sans-serif; padding: 0 30px 0 12px; height: 100%; cursor: pointer; outline: none; }
+.rspdash .rd-select select option { color: #28343D; }
+.rspdash .rd-select svg { position: absolute; right: 10px; pointer-events: none; }
+.rspdash .rd-asof { font-size: 12px; color: rgba(255, 255, 255, .8); }
+
+/* ── Layout ───────────────────────────────────────────────────────────────── */
+.rspdash .rd-main { padding: 20px 24px 32px; display: grid; gap: 24px; }
+.rspdash .rd-sec { display: grid; gap: 12px; }
+.rspdash .rd-sec-h { display: flex; align-items: center; gap: 10px; padding-bottom: 8px; border-bottom: 1px solid var(--rd-line); }
+.rspdash .rd-sec-h h2 { font-size: 16px; font-weight: 600; color: var(--rd-ink); }
+.rspdash .rd-desc { font-size: 12px; color: var(--rd-muted); }
+.rspdash .rd-sec-h .rd-link { margin-left: auto; }
+.rspdash .rd-ico { width: 30px; height: 30px; border-radius: 8px; display: grid; place-items: center; flex: none; background: var(--rd-accent-soft); color: var(--rd-accent); }
+.rspdash .rd-link { font-size: 12px; color: var(--rd-accent); font-weight: 500; }
+.rspdash .rd-link:hover { color: #191FA8; text-decoration: underline; }
+.rspdash .rd-two { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.rspdash .rd-two-1-2 { grid-template-columns: 1fr 2fr; }
+.rspdash .rd-card { background: #fff; border: 1px solid var(--rd-line); border-radius: 12px; padding: 16px; min-width: 0; }
+.rspdash .rd-h { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 12px; }
+.rspdash .rd-h h3, .rspdash .rd-evh h3 { font-size: 14px; font-weight: 600; color: var(--rd-ink); }
+.rspdash .rd-h-sm { margin-bottom: 6px; }
+.rspdash .rd-subtitle { font-size: 12px; font-weight: 500; color: var(--rd-ink); }
+.rspdash .rd-block { display: block; margin-bottom: 8px; }
+.rspdash .rd-empty { font-size: 12px; color: var(--rd-ink-2); padding: 8px 0; }
+.rspdash .rd-asof-dark { font-size: 11px; color: var(--rd-muted); }
+
+/* ── Stat strips ──────────────────────────────────────────────────────────── */
+.rspdash .rd-stats { display: grid; border: 1px solid var(--rd-line); border-radius: 10px; margin-bottom: 14px; }
+.rspdash .rd-stats-card { background: #fff; margin: 0; }
+.rspdash .rd-s4 { grid-template-columns: repeat(4, 1fr); }
+.rspdash .rd-s2 { grid-template-columns: 1fr 1fr; }
+.rspdash .rd-stat { padding: 10px 12px; border-right: 1px solid var(--rd-line); min-width: 0; }
+.rspdash .rd-s4 .rd-stat:last-child, .rspdash .rd-s2 .rd-stat:nth-child(2n) { border-right: 0; }
+.rspdash .rd-stat.rd-top { border-top: 1px solid var(--rd-line); }
+.rspdash .rd-stat .l { display: block; font-size: 11px; color: var(--rd-ink-2); }
+.rspdash .rd-stat .v { display: block; font-size: 20px; font-weight: 700; margin-top: 2px; color: var(--rd-ink); }
+.rspdash .rd-stat .v small { font-size: 11px; font-weight: 500; color: var(--rd-ink-2); }
+.rspdash .rd-stat.warn .v { color: var(--rd-warn-t); }
+.rspdash .rd-stat.risk .v { color: var(--rd-risk-t); }
+
+/* ── Bars, funnel, legend ─────────────────────────────────────────────────── */
+.rspdash .rd-bar { height: 8px; background: var(--rd-line); border-radius: 6px; overflow: hidden; display: flex; }
+.rspdash .rd-bar i { display: block; height: 100%; }
+.rspdash .rd-bar-lg { height: 12px; }
+.rspdash .rd-fun { display: grid; grid-template-columns: 90px 1fr 32px; gap: 8px; align-items: center; margin-bottom: 8px; font-size: 12px; color: var(--rd-ink-2); }
+.rspdash .rd-fun .rd-bar i { border-radius: 6px; }
+.rspdash .rd-fun b { text-align: right; color: var(--rd-ink); }
+.rspdash .rd-conv { font-size: 11px; color: var(--rd-ink-2); margin-top: 6px; }
+.rspdash .rd-legend { display: flex; gap: 12px; flex-wrap: wrap; font-size: 11px; color: var(--rd-ink-2); }
+.rspdash .rd-legend span::before { content: ''; display: inline-block; width: 8px; height: 8px; border-radius: 2px; margin-right: 4px; background: var(--c); }
+.rspdash .rd-legend-cal { margin-top: 8px; }
+
+/* ── Tables ───────────────────────────────────────────────────────────────── */
+.rspdash .rd-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.rspdash .rd-table th { text-align: left; font-weight: 500; color: var(--rd-muted); font-size: 11px; padding: 6px 8px; border-bottom: 1px solid var(--rd-line); }
+.rspdash .rd-table td { padding: 9px 8px; border-bottom: 1px solid var(--rd-line); vertical-align: middle; color: var(--rd-ink); }
+.rspdash .rd-table tr:last-child td { border-bottom: 0; }
+.rspdash .rd-table .n { text-align: right; }
+.rspdash .rd-table td.n { font-weight: 600; }
+.rspdash .rd-bar-cell { width: 40%; }
+.rspdash .rd-pri { display: block; font-weight: 500; }
+.rspdash .rd-meta { display: block; font-size: 11px; color: var(--rd-ink-2); }
+
+/* ── Badges (§9.8) ────────────────────────────────────────────────────────── */
+.rspdash .rd-pill { display: inline-block; font-size: 11px; font-weight: 500; padding: 2px 8px; border-radius: 999px; white-space: nowrap; }
+.rspdash .rd-p-warn { background: var(--rd-warn-soft); color: var(--rd-warn-t); }
+.rspdash .rd-p-risk { background: var(--rd-risk-soft); color: var(--rd-risk-t); }
+.rspdash .rd-p-ok { background: var(--rd-ok-soft); color: var(--rd-ok-t); }
+.rspdash .rd-p-info { background: var(--rd-info-soft); color: var(--rd-info-t); }
+.rspdash .rd-p-acc { background: var(--rd-accent-soft); color: var(--rd-info-t); }
+.rspdash .rd-p-n { background: var(--rd-n-soft); color: var(--rd-n-t); }
+
+/* ── Calendar ─────────────────────────────────────────────────────────────── */
+.rspdash .rd-cal-wrap { display: grid; grid-template-columns: 280px 1fr; gap: 16px; align-items: stretch; }
+.rspdash .rd-cal-card { display: flex; flex-direction: column; }
+.rspdash .rd-cal-h { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+.rspdash .rd-cal-h b { font-size: 14px; font-weight: 600; color: var(--rd-ink); }
+.rspdash .rd-nav { margin-left: auto; display: flex; gap: 4px; }
+.rspdash .rd-nav button { width: 24px; height: 24px; border: 1px solid var(--rd-line); border-radius: 6px; display: grid; place-items: center; color: var(--rd-ink-2); }
+.rspdash .rd-nav button:hover { background: var(--rd-accent-soft); }
+.rspdash .rd-cal { display: grid; grid-template-columns: repeat(7, 1fr); grid-template-rows: auto; grid-auto-rows: minmax(30px, 1fr); gap: 2px; flex: 1; }
+.rspdash .rd-dow { font-size: 10px; font-weight: 600; color: var(--rd-muted); text-align: center; padding-bottom: 4px; text-transform: uppercase; }
+.rspdash .rd-day { min-height: 30px; border-radius: 6px; padding: 3px 0; display: flex; flex-direction: column; align-items: center; justify-content: space-between; font-size: 11px; color: var(--rd-ink-2); border: 1px solid transparent; }
+.rspdash .rd-day:hover { background: var(--rd-accent-soft); border-color: var(--rd-line); }
+.rspdash .rd-day.wk { background: #F8FAFF; }
+.rspdash .rd-day.today { border-color: var(--rd-accent); color: var(--rd-accent); font-weight: 600; }
+.rspdash .rd-day.sel { background: var(--rd-accent); color: #fff; }
+.rspdash .rd-day.sel .rd-dots i { box-shadow: 0 0 0 1.5px #fff; }
+.rspdash .rd-day.out { visibility: hidden; }
+.rspdash .rd-day:focus-visible, .rspdash .rd-nav button:focus-visible, .rspdash .rd-link:focus-visible { outline: 2px solid var(--rd-accent); outline-offset: 2px; }
+.rspdash .rd-dots { display: flex; gap: 3px; min-height: 4px; }
+.rspdash .rd-dots i { width: 4px; height: 4px; border-radius: 50%; }
+.rspdash .rd-dots .e { background: var(--rd-accent); }
+.rspdash .rd-dots .iv { background: var(--rd-series2); }
+
+/* ── Session list ─────────────────────────────────────────────────────────── */
+.rspdash .rd-evh { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 10px; }
+.rspdash .rd-seg-light { display: flex; border: 1px solid var(--rd-line); border-radius: 8px; overflow: hidden; }
+.rspdash .rd-seg-light button { padding: 5px 10px; font-size: 12px; color: var(--rd-ink-2); }
+.rspdash .rd-seg-light button.on { background: var(--rd-accent); color: #fff; }
+.rspdash .rd-dlabel { font-size: 11px; font-weight: 600; color: var(--rd-muted); text-transform: uppercase; margin: 12px 0 4px; display: flex; justify-content: space-between; }
+.rspdash .rd-evh + div .rd-dlabel { margin-top: 0; }
+.rspdash .rd-ev { display: grid; grid-template-columns: 64px 1fr auto; gap: 10px; align-items: center; padding: 9px 10px; border: 1px solid var(--rd-line); border-left: 3px solid var(--c); border-radius: 8px; margin-bottom: 6px; font-size: 12px; }
+.rspdash .rd-ev .tm { color: var(--rd-ink-2); font-weight: 500; }
+.rspdash .rd-ev .ttl { font-weight: 500; color: var(--rd-ink); }
+.rspdash .rd-ev .meta { font-size: 11px; color: var(--rd-ink-2); }
+.rspdash .rd-ev.done { opacity: .7; }
+
+@media (max-width: 1100px) {
+  .rspdash .rd-two, .rspdash .rd-two-1-2 { grid-template-columns: 1fr; }
+}
+@media (max-width: 760px) {
+  .rspdash .rd-cal-wrap { grid-template-columns: 1fr; }
+  .rspdash .rd-s4 { grid-template-columns: 1fr 1fr; }
+  .rspdash .rd-s4 .rd-stat:nth-child(2n) { border-right: 0; }
+  .rspdash .rd-s4 .rd-stat:nth-child(-n+2) { border-bottom: 1px solid var(--rd-line); }
+  .rspdash .rd-desc { display: none; }
+  .rspdash .rd-main, .rspdash .rd-hero { padding-left: 16px; padding-right: 16px; }
+}

@@ -34,6 +34,7 @@ import { ErrorBanner } from '../../components/ErrorBanner';
 import { getAdminEmail } from '../../lib/adminSession';
 import { funnelBucket, normalizeStatus, type FunnelBucket } from '../../lib/api/applicantStatus';
 import { SuccessionPlanningPage } from '../../components/SuccessionPlanningPage';
+import { RspDashboardOverview } from './RspDashboardOverview';
 import { EligibilityPointsPanel } from '../../components/EligibilityPointsPanel';
 import { SalaryGradeSelect } from '../../components/SalaryGradeSelect';
 import { useEffect, useMemo, useState } from 'react';
@@ -147,6 +148,9 @@ interface ApplicantRecord {
   interview_date?: string | null;
   interview_time?: string | null;
   assigned_interviewer_email?: string | null;
+  oral_exam_date?: string | null;
+  oral_exam_time?: string | null;
+  venue?: string | null;
   // Optional metadata used by the assessment-form rendering paths.
   appointmentType?: 'original' | 'promotional';
   positionType?: 'rank-and-file' | 'executive';
@@ -830,6 +834,9 @@ export const RSPDashboard = () => {
 
   const [jobs, setJobs] = useState<JobRecord[]>([]);
   const [applicants, setApplicants] = useState<ApplicantRecord[]>([]);
+  // Applicants with at least one scored evaluation; the dashboard uses it to
+  // flag interviews that were held but never scored.
+  const [evaluatedApplicantIds, setEvaluatedApplicantIds] = useState<Set<string>>(new Set());
   const [raters, setRaters] = useState<RaterRecord[]>([]);
   const [deletedJobReports, setDeletedJobReports] = useState<DeletedJobReport[]>([]);
   const [expandedArchiveIds, setExpandedArchiveIds] = useState<Record<string, boolean>>({});
@@ -1340,6 +1347,9 @@ export const RSPDashboard = () => {
             interview_date: item?.interview_date ?? null,
             interview_time: item?.interview_time ?? null,
             assigned_interviewer_email: item?.assigned_interviewer_email ?? null,
+            oral_exam_date: item?.oral_exam_date ?? null,
+            oral_exam_time: item?.oral_exam_time ?? null,
+            venue: item?.venue ?? null,
             application_type: item?.application_type ?? null,
             education_level: item?.education_level ?? item?.educational_attainment ?? item?.education ?? null,
             years_of_experience: item?.years_of_experience != null ? Number(item.years_of_experience) : null,
@@ -1371,6 +1381,7 @@ export const RSPDashboard = () => {
 
         // Store evaluations in state for use in Assessment Forms
         (window as any).__evaluationsByApplicantId = evaluationsByApplicantId;
+        setEvaluatedApplicantIds(new Set(evaluationBestScore.keys()));
 
         // Merge localStorage schedule cache so schedule columns show immediately
         // even when the Supabase columns are present but the fetch raced a save.
@@ -1572,85 +1583,6 @@ export const RSPDashboard = () => {
       const count = (item ? byItem.get(item) ?? 0 : 0) + (byTitle.get(job.title) ?? 0);
       return { ...job, applicant_count: count };
     });
-  }, [jobs, applicants]);
-
-  const dashboardStats = useMemo(() => {
-    const totalJobs = jobsWithCounts.filter((job) => job.status === 'Open').length;
-    const totalApplicants = applicants.length;
-    // Shortlisted means shortlisted — the old check also swept in 'reviewed'
-    // and 'accepted', so applicants who had merely been screened were reported
-    // as shortlisted. Reuse the funnel's single-bucket classifier so this card
-    // and the funnel can never disagree.
-    const shortlisted = applicants.filter((a) => funnelStageOf(a.status) === 'shortlisted').length;
-    // Positions still being evaluated, i.e. closed to new applicants but not
-    // yet filled.
-    const underReview = jobsWithCounts.filter((job) => job.status === 'Reviewing').length;
-
-    return { totalJobs, totalApplicants, shortlisted, underReview };
-  }, [jobsWithCounts, applicants]);
-
-  const funnelStats = useMemo(() => {
-    const counts: Record<FunnelStage, number> = {
-      pending: 0,
-      reviewed: 0,
-      shortlisted: 0,
-      qualified: 0,
-      hired: 0,
-      notQualified: 0,
-    };
-    for (const applicant of applicants) {
-      counts[funnelStageOf(applicant.status)] += 1;
-    }
-    return { ...counts, total: applicants.length };
-  }, [applicants]);
-
-  // "Recent" has to mean recent. This used to be applicants.slice(0, 5), i.e.
-  // whatever five happened to be first in load order, regardless of date.
-  const recentApplicants = useMemo(() => {
-    return [...applicants]
-      .sort((a, b) => {
-        const aTime = new Date(a.created_at).getTime();
-        const bTime = new Date(b.created_at).getTime();
-        if (Number.isNaN(aTime) && Number.isNaN(bTime)) return 0;
-        if (Number.isNaN(aTime)) return 1;
-        if (Number.isNaN(bTime)) return -1;
-        return bTime - aTime;
-      })
-      .slice(0, 5);
-  }, [applicants]);
-
-  // Positions by department. The old version derived BOTH the department list
-  // and the "positions" number from the APPLICANTS (distinct applicant.position
-  // per office), so a department with open postings but no applicants yet was
-  // missing entirely, and the position count described what people applied for
-  // rather than what actually exists.
-  //
-  // Positions now come from the real postings; applicants are counted by their
-  // own department rather than through the posting link, because most
-  // applicants reference postings that have since been deleted — going through
-  // the link would strand them and this panel would contradict the "Total
-  // Applicants" card above it. Departments are the union of both sources.
-  const departmentBreakdown = useMemo(() => {
-    const rows = new Map<string, { department: string; positions: number; applicants: number }>();
-    const rowFor = (name: string) => {
-      const department = name.trim() || 'Unassigned';
-      const existing = rows.get(department);
-      if (existing) return existing;
-      const created = { department, positions: 0, applicants: 0 };
-      rows.set(department, created);
-      return created;
-    };
-
-    jobs.forEach((job) => {
-      rowFor(String(job.department ?? '')).positions += 1;
-    });
-    applicants.forEach((applicant) => {
-      rowFor(String(applicant.office ?? '')).applicants += 1;
-    });
-
-    return Array.from(rows.values()).sort(
-      (a, b) => b.applicants - a.applicants || b.positions - a.positions,
-    );
   }, [jobs, applicants]);
 
   const officeOptions = useMemo(() => Array.from(new Set(applicants.map((a) => a.office).filter(Boolean))), [applicants]);
@@ -3365,51 +3297,6 @@ export const RSPDashboard = () => {
     }
   };
 
-  // The nearest still-future deadline among open postings. The old version just
-  // grabbed jobsWithCounts[0] and asserted it "closes soon" — an arbitrary job,
-  // with no reference to any deadline at all (and no posting currently has one).
-  const nextDeadline = useMemo(() => {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-
-    const upcoming = jobsWithCounts
-      .filter((job) => job.status === 'Open')
-      .map((job) => {
-        const raw = job.posting?.applicationDeadline;
-        if (!raw) return null;
-        const date = new Date(raw);
-        if (Number.isNaN(date.getTime())) return null;
-        date.setHours(0, 0, 0, 0);
-        if (date.getTime() < today.getTime()) return null;
-        return { title: job.title, date };
-      })
-      .filter((entry): entry is { title: string; date: Date } => entry !== null)
-      .sort((a, b) => a.date.getTime() - b.date.getTime());
-
-    if (upcoming.length === 0) return null;
-
-    const next = upcoming[0];
-    const days = Math.round((next.date.getTime() - today.getTime()) / 86400000);
-    const when = days === 0 ? 'closes today' : days === 1 ? 'closes tomorrow' : `closes in ${days} days`;
-    return `${next.title} ${when} (${formatDate(next.date.toISOString())})`;
-  }, [jobsWithCounts]);
-
-  const urgentItems = [
-    {
-      title: 'Deadline Approaching',
-      subtitle: nextDeadline ?? 'No upcoming application deadlines set.',
-      color: 'border-l-[4px] border-l-orange-500 bg-orange-50',
-    },
-    {
-      title: 'Pending Reviews',
-      subtitle:
-        funnelStats.pending === 1
-          ? '1 application awaiting initial review'
-          : `${funnelStats.pending} applications awaiting initial review`,
-      color: 'border-l-[4px] border-l-blue-500 bg-blue-50',
-    },
-  ];
-
   return (
     <div className="rsp-ds min-h-screen bg-slate-100 text-slate-800">
       <AdminHeader
@@ -3425,10 +3312,23 @@ export const RSPDashboard = () => {
         <Sidebar activeModule="RSP" />
 
         <main className="admin-content !p-0">
+          {/* The dashboard draws its own gradient header strip with filters. */}
+          {section === 'dashboard' && (
+            <RspDashboardOverview
+              jobs={jobsWithCounts.map((job) => ({ ...job, applicationDeadline: job.posting?.applicationDeadline }))}
+              applicants={applicants}
+              evaluatedApplicantIds={evaluatedApplicantIds}
+              stageOf={funnelStageOf}
+              onOpenJobs={() => goToSection('jobs')}
+              onOpenApplicants={() => navigate('/interviewer/dashboard')}
+              onOpenQualified={() => goToSection('qualified')}
+              onOpenSuccession={() => goToSection('succession')}
+            />
+          )}
+          {section !== 'dashboard' && (
           <div className="border-b border-[var(--border-color)] bg-white px-4 py-5 sm:px-6 lg:px-8 lg:py-6">
             <h1 className="!mb-1 !text-xl font-bold sm:!text-2xl">{sectionTitle}</h1>
             <p className="!mb-0 text-sm text-[var(--text-secondary)] sm:text-base">
-              {section === 'dashboard' && 'Overview of recruitment, selection and placement activities'}
               {section === 'jobs' && 'Manage and monitor all job positions and their applicants'}
               {section === 'qualified' && 'List of applicants who passed the evaluation and are eligible for further processing'}
               {section === 'applicant-score' && 'View and update applicant evaluation scores for original and promotional applicants'}
@@ -3440,174 +3340,9 @@ export const RSPDashboard = () => {
               {section === 'settings' && 'Manage your personal information and account details'}
             </p>
           </div>
+          )}
 
-          <div className="space-y-6 p-8">
-            {section === 'dashboard' && (
-              <>
-                <section className="grid grid-cols-1 gap-5 xl:grid-cols-4">
-                  {[
-                    { label: 'Total Job Openings', value: dashboardStats.totalJobs, icon: FileText, iconBg: 'bg-blue-100', iconColor: 'text-blue-600' },
-                    { label: 'Total Applicants', value: dashboardStats.totalApplicants, icon: Users, iconBg: 'bg-blue-100', iconColor: 'text-blue-600' },
-                    { label: 'Shortlisted Applicants', value: dashboardStats.shortlisted, icon: UserCheck, iconBg: 'bg-blue-100', iconColor: 'text-blue-600' },
-                    { label: 'Positions Under Review', value: dashboardStats.underReview, icon: Clock3, iconBg: 'bg-orange-100', iconColor: 'text-orange-600' },
-                  ].map((card) => {
-                    const Icon = card.icon;
-                    return (
-                      <article key={card.label} className="rounded-2xl border border-[var(--border-color)] bg-white p-5">
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <p className="!mb-2 text-sm text-[var(--text-secondary)]">{card.label}</p>
-                            <p className="!mb-0 text-2xl font-bold text-[var(--text-primary)]">{card.value}</p>
-                          </div>
-                          <div className={`flex h-14 w-14 items-center justify-center rounded-2xl ${card.iconBg}`}>
-                            <Icon className={card.iconColor} size={24} />
-                          </div>
-                        </div>
-                      </article>
-                    );
-                  })}
-                </section>
-
-                <section>
-                  <h2 className="!mb-4 text-lg font-semibold">Quick Actions</h2>
-                  <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
-                    {[
-                      { title: 'Manage Job Postings', subtitle: 'View and manage all positions', icon: FileText, action: 'jobs' as Section },
-                      { title: 'Qualified Applicants', subtitle: 'View all qualified candidates', icon: UserCheck, action: 'qualified' as Section },
-                      { title: 'All Applicants', subtitle: 'Review all submissions', icon: Users, path: '/interviewer/dashboard' },
-                    ].map((card) => {
-                      const Icon = card.icon;
-                      return (
-                        <button
-                          key={card.title}
-                          type="button"
-                          onClick={() => {
-                            if ('path' in card && card.path) {
-                              navigate(card.path);
-                            } else if ('action' in card && card.action) {
-                              goToSection(card.action as Section);
-                            }
-                          }}
-                          className="flex items-center gap-4 rounded-2xl border border-[var(--border-color)] bg-white px-5 py-4 text-left transition hover:border-[var(--primary-color)]"
-                        >
-                          <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-blue-100 text-blue-600">
-                            <Icon size={22} />
-                          </div>
-                          <div className="flex-1">
-                            <p className="!mb-1 text-base font-semibold text-[var(--text-primary)]">{card.title}</p>
-                            <p className="!mb-0 text-sm text-[var(--text-secondary)]">{card.subtitle}</p>
-                          </div>
-                          <ChevronRight size={22} className="text-[var(--text-muted)]" />
-                        </button>
-                      );
-                    })}
-                  </div>
-                </section>
-
-                <section className="grid grid-cols-1 gap-5 xl:grid-cols-3">
-                  <div className="space-y-4 rounded-2xl border border-[var(--border-color)] bg-white p-5 xl:col-span-2">
-                    <div className="flex items-center justify-between border-b border-[var(--border-color)] pb-4">
-                      <h3 className="!mb-0 text-lg font-semibold">Urgent Items</h3>
-                      <Clock3 className="text-orange-500" size={20} />
-                    </div>
-                    {urgentItems.map((item) => (
-                      <article key={item.title} className={`rounded-2xl p-4 ${item.color}`}>
-                        <p className="!mb-1 text-base font-semibold text-[var(--text-primary)]">{item.title}</p>
-                        <p className="!mb-0 text-sm text-[var(--text-secondary)]">{item.subtitle}</p>
-                      </article>
-                    ))}
-                  </div>
-
-                  <div className="rounded-2xl border border-[var(--border-color)] bg-white p-5">
-                    <div className="flex items-center justify-between border-b border-[var(--border-color)] pb-4">
-                      <h3 className="!mb-0 text-lg font-semibold">Application Funnel</h3>
-                      <span className="text-sm font-semibold text-[var(--text-secondary)]">
-                        {funnelStats.total} total
-                      </span>
-                    </div>
-                    <div className="space-y-4 pt-5">
-                      {[
-                        { label: 'Pending', value: funnelStats.pending, color: 'bg-amber-500' },
-                        { label: 'Reviewed', value: funnelStats.reviewed, color: 'bg-blue-500' },
-                        { label: 'Shortlisted', value: funnelStats.shortlisted, color: 'bg-purple-500' },
-                        { label: 'Qualified', value: funnelStats.qualified, color: 'bg-green-500' },
-                        { label: 'Hired', value: funnelStats.hired, color: 'bg-emerald-600' },
-                        { label: 'Not Qualified', value: funnelStats.notQualified, color: 'bg-slate-400' },
-                      ].map((item) => {
-                        // Bars are a share of ALL applicants, so the four stages plus
-                        // the two terminal ones always add up to the total — no one is
-                        // double-counted and no one is invisible.
-                        const total = Math.max(1, funnelStats.total);
-                        const share = (item.value / total) * 100;
-                        return (
-                          <div key={item.label}>
-                            <div className="mb-1 flex items-center justify-between text-sm">
-                              <span>{item.label}</span>
-                              <span className="font-semibold">{item.value}</span>
-                            </div>
-                            <div className="h-3 rounded-full bg-slate-200">
-                              <div
-                                className={`h-3 rounded-full ${item.color}`}
-                                style={{ width: `${share}%` }}
-                              />
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                </section>
-
-                <section className="grid grid-cols-1 gap-5 xl:grid-cols-2">
-                  <div className="rounded-2xl border border-[var(--border-color)] bg-white p-5">
-                    <div className="mb-4 flex items-center justify-between border-b border-[var(--border-color)] pb-4">
-                      <h3 className="!mb-0 text-lg font-semibold">Recent Activity</h3>
-                      <Calendar className="text-[var(--text-muted)]" size={20} />
-                    </div>
-                    <div className="space-y-4">
-                      {recentApplicants.map((applicant) => (
-                        <div key={applicant.id} className="flex items-start gap-4 border-b border-[var(--border-color)] pb-3 last:border-b-0">
-                          <div className="rounded-xl bg-blue-100 p-3 text-blue-600">
-                            <FileText size={18} />
-                          </div>
-                          <div>
-                            <p className="!mb-1 text-base text-[var(--text-primary)]">{applicant.full_name}</p>
-                            <p className="!mb-0 text-sm text-[var(--text-secondary)]">
-                              {applicant.position || 'Unspecified position'} · {applicant.status} · {formatDate(applicant.created_at)}
-                            </p>
-                          </div>
-                        </div>
-                      ))}
-                      {recentApplicants.length === 0 && <p className="!mb-0 text-sm text-[var(--text-secondary)]">No recent activity found.</p>}
-                    </div>
-                  </div>
-
-                  <div className="rounded-2xl border border-[var(--border-color)] bg-white p-5">
-                    <div className="mb-4 flex items-center justify-between border-b border-[var(--border-color)] pb-4">
-                      <h3 className="!mb-0 text-lg font-semibold">Positions by Department</h3>
-                      <Building2 className="text-[var(--text-muted)]" size={20} />
-                    </div>
-                    <div className="space-y-3">
-                      {departmentBreakdown.map((row) => {
-                        return (
-                          <div key={row.department} className="flex items-center justify-between rounded-2xl bg-slate-50 px-4 py-3">
-                            <div>
-                              <p className="!mb-1 text-base font-semibold text-[var(--text-primary)]">{row.department}</p>
-                              <p className="!mb-0 text-sm text-[var(--text-secondary)]">
-                                {row.positions} position{row.positions === 1 ? '' : 's'}
-                              </p>
-                            </div>
-                            <p className="!mb-0 text-right text-xl font-bold text-blue-600">{row.applicants}</p>
-                          </div>
-                        );
-                      })}
-                      {departmentBreakdown.length === 0 && <p className="!mb-0 text-sm text-[var(--text-secondary)]">No department data available.</p>}
-                    </div>
-                  </div>
-                </section>
-              </>
-            )}
-
+          <div className={section === 'dashboard' ? 'hidden' : 'space-y-6 p-8'}>
             {section === 'jobs' && (
               <>
                 <div className="flex justify-end">
