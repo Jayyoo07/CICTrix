@@ -84,7 +84,8 @@
 .pmdash .pd-muted { color: var(--pd-muted); }
 
 /* ── KPI cards (§9.7) ─────────────────────────────────────────────────────── */
-.pmdash .pd-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; }
+/* auto-fill keeps the lone card at one column wide instead of stretching it across the page. */
+.pmdash .pd-kpis { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 16px; }
 .pmdash .pd-kpi { background: #fff; border: 1px solid var(--pd-line); border-radius: 12px; padding: 20px; display: flex; flex-direction: column; gap: 10px; min-width: 0; }
 .pmdash .pd-kpi-h { display: flex; align-items: center; gap: 10px; font-size: 14px; line-height: 16px; font-weight: 500; color: var(--pd-ink-2); }
 .pmdash .pd-kpi-v { display: flex; align-items: baseline; gap: 8px; font-size: 36px; line-height: 40px; font-weight: 700; color: var(--pd-ink); }

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { BarChart3, Building2, ChevronDown, ClipboardCheck, Clock, UserPlus, Users } from 'lucide-react';
+import { BarChart3, Building2, ChevronDown, ClipboardCheck } from 'lucide-react';
 import { getActiveHeadcountByDepartment, getIPCRRecordsFromGapView, normDeptKey } from '../../lib/api/competencyGapAnalysis';
 import {
   buildDeptCompletionRows,
@@ -24,8 +24,6 @@ export interface PendingIpcr {
 
 interface Props {
   pending: PendingIpcr[];
-  /** Department of each evaluation awaiting validation ("Supervisor Review"). */
-  reviewDepartments: Array<string | null | undefined>;
   onOpenSummary: () => void;
 }
 
@@ -202,7 +200,7 @@ const RatingStack = ({ distribution, total, label, large = false }: { distributi
 const describeMix = (distribution: Record<Rating, number>) =>
   RATINGS.filter((r) => distribution[r] > 0).map((r) => `${r} ${distribution[r]}`).join(', ');
 
-export const PmDashboardOverview = ({ pending, reviewDepartments, onOpenSummary }: Props) => {
+export const PmDashboardOverview = ({ pending, onOpenSummary }: Props) => {
   const [records, setRecords] = useState<IPCRRatingRecord[]>([]);
   const [headcount, setHeadcount] = useState<Map<string, { name: string; count: number }>>(new Map());
   const [loading, setLoading] = useState(true);
@@ -247,21 +245,6 @@ export const PmDashboardOverview = ({ pending, reviewDepartments, onOpenSummary 
     [allRows, scopedPending, department, today],
   );
   const results = useMemo(() => summarizeResults(records.filter((r) => inDept(r.department))), [records, department]);
-
-  const reviews = reviewDepartments.filter((d) => inDept(d)).length;
-  const pendingOf = (type: PendingIpcr['type']) => {
-    const rows = scopedPending.filter((p) => p.type === type);
-    let overdue = 0;
-    let soon = 0;
-    for (const p of rows) {
-      const s = dueStatus(p.dueDate, today);
-      if (s === 'overdue') overdue++;
-      else if (s === 'soon') soon++;
-    }
-    return { count: rows.length, overdue, soon };
-  };
-  const probationary = pendingOf('Probationary');
-  const regular = pendingOf('Regular');
 
   const dueBadge = (overdue: number, soon: number) =>
     overdue > 0 ? (
@@ -313,23 +296,6 @@ export const PmDashboardOverview = ({ pending, reviewDepartments, onOpenSummary 
               {submission.overdue > 0 && <span className="pd-pill pd-p-risk">{submission.overdue} overdue</span>}
               <span className="pd-kpi-sub">{submission.dueSoon} due in {DUE_SOON_DAYS} days</span>
             </div>
-          </div>
-          <div className="pd-kpi">
-            <div className="pd-kpi-h"><span className="pd-ico"><Clock size={20} aria-hidden="true" /></span>Pending IPCR reviews</div>
-            <div className="pd-kpi-v">{reviews}</div>
-            <div className="pd-kpi-sub">Awaiting validation</div>
-          </div>
-          <div className="pd-kpi">
-            <div className="pd-kpi-h"><span className="pd-ico"><UserPlus size={20} aria-hidden="true" /></span>Pending IPCR (probationary)</div>
-            <div className="pd-kpi-v">{probationary.count}</div>
-            <div className="pd-kpi-sub">Hired within 6 months</div>
-            <div className="pd-kpi-foot">{dueBadge(probationary.overdue, probationary.soon)}</div>
-          </div>
-          <div className="pd-kpi">
-            <div className="pd-kpi-h"><span className="pd-ico"><Users size={20} aria-hidden="true" /></span>Pending IPCR (regular)</div>
-            <div className="pd-kpi-v">{regular.count}</div>
-            <div className="pd-kpi-sub">Tenured over 6 months</div>
-            <div className="pd-kpi-foot">{dueBadge(regular.overdue, regular.soon)}</div>
           </div>
         </section>
 

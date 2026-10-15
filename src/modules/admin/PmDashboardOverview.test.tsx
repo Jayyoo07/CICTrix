@@ -115,15 +115,14 @@ describe('PmDashboardOverview', () => {
     render(
       <PmDashboardOverview
         pending={[pendingIpcr('City Health Office', -3)]}
-        reviewDepartments={['City Health Office', null]}
         onOpenSummary={() => {}}
       />,
     );
     // 3 rated of 6 active employees.
     const value = await screen.findByText('3 of 6');
     expect(value.parentElement?.textContent).toBe('50%3 of 6');
-    // The overdue IPCR shows on the submission card, the Regular card and the City Health Office row.
-    expect(screen.getAllByText('1 overdue')).toHaveLength(3);
+    // The overdue IPCR shows on the submission card and the City Health Office row.
+    expect(screen.getAllByText('1 overdue')).toHaveLength(2);
     expect(screen.getByText('Last2, First2')).toBeTruthy();
     expect(screen.getByText('View all (1) ›')).toBeTruthy();
   });

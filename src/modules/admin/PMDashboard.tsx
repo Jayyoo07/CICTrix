@@ -1012,7 +1012,6 @@ export const PMDashboard = ({
               <>
                 <PmDashboardOverview
                   pending={pendingSubmissions}
-                  reviewDepartments={evaluations.filter(e => e.status === 'Supervisor Review').map(e => e.department)}
                   onOpenSummary={() => setActiveSection('summary-of-ratings')}
                 />
 

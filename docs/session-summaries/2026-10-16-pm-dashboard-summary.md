@@ -14,6 +14,10 @@ All plan decisions (D1–D7) shipped in `633cb5b`:
 
 New code: `src/modules/admin/PmDashboardOverview.tsx` (with exported `summarizeSubmission` and `summarizeResults`), `src/styles/pm-dashboard.css`, `PmDashboardOverview.test.tsx`.
 
+## Follow-up change
+
+- **KPI row trimmed to the submission rate card** (requested after deploy). Pending IPCR reviews, Pending (probationary) and Pending (regular) were removed, along with the `reviewDepartments` prop that fed them. The lone card keeps its one-column width (`auto-fill`) instead of stretching across the page. Checked locally at 1366×768: one card, 296px wide.
+
 ## Deviations
 
 - **Empty departments read "No department".** The live ratings view returns all 51 rated records with a null department, so the department tables show one "No department" row. Summary of Ratings shows the same 51 / 51 under a blank department; the data needs offices assigned before the per-office views become useful.
