@@ -57,6 +57,36 @@ async function getRequiredLevelMap(): Promise<Map<string, ProficiencyLevel>> {
   return map;
 }
 
+// 1c. office headcount — Active employees per department, the denominator for
+// the Summary of Ratings IPCR completion figure. Same rule as the Office
+// Directory headcount (officeDirectory.ts): Active only, keyed by the canonical
+// `department` falling back to `current_department`. Keys keep the first-seen
+// spelling so they can be shown; match on `normDeptKey`.
+export const normDeptKey = (value: unknown) => String(value ?? '').trim().toLowerCase();
+
+export async function getActiveHeadcountByDepartment(): Promise<Map<string, { name: string; count: number }>> {
+  const { data, error } = await supabase
+    .from('employees_with_department')
+    .select('department, current_department, status');
+
+  if (error) {
+    console.error('Error fetching employees_with_department:', error);
+    throw error;
+  }
+
+  const map = new Map<string, { name: string; count: number }>();
+  (data || []).forEach((emp: any) => {
+    if (normDeptKey(emp?.status) !== 'active') return;
+    const name = String(emp?.department ?? '').trim() || String(emp?.current_department ?? '').trim();
+    const key = normDeptKey(name);
+    if (!key) return;
+    const entry = map.get(key) ?? { name, count: 0 };
+    entry.count++;
+    map.set(key, entry);
+  });
+  return map;
+}
+
 // 2. aggregator — one IPCRRatingRecord per employee, ready for SoR
 export async function getIPCRRecordsFromGapView(period: string): Promise<IPCRRatingRecord[]> {
   const [raw, requiredLevels] = await Promise.all([

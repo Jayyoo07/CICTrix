@@ -3,8 +3,13 @@ import { ArrowUpDown, Building2, ChevronDown, ChevronRight, RefreshCw, Search } 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRealtimeRefresh } from '../../hooks/useRealtimeRefresh';
 import { EmptyState } from '../../components/EmptyState';
-import { getIPCRRecordsFromGapView } from '../../lib/api/competencyGapAnalysis';
-import { REPORT_PERIOD, getAdjectival, groupByDept, type IPCRRatingRecord } from './pm/SummaryOfRatings';
+import { getActiveHeadcountByDepartment, getIPCRRecordsFromGapView } from '../../lib/api/competencyGapAnalysis';
+import {
+  REPORT_PERIOD,
+  buildDeptCompletionRows,
+  getAdjectival,
+  type IPCRRatingRecord,
+} from './pm/SummaryOfRatings';
 import { CompetencyGapPanel } from './pm/CompetencyGapPanel';
 
 // Employees rated below "Satisfactory" (< 3.00 on the IPCR scale) are flagged as
@@ -22,6 +27,7 @@ const fmtDate = (d: Date) =>
 
 export const LndSummaryOfRatings = () => {
   const [records, setRecords] = useState<IPCRRatingRecord[]>([]);
+  const [headcount, setHeadcount] = useState<Map<string, { name: string; count: number }>>(new Map());
   const [loading, setLoading] = useState(true);
   const [lastSynced, setLastSynced] = useState<Date | null>(null);
   const [sortAsc, setSortAsc] = useState(true);
@@ -38,9 +44,18 @@ export const LndSummaryOfRatings = () => {
     const loadId = ++latestLoadId.current;
     if (!isSilent) setLoading(true);
     try {
-      const data = await getIPCRRecordsFromGapView(REPORT_PERIOD);
+      // Headcount is the completion denominator; if it fails, fall back to the
+      // rated employees alone rather than blanking the whole page.
+      const [data, roster] = await Promise.all([
+        getIPCRRecordsFromGapView(REPORT_PERIOD),
+        getActiveHeadcountByDepartment().catch(err => {
+          console.error('Error loading office headcount:', err);
+          return new Map<string, { name: string; count: number }>();
+        }),
+      ]);
       if (loadId !== latestLoadId.current) return;
       setRecords(data);
+      setHeadcount(roster);
       setLastSynced(new Date());
     } catch (err) {
       console.error('Error loading IPCR records:', err);
@@ -63,25 +78,14 @@ export const LndSummaryOfRatings = () => {
     }, [fetchRecords]),
   });
 
-  // Department landing rows — grouped, with avg rating and low-performer counts.
-  const deptRows = useMemo(() => {
-    const groups = groupByDept(records);
-    const rows = Array.from(groups.entries()).map(([department, g]) => {
-      const lowCount = g.distribution.Unsatisfactory + g.distribution.Poor;
-      return {
-        department,
-        count: g.records.length,
-        avg: g._count > 0 ? g.avg : null,
-        lowCount,
-        nonSubmission: g.distribution['Non-Submission'],
-      };
-    });
-    return rows.sort((a, b) => {
-      const aAvg = a.avg ?? -1;
-      const bAvg = b.avg ?? -1;
-      return deptSortAsc ? aAvg - bAvg : bAvg - aAvg;
-    });
-  }, [records, deptSortAsc]);
+  // Department landing rows — IPCR completion (rated / Active headcount) and
+  // low-performer counts.
+  const deptRows = useMemo(
+    () => buildDeptCompletionRows(records, headcount, deptSortAsc),
+    [records, headcount, deptSortAsc],
+  );
+  const totalEmployees = deptRows.reduce((sum, d) => sum + d.total, 0);
+  const totalCompleted = deptRows.reduce((sum, d) => sum + d.completed, 0);
 
   // Employees within the drilled-in department, searched + sorted by rating.
   const filteredSorted = useMemo(() => {
@@ -157,7 +161,7 @@ export const LndSummaryOfRatings = () => {
 
         <div className="flex items-center justify-between border-b border-gray-100 bg-gray-50 px-5 py-3">
           <span className="text-[11px] font-semibold uppercase tracking-wide text-gray-400">
-            {deptRows.length} department{deptRows.length !== 1 ? 's' : ''} · {records.length} employees
+            {deptRows.length} department{deptRows.length !== 1 ? 's' : ''} · {totalCompleted} of {totalEmployees} employees with complete IPCR
           </span>
           <button
             type="button"
@@ -165,16 +169,15 @@ export const LndSummaryOfRatings = () => {
             className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-semibold text-gray-600 hover:border-blue-400 hover:text-blue-600 transition"
           >
             <ArrowUpDown className="h-3.5 w-3.5" />
-            {deptSortAsc ? 'Lowest avg first' : 'Highest avg first'}
+            {deptSortAsc ? 'Lowest completion first' : 'Highest completion first'}
           </button>
         </div>
 
         {/* Column headers */}
         <div className="grid grid-cols-12 items-center border-b border-gray-100 px-5 py-2.5 text-[11px] font-semibold uppercase tracking-wide text-gray-400">
-          <div className="col-span-5">Department</div>
+          <div className="col-span-6">Department</div>
           <div className="col-span-2 text-center">Employees</div>
-          <div className="col-span-2 text-center">Avg Rating</div>
-          <div className="col-span-2 text-center">Needs Attention</div>
+          <div className="col-span-3 text-center">IPCR Completion</div>
           <div className="col-span-1" />
         </div>
 
@@ -188,7 +191,6 @@ export const LndSummaryOfRatings = () => {
         ) : (
           <div className="divide-y divide-gray-100">
             {deptRows.map(d => {
-              const adj = getAdjectival(d.avg);
               return (
                 <button
                   key={d.department}
@@ -196,36 +198,15 @@ export const LndSummaryOfRatings = () => {
                   onClick={() => enterDept(d.department)}
                   className="grid w-full grid-cols-12 items-center px-5 py-4 text-left transition hover:bg-blue-50/40"
                 >
-                  <div className="col-span-5 flex items-center gap-3">
+                  <div className="col-span-6 flex items-center gap-3">
                     <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-blue-50 text-blue-600">
                       <Building2 className="h-4 w-4" />
                     </span>
                     <span className="text-sm font-semibold text-gray-900">{d.department}</span>
                   </div>
-                  <div className="col-span-2 text-center text-sm text-gray-600">{d.count}</div>
-                  <div className="col-span-2 flex flex-col items-center gap-1">
-                    <span className="text-sm font-bold text-gray-900">
-                      {d.avg !== null ? d.avg.toFixed(2) : '—'}
-                    </span>
-                    <span
-                      className={`inline-flex rounded px-1.5 py-0.5 text-[10px] font-bold uppercase ${adj.pillClass}`}
-                    >
-                      {adj.label}
-                    </span>
-                  </div>
-                  <div className="col-span-2 text-center">
-                    {d.lowCount > 0 ? (
-                      <span className="inline-flex items-center rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-semibold text-amber-700">
-                        {d.lowCount} low
-                      </span>
-                    ) : (
-                      <span className="text-xs text-gray-400">—</span>
-                    )}
-                    {d.nonSubmission > 0 && (
-                      <span className="ml-1 inline-flex items-center rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-semibold text-blue-700">
-                        {d.nonSubmission} no sub
-                      </span>
-                    )}
+                  <div className="col-span-2 text-center text-sm text-gray-600">{d.total}</div>
+                  <div className="col-span-3 text-center text-sm font-bold text-gray-900">
+                    {d.completed} / {d.total}
                   </div>
                   <div className="col-span-1 flex justify-end">
                     <ChevronRight className="h-4 w-4 text-gray-400" />

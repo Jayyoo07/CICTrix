@@ -14,8 +14,10 @@ import {
 } from 'lucide-react';
 import abyanLogo from '../assets/abyan-logo.png';
 import { SharedFooter } from './SharedFooter';
+import '../styles/landing-hero.css';
 import { getAuthoritativeJobPostings, getJobPostingsLoadError, loadJobPostings } from '../lib/recruitmentData';
 import type { JobPosting } from '../types/recruitment.types';
+import { vacancySalaryLabel } from '../lib/vacancySalary';
 
 /* ── trish UI theme tokens ──────────────────────────────────────────
    Brand: Indigo #363EE8 · Hover #2E35D4 · Soft #EEF2FF
@@ -303,8 +305,16 @@ export const LandingPage = () => {
       {/* ─── Hero ────────────────────────────────────────────────── */}
       <section className="relative overflow-hidden">
         <div className="absolute inset-0 bg-gradient-to-br from-[#363EE8] to-[#050D65]" />
-        <div className="absolute -right-24 -top-28 h-80 w-80 rounded-full border border-white/15" />
-        <div className="absolute -bottom-32 -left-20 h-96 w-96 rounded-full border border-white/10" />
+        <div className="landing-hero-bg" aria-hidden="true">
+          <div className="landing-hero-ring landing-hero-ring--tr" />
+          <div className="landing-hero-ring landing-hero-ring--bl" />
+          <div className="landing-hero-ring landing-hero-ring--br" />
+          <div className="landing-hero-bg">
+            <div className="landing-hero-pulse" />
+            <div className="landing-hero-pulse" />
+            <div className="landing-hero-pulse" />
+          </div>
+        </div>
         <div className="relative mx-auto max-w-7xl px-6 py-20 text-center text-white sm:py-28">
           <h1 className="mx-auto mt-6 max-w-3xl text-4xl font-bold leading-tight tracking-tight text-white sm:text-5xl">
             Your gateway to public service.
@@ -397,22 +407,21 @@ export const LandingPage = () => {
                   <th className="px-4 py-3 text-left font-semibold text-[#050D65]">Position Title</th>
                   <th className="px-4 py-3 text-left font-semibold text-[#050D65]">Department / Office</th>
                   <th className="px-4 py-3 text-left font-semibold text-[#050D65]">Plantilla</th>
-                  <th className="px-4 py-3 text-left font-semibold text-[#050D65]">Posting Date</th>
+                  <th className="px-4 py-3 text-left font-semibold text-[#050D65]">Monthly Salary</th>
                   <th className="px-4 py-3 text-left font-semibold text-[#050D65]">Closing Date</th>
-                  <th className="px-4 py-3 text-center font-semibold text-[#050D65]">Details</th>
                   <th className="px-4 py-3 text-center font-semibold text-[#050D65]">Apply</th>
                 </tr>
               </thead>
               <tbody>
                 {vacanciesLoading ? (
                   <tr>
-                    <td colSpan={7} className="px-4 py-10 text-center text-slate-500" role="status">
+                    <td colSpan={6} className="px-4 py-10 text-center text-slate-500" role="status">
                       Loading vacancies…
                     </td>
                   </tr>
                 ) : vacanciesError ? (
                   <tr>
-                    <td colSpan={7} className="px-4 py-10 text-center" role="alert">
+                    <td colSpan={6} className="px-4 py-10 text-center" role="alert">
                       <p className="font-medium text-[#B42323]">We couldn't load the vacancies. Check your connection and try again.</p>
                       <p className="mt-1 text-xs text-slate-500">{vacanciesError}</p>
                       <button
@@ -426,7 +435,7 @@ export const LandingPage = () => {
                   </tr>
                 ) : filteredAndSortedJobs.length === 0 ? (
                   <tr>
-                    <td colSpan={7} className="px-4 py-10 text-center text-slate-500">
+                    <td colSpan={6} className="px-4 py-10 text-center text-slate-500">
                       {vacancyJobs.length === 0
                         ? 'No vacant positions are open at the moment. Please check back later.'
                         : 'No vacancies match your search.'}
@@ -444,20 +453,11 @@ export const LandingPage = () => {
                         <td className="px-4 py-3 text-slate-600">
                           {job.openSlots} open {job.openSlots === 1 ? 'slot' : 'slots'}
                         </td>
-                        <td className="px-4 py-3 text-slate-600">{formatDate(job.postingDate)}</td>
+                        <td className="whitespace-nowrap px-4 py-3 text-slate-600">{vacancySalaryLabel(job.originalJob)}</td>
                         <td className="px-4 py-3 text-slate-600">
                           {job.closingDate ? formatDate(job.closingDate) : 'Until filled'}
                         </td>
-                        {/* Table actions (§9.5): Details = Small secondary, Apply = Small primary. */}
-                        <td className="abyan-ds px-4 py-3 text-center">
-                          <button
-                            type="button"
-                            onClick={() => navigate(`/job-details/${encodeURIComponent(job.originalJob.id)}`, { state: { landingJob: job } })}
-                            className="btn btn-sm btn-secondary"
-                          >
-                            Details
-                          </button>
-                        </td>
+                        {/* Apply = Small primary (§9.5); it opens the job details first. */}
                         <td className="abyan-ds px-4 py-3 text-center">
                           <button
                             type="button"

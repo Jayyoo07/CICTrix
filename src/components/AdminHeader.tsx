@@ -104,7 +104,7 @@ export const AdminHeader = ({
           {/* Logout — label collapses to the icon under 640px, but the tap
               target stays at least 44×44. */}
           <LogoutConfirmPopover
-            buttonClassName="inline-flex min-h-[44px] min-w-[44px] items-center justify-center gap-2 rounded-xl border px-3 py-2 text-sm font-semibold transition hover:bg-white/20 sm:px-4"
+            buttonClassName="inline-flex min-h-[44px] min-w-[44px] items-center justify-center gap-2 rounded-full border px-3 py-2 text-sm font-semibold transition hover:bg-white/20 sm:px-4"
             buttonStyle={{
               borderColor: 'rgba(255,255,255,0.35)',
               backgroundColor: 'rgba(255,255,255,0.12)',

@@ -577,6 +577,86 @@ export async function listDepartmentSummaries(): Promise<Result<DepartmentSummar
   }
 }
 
+export interface SuccessionOverviewPosition {
+  id: string;
+  title: string;
+  departmentName: string;
+  incumbentName: string | null;
+  incumbentLeavingDate: string | null;
+  requiredSuccessorsCount: number;
+  successorCount: number;
+}
+
+export interface SuccessionOverview {
+  positions: SuccessionOverviewPosition[];
+  /** Distinct employees named as a successor, with the department of the position they are named for. */
+  talentPool: { employeeId: string; departmentName: string }[];
+}
+
+/**
+ * Every critical position with its named-successor count, for the RSP
+ * dashboard. A fixed number of round-trips regardless of how many positions
+ * exist. Readiness tiers are deliberately not computed here: that needs the
+ * full per-candidate readiness engine.
+ */
+export async function getSuccessionDashboardOverview(): Promise<Result<SuccessionOverview>> {
+  try {
+    const [{ data: positions, error: pErr }, { data: depts, error: dErr }, { data: candidates, error: cErr }] =
+      await Promise.all([
+        supabase
+          .from('critical_positions')
+          .select('id, title, department_id, incumbent_employee_id, incumbent_leaving_date, required_successors_count'),
+        supabase.from('departments').select('id, name'),
+        supabase.from('succession_candidates').select('critical_position_id, employee_id'),
+      ]);
+    if (pErr) return { ok: false, error: pErr.message };
+    if (dErr) return { ok: false, error: dErr.message };
+    if (cErr) return { ok: false, error: cErr.message };
+
+    const rows = (positions ?? []) as any[];
+    const deptName = new Map(((depts ?? []) as any[]).map((d) => [String(d.id), String(d.name ?? '').trim()]));
+    const positionDept = new Map(rows.map((r) => [String(r.id), deptName.get(String(r.department_id)) || 'Unassigned']));
+
+    const successorsByPosition = new Map<string, number>();
+    const talentPool = new Map<string, string>();
+    for (const c of (candidates ?? []) as any[]) {
+      const key = String(c.critical_position_id);
+      successorsByPosition.set(key, (successorsByPosition.get(key) ?? 0) + 1);
+      if (c.employee_id && !talentPool.has(String(c.employee_id))) {
+        talentPool.set(String(c.employee_id), positionDept.get(key) ?? 'Unassigned');
+      }
+    }
+
+    const incumbentIds = rows.map((r) => r.incumbent_employee_id).filter(Boolean);
+    const nameById = new Map<string, string>();
+    if (incumbentIds.length) {
+      const { data: emps } = await supabase
+        .from('employees_with_department')
+        .select('id, full_name')
+        .in('id', incumbentIds);
+      for (const e of (emps ?? []) as any[]) nameById.set(String(e.id), String(e.full_name ?? '').trim());
+    }
+
+    return {
+      ok: true,
+      data: {
+        positions: rows.map((r) => ({
+          id: String(r.id),
+          title: String(r.title ?? ''),
+          departmentName: positionDept.get(String(r.id)) ?? 'Unassigned',
+          incumbentName: r.incumbent_employee_id ? nameById.get(String(r.incumbent_employee_id)) ?? null : null,
+          incumbentLeavingDate: r.incumbent_leaving_date ?? null,
+          requiredSuccessorsCount: Number(r.required_successors_count ?? 1),
+          successorCount: successorsByPosition.get(String(r.id)) ?? 0,
+        })),
+        talentPool: [...talentPool].map(([employeeId, departmentName]) => ({ employeeId, departmentName })),
+      },
+    };
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : 'Failed to load succession overview.' };
+  }
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Critical positions (inside a department)
 // ─────────────────────────────────────────────────────────────────────────────

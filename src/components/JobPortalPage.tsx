@@ -13,11 +13,13 @@ import {
   Clock,
   ChevronLeft,
   ChevronRight,
-  Filter
+  Filter,
+  Banknote
 } from 'lucide-react';
 import abyanLogo from '../assets/abyan-logo.png';
 import { SharedFooter } from './SharedFooter';
 import { getAuthoritativeJobPostings, loadJobPostings } from '../lib/recruitmentData';
+import { vacancySalaryLabel } from '../lib/vacancySalary';
 
 export function JobPortalPage() {
   const navigate = useNavigate();
@@ -405,6 +407,10 @@ export function JobPortalPage() {
                   
                   <div className="space-y-2 border-t border-slate-100 pt-4 mb-6">
                     <div className="flex items-center justify-between text-xs text-slate-500">
+                      <span className="flex items-center gap-1"><Banknote size={13} /> Monthly Salary</span>
+                      <span className="font-semibold text-slate-700">{vacancySalaryLabel(job.originalJob)}</span>
+                    </div>
+                    <div className="flex items-center justify-between text-xs text-slate-500">
                       <span className="flex items-center gap-1"><Calendar size={13} /> Posted Date</span>
                       <span className="font-semibold text-slate-700">{formatDate(job.postingDate)}</span>
                     </div>
@@ -446,6 +452,7 @@ export function JobPortalPage() {
                   <th className="px-6 py-4 font-semibold text-[#050D65]">Position Title</th>
                   <th className="px-6 py-4 font-semibold text-[#050D65]">Department</th>
                   <th className="px-6 py-4 font-semibold text-[#050D65]">Employment Type</th>
+                  <th className="px-6 py-4 font-semibold text-[#050D65]">Monthly Salary</th>
                   <th className="px-6 py-4 font-semibold text-[#050D65]">Application Deadline</th>
                   <th className="px-6 py-4 text-center font-semibold text-[#050D65]">Status</th>
                   <th className="px-6 py-4 text-center font-semibold text-[#050D65]">Actions</th>
@@ -463,6 +470,7 @@ export function JobPortalPage() {
                         {job.type}
                       </span>
                     </td>
+                    <td className="whitespace-nowrap px-6 py-4 text-slate-600">{vacancySalaryLabel(job.originalJob)}</td>
                     <td className="px-6 py-4 font-medium text-rose-600">{formatDate(job.closingDate)}</td>
                     <td className="px-6 py-4 text-center">
                       <span className="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-bold bg-indigo-50 text-[#363EE8]">

@@ -1,0 +1,46 @@
+<h2>Which Open / Close button?</h2>
+<p class="subtitle">Each shows both states: when the phase is closed (left) and when it's open (right).</p>
+
+<div class="options">
+
+  <div class="option" data-choice="a" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content" style="display:flex;gap:16px;align-items:center;flex-wrap:wrap">
+      <button class="mock-button" style="background:#4f46e5;color:#fff;border:0;padding:8px 16px;border-radius:8px;font-weight:600">Open Phase 1</button>
+      <button class="mock-button" style="background:#fff;color:#b91c1c;border:1px solid #fca5a5;padding:8px 16px;border-radius:8px;font-weight:600">Close Phase 1</button>
+      <span style="color:#64748b;font-size:13px">Solid to open, red outline to close</span>
+    </div>
+  </div>
+
+  <div class="option" data-choice="b" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content" style="display:flex;gap:16px;align-items:center;flex-wrap:wrap">
+      <button class="mock-button" style="display:flex;align-items:center;gap:8px;background:#fff;color:#475569;border:1px solid #e2e8f0;padding:8px 14px;border-radius:8px;font-weight:600"><span style="width:8px;height:8px;border-radius:50%;background:#94a3b8"></span>Closed · Open</button>
+      <button class="mock-button" style="display:flex;align-items:center;gap:8px;background:#f0fdf4;color:#15803d;border:1px solid #86efac;padding:8px 14px;border-radius:8px;font-weight:600"><span style="width:8px;height:8px;border-radius:50%;background:#16a34a"></span>Open · Close</button>
+      <span style="color:#64748b;font-size:13px">Status and action in one button, no separate pill</span>
+    </div>
+  </div>
+
+  <div class="option" data-choice="c" onclick="toggleSelect(this)">
+    <div class="letter">C</div>
+    <div class="content" style="display:flex;gap:16px;align-items:center;flex-wrap:wrap">
+      <div style="display:inline-flex;padding:3px;background:#f1f5f9;border-radius:8px;font-weight:600;font-size:14px">
+        <span style="padding:6px 12px;color:#64748b">Open</span><span style="padding:6px 12px;background:#fff;color:#1e1b4b;border-radius:6px;box-shadow:0 1px 2px rgba(0,0,0,.1)">Closed</span>
+      </div>
+      <div style="display:inline-flex;padding:3px;background:#f1f5f9;border-radius:8px;font-weight:600;font-size:14px">
+        <span style="padding:6px 12px;background:#16a34a;color:#fff;border-radius:6px">Open</span><span style="padding:6px 12px;color:#64748b">Closed</span>
+      </div>
+      <span style="color:#64748b;font-size:13px">Two-way switch, current state highlighted</span>
+    </div>
+  </div>
+
+  <div class="option" data-choice="d" onclick="toggleSelect(this)">
+    <div class="letter">D</div>
+    <div class="content" style="display:flex;gap:16px;align-items:center;flex-wrap:wrap">
+      <button class="mock-button" style="background:#4f46e5;color:#fff;border:0;padding:8px 16px;border-radius:8px;font-weight:600">Open</button>
+      <button class="mock-button" style="background:#f1f5f9;color:#475569;border:0;padding:8px 16px;border-radius:8px;font-weight:600">Close</button>
+      <span style="color:#64748b;font-size:13px">Short labels, row title already says the phase</span>
+    </div>
+  </div>
+
+</div>

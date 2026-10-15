@@ -1,0 +1,45 @@
+/* About page hero (§7.1): gradient + one blended City Hall photo, straight
+   edges, no drawn shapes. Same treatment as the Interviewer portal hero. */
+.about-hero {
+  position: relative;
+  overflow: hidden;
+  border-radius: 0;
+  background: var(--gradient-hero);
+  color: var(--color-white);
+  padding: 64px 0;
+}
+
+/* Photo covers the right half, fades out toward the text, and is blended
+   (luminosity) into the gradient so it reads as a blue-toned photo. */
+.about-hero-photo {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 60%;
+  pointer-events: none;
+}
+.about-hero-photo img,
+.about-hero-photo-tint {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  -webkit-mask-image: linear-gradient(to right, transparent 0%, #000 55%);
+          mask-image: linear-gradient(to right, transparent 0%, #000 55%);
+}
+.about-hero-photo img {
+  object-fit: cover;
+  object-position: 50% 35%;
+  opacity: .22;
+  mix-blend-mode: luminosity;
+}
+.about-hero-photo-tint { background: color-mix(in srgb, var(--color-primary-900) 55%, transparent); }
+
+.about-hero-text { position: relative; z-index: 1; max-width: 720px; }
+
+/* Title spans the full width on phones, so the photo steps out. */
+@media (max-width: 639px) {
+  .about-hero { padding: 40px 0; }
+  .about-hero-photo { display: none; }
+}

@@ -1,11 +1,17 @@
-import { useRef } from 'react';
+import { useRef, useState } from 'react';
 import abyanLogo from '../assets/abyan-logo.png';
 import { Link } from 'react-router-dom';
 import { Users, ClipboardCheck, ShieldCheck } from 'lucide-react';
 import { SharedFooter } from './SharedFooter';
+import '../styles/about-hero.css';
+
+// Team-provided local photo, shared with the Interviewer portal hero (§7.1).
+const HERO_PHOTO_URL = '/assets/hero/iloilo-city-hall.webp';
 
 export function AboutPage() {
   const contactRef = useRef<HTMLElement>(null);
+  // The gradient renders alone if the photo fails to load (§7.1).
+  const [heroPhotoOk, setHeroPhotoOk] = useState(true);
 
   return (
     <div
@@ -82,16 +88,22 @@ export function AboutPage() {
       </header>
 
       {/* ─── Hero Banner ─────────────────────────────────────────── */}
-      <section className="relative overflow-hidden bg-gradient-to-br from-[#363EE8] to-[#050D65] py-16 text-white">
-        <div className="absolute -right-24 -top-28 h-80 w-80 rounded-full border border-white/10" />
-        <div className="absolute -bottom-32 -left-20 h-96 w-96 rounded-full border border-white/10" />
-        <div className="relative mx-auto max-w-6xl px-6 text-center">
-          <p className="text-sm font-semibold uppercase tracking-widest text-indigo-200">About ABYAN HRIS</p>
-          <h1 className="mt-3 text-4xl font-bold tracking-tight text-white sm:text-5xl">
-            More Than Just Software —
-            <br />
-            Your HR Ally.
-          </h1>
+      <section className="abyan-ds about-hero">
+        {heroPhotoOk && (
+          <div className="about-hero-photo" aria-hidden="true">
+            <img src={HERO_PHOTO_URL} alt="" loading="lazy" decoding="async" onError={() => setHeroPhotoOk(false)} />
+            <span className="about-hero-photo-tint" />
+          </div>
+        )}
+        <div className="relative mx-auto max-w-6xl px-6">
+          <div className="about-hero-text">
+            <p className="text-sm font-semibold uppercase tracking-widest text-indigo-200">About ABYAN HRIS</p>
+            <h1 className="mt-3 text-4xl font-bold tracking-tight text-white sm:text-5xl">
+              More Than Just Software —
+              <br />
+              Your HR Ally.
+            </h1>
+          </div>
         </div>
       </section>
 
