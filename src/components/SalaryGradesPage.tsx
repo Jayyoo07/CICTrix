@@ -21,6 +21,7 @@ import { supabase as supabaseClient } from '../lib/supabase';
 import { useBackClosesView } from '../hooks/useHistoryBack';
 import { AdminHeader } from './AdminHeader';
 import { Sidebar } from './Sidebar';
+import { SkeletonList, useDelayedLoading } from './table-loading';
 import '../styles/admin.css';
 import {
   HIRING_STEP,
@@ -95,6 +96,7 @@ function diffDraft(row: SalaryGradeRow, draft: Draft): { changes: Change[]; erro
 export const SalaryGradesPage = () => {
   const [rows, setRows] = useState<SalaryGradeRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const showLoader = useDelayedLoading(loading);
   const [error, setError] = useState<string | null>(null);
   const [toast, setToast] = useState<{ tone: 'ok' | 'err'; text: string } | null>(null);
   const [page, setPage] = useState(1);
@@ -171,8 +173,10 @@ export const SalaryGradesPage = () => {
               </div>
             )}
 
-            {loading ? (
-              <p className="text-sm text-[var(--neutral-600)]">Loading the salary schedule…</p>
+            {loading || showLoader ? (
+              <div className="overflow-hidden rounded-xl border border-[var(--neutral-200)] bg-white" aria-busy="true">
+                <SkeletonList show={showLoader} rows={8} label="Loading the salary schedule…" />
+              </div>
             ) : rows.length === 0 ? (
               <div className="rounded-xl border border-[var(--neutral-200)] bg-white px-5 py-6 text-sm text-[var(--neutral-600)]">
                 <p className="!mb-1 font-semibold text-[var(--neutral-800)]">No salary schedule loaded.</p>

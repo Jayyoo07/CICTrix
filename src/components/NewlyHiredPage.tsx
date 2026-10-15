@@ -9,6 +9,7 @@ import {
   X,
 } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
+import { TableSkeletonRows, tableBodyClass, useTableLoading } from './table-loading';
 
 import { formatOfficeLabel } from '../constants/positions';
 import {
@@ -39,6 +40,9 @@ const normalizeText = (v: string) => (v || '').trim().toLowerCase();
 
 export const NewlyHiredPage = () => {
   const [rows, setRows] = useState<NewlyHired[]>([]);
+  // First load only; focus and update-event refetches stay silent.
+  const [initialLoad, setInitialLoad] = useState(true);
+  const departmentsLoad = useTableLoading(initialLoad, rows.length > 0);
   const [mode, setMode] = useState<ViewMode>('overview');
   const [selectedDepartment, setSelectedDepartment] = useState<string>('');
   useBackClosesView(mode === 'department', () => closeDepartment(), 'newly-hired-department');
@@ -174,6 +178,8 @@ export const NewlyHiredPage = () => {
       } catch (err) {
         console.error('[NewlyHiredPage] Exception:', err);
         setRows([]);
+      } finally {
+        setInitialLoad(false);
       }
     };
 
@@ -462,8 +468,12 @@ export const NewlyHiredPage = () => {
                         <th className="px-5 py-3 text-center text-xs font-semibold uppercase tracking-wider text-slate-500">Actions</th>
                       </tr>
                     </thead>
-                    <tbody>
-                      {departmentCards.map((card) => (
+                    <tbody className={tableBodyClass(false)}>
+                      {departmentsLoad.initialLoading && (
+                        <TableSkeletonRows show={departmentsLoad.showSkeleton}
+                          columns={['text', 'text', 'badge', 'button']} label="Loading newly hired employees…" />
+                      )}
+                      {!departmentsLoad.initialLoading && departmentCards.map((card) => (
                         <tr key={card.department} className="border-b border-slate-100 hover:bg-slate-50 transition-colors last:border-0 cursor-pointer" onClick={() => openDepartment(card.department)}>
                           <td className="px-5 py-4">
                             <div className="flex items-center gap-3">
@@ -490,7 +500,7 @@ export const NewlyHiredPage = () => {
                           </td>
                         </tr>
                       ))}
-                      {departmentCards.length === 0 && (
+                      {!departmentsLoad.initialLoading && departmentCards.length === 0 && (
                         <tr>
                           <td colSpan={4} className="px-5 py-10 text-center text-sm text-slate-500">No newly hired records found.</td>
                         </tr>

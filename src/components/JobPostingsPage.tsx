@@ -29,6 +29,7 @@ import {
     formatPHDate,
     getApplicants,
     getJobPostings,
+    isJobPostingsLoaded,
     saveApplicants,
     saveJobPostings,
     saveJobPostingsAndWait,
@@ -54,6 +55,7 @@ import { isCurriculumVitae } from '../lib/applicationDocuments';
 import { reviewOutcome } from '../lib/applicantReviewQueue';
 import { AdminHeader } from './AdminHeader';
 import { Sidebar } from './Sidebar';
+import { SkeletonList, TableSkeletonRows, tableBodyClass, useDelayedLoading, useTableLoading } from './table-loading';
 
 const ITEMS_PER_PAGE = 10;
 
@@ -209,6 +211,8 @@ export const JobPostingsPage = () => {
   const navigate = useNavigate();
   const modalBodyRef = useRef<HTMLDivElement | null>(null);
   const [jobs, setJobs] = useState<JobPosting[]>([]);
+  // The job-postings cache normally loads before render (main.tsx); this covers a slow boot.
+  const jobsLoad = useTableLoading(!isJobPostingsLoaded() && jobs.length === 0, jobs.length > 0);
   // Departments come from the canonical Supabase table, shared system-wide.
   const departmentsList = useDepartmentNames();
   const [liveApplicants, setLiveApplicants] = useState<ReturnType<typeof getApplicants>>([]);
@@ -221,6 +225,7 @@ export const JobPostingsPage = () => {
   /** Plantilla slot id, or 'all', for the per-job applicants list. */
   const [jobApplicantsSlotFilter, setJobApplicantsSlotFilter] = useState<string>('all');
   const [jobApplicantsLoading, setJobApplicantsLoading] = useState(false);
+  const showApplicantsLoader = useDelayedLoading(jobApplicantsLoading);
   const [jobApplicantsSearch, setJobApplicantsSearch] = useState('');
   const [showAllApplicants, setShowAllApplicants] = useState(false);
   useBackClosesView(viewingApplicantsFor !== null, () => { setViewingApplicantsFor(null); setShowAllApplicants(false); }, 'jobposting-applicants');
@@ -1445,8 +1450,8 @@ export const JobPostingsPage = () => {
 
               <section className="mt-4 flex flex-col gap-3">
                 {jobApplicantsLoading ? (
-                  <div className="rounded-xl border border-dashed border-slate-300 bg-white p-10 text-center text-sm text-slate-500">
-                    Loading applicants…
+                  <div className="overflow-hidden rounded-xl border border-slate-200 bg-white" aria-busy="true">
+                    <SkeletonList show={showApplicantsLoader} label="Loading applicants…" />
                   </div>
                 ) : totalInDb === 0 ? (
                   <div className="rounded-xl border border-dashed border-slate-300 bg-white p-10 text-center">
@@ -1551,8 +1556,12 @@ export const JobPostingsPage = () => {
                   <th className="px-5 py-3 text-center text-xs font-semibold uppercase tracking-wider text-slate-500">Actions</th>
                 </tr>
               </thead>
-              <tbody>
-                {currentPageJobs.map((job) => {
+              <tbody className={tableBodyClass(false)}>
+                {jobsLoad.initialLoading && (
+                  <TableSkeletonRows show={jobsLoad.showSkeleton} rows={ITEMS_PER_PAGE}
+                    columns={['two-line', 'text', 'text', 'text', 'text', 'badge', 'button']} label="Loading job postings…" />
+                )}
+                {!jobsLoad.initialLoading && currentPageJobs.map((job) => {
                   const liveCount = applicantCountsByJob.get(job.id) ?? { applicants: 0, qualified: 0, toReview: 0 };
                   const officeLabel = formatOfficeLabel(job.department, job.division);
                   const slots = job.plantillaSlots ?? [];
@@ -1688,7 +1697,7 @@ export const JobPostingsPage = () => {
                     </Fragment>
                   );
                 })}
-                {currentPageJobs.length === 0 && (
+                {!jobsLoad.initialLoading && currentPageJobs.length === 0 && (
                   <tr>
                     <td colSpan={7} className="px-5 py-12 text-center text-slate-500">
                       <Briefcase className="mx-auto mb-2 h-9 w-9 text-slate-300" />

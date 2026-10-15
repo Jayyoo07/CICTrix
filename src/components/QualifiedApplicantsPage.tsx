@@ -38,6 +38,7 @@ import { buildDisqualificationActivityDescription, DISQUALIFICATION_REASON_OPTIO
 import { Applicant, ApplicantStatus, JobPosting, NewlyHired } from '../types/recruitment.types';
 import { RecruitmentNavigationGuide } from './RecruitmentNavigationGuide';
 import { Sidebar } from './Sidebar';
+import { TableSkeletonRows, tableBodyClass, useTableLoading } from './table-loading';
 
 type StoredAttachment = {
   applicant_id: string;
@@ -444,6 +445,8 @@ export const QualifiedApplicantsPage = () => {
   const isApplicantListView = isJobPostsView || Boolean(jobId);
 
   const [applicants, setApplicants] = useState<Applicant[]>([]);
+  // First load only; focus and update-event refetches stay silent.
+  const [initialLoad, setInitialLoad] = useState(true);
   const [jobs, setJobs] = useState<JobPosting[]>([]);
   const [search, setSearch] = useState('');
   const [qualifiedTab, setQualifiedTab] = useState<'all' | 'completed' | 'pending'>('all');
@@ -852,6 +855,7 @@ export const QualifiedApplicantsPage = () => {
         await loadQualifiedApplicantsData();
       } finally {
         inFlight = false;
+        if (!disposed) setInitialLoad(false);
         if (pending && !disposed) {
           pending = false;
           void run();
@@ -993,6 +997,7 @@ export const QualifiedApplicantsPage = () => {
 
     return rows.sort((a, b) => new Date(b.applicationDate).getTime() - new Date(a.applicationDate).getTime());
   }, [qualifiedBaseRows, jobMap, qualifiedOffice, qualifiedPosition, qualifiedTab, search]);
+  const tableLoad = useTableLoading(initialLoad, applicants.length > 0);
 
   const canManageHiring = location.pathname.startsWith('/admin/rsp');
   const isCompletedHireMode = !isApplicantListView && qualifiedTab === 'completed';
@@ -2025,8 +2030,13 @@ export const QualifiedApplicantsPage = () => {
                   )}
                 </tr>
               </thead>
-              <tbody>
-                {(isApplicantListView ? filteredRows : qualifiedRows).map((applicant) => {
+              <tbody className={tableBodyClass(false)}>
+                {tableLoad.initialLoading && (
+                  <TableSkeletonRows show={tableLoad.showSkeleton}
+                    columns={isApplicantListView ? ['text', 'two-line', 'text', 'badge'] : [...(isCompletedHireMode ? ['text' as const] : []), 'text', 'text', 'text', 'text', 'text', 'text', 'text']}
+                    label="Loading applicants…" />
+                )}
+                {!tableLoad.initialLoading && (isApplicantListView ? filteredRows : qualifiedRows).map((applicant) => {
                   const fullName = `${applicant.personalInfo.firstName} ${applicant.personalInfo.lastName}`;
                   const job = jobMap.get(applicant.jobPostingId);
                   const totalScore = Math.round(applicant.qualificationScore || 0);
@@ -2097,7 +2107,7 @@ export const QualifiedApplicantsPage = () => {
                     </tr>
                   );
                 })}
-                {!isApplicantListView && qualifiedRows.length === 0 && (
+                {!tableLoad.initialLoading && !isApplicantListView && qualifiedRows.length === 0 && (
                   <tr>
                     <td colSpan={isCompletedHireMode ? 8 : 7} className="px-5 py-8 text-center text-base text-slate-500">No qualified applicants found.</td>
                   </tr>
@@ -2106,7 +2116,7 @@ export const QualifiedApplicantsPage = () => {
             </table>
           </div>
 
-          {filteredRows.length === 0 && (
+          {!tableLoad.initialLoading && filteredRows.length === 0 && (
             <div className="p-10 text-center text-slate-500">
               <UserCheck className="mx-auto h-10 w-10 text-slate-400" />
               <p className="mt-2 font-medium">No applicants found with the selected filters.</p>

@@ -30,11 +30,14 @@ import type { ApplicantRecord } from './QualifiedApplicantsSection';
 import { RaterManagementSubsection } from './RaterManagementSubsection';
 import { ScheduleApplicantsModal } from './ScheduleApplicantsModal';
 import { SchedulingTree } from './SchedulingTree';
+import { SkeletonList, useDelayedLoading } from './table-loading';
 import { normalizeStatus } from '../lib/api/applicantStatus';
 
 interface PendingAssignmentListProps {
   applicants: ApplicantRecord[];
   completedEvaluationIds: Set<string>;
+  /** True while the parent's first fetch is in flight; shows placeholders instead of the empty states. */
+  loading?: boolean;
 }
 
 const isQualified = (a: ApplicantRecord, completedIds: Set<string>): boolean => {
@@ -102,7 +105,9 @@ const SCHEDULED_TH = 'px-4 py-2.5 text-left text-xs font-semibold uppercase trac
 const scheduleKey = (date: string | null | undefined, time: string | null | undefined) =>
   date ? `${date} ${time ?? ''}` : '';
 
-export const PendingAssignmentList = ({ applicants, completedEvaluationIds }: PendingAssignmentListProps) => {
+export const PendingAssignmentList = ({ applicants, completedEvaluationIds, loading = false }: PendingAssignmentListProps) => {
+  const showLoader = useDelayedLoading(loading);
+  const awaitingData = loading || showLoader;
 
   const [subTab, setSubTab] = useState<'pending' | 'scheduled' | 'rater-management'>('pending');
   const [interviewers, setInterviewers] = useState<InterviewerOption[]>([]);
@@ -423,7 +428,11 @@ export const PendingAssignmentList = ({ applicants, completedEvaluationIds }: Pe
             </p>
           )}
 
-          {pendingApplicants.length === 0 ? (
+          {awaitingData ? (
+            <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white" aria-busy="true">
+              <SkeletonList show={showLoader} label="Loading qualified applicants…" />
+            </div>
+          ) : pendingApplicants.length === 0 ? (
             <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-slate-300 bg-white py-16 text-center">
               <CheckCircle2 size={40} className="mb-3 text-emerald-400" />
               <p className="font-semibold text-slate-600">All qualified applicants have been assigned a schedule.</p>
@@ -517,7 +526,11 @@ export const PendingAssignmentList = ({ applicants, completedEvaluationIds }: Pe
             </p>
           </section>
 
-          {scheduledApplicants.length === 0 ? (
+          {awaitingData ? (
+            <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white" aria-busy="true">
+              <SkeletonList show={showLoader} label="Loading scheduled applicants…" />
+            </div>
+          ) : scheduledApplicants.length === 0 ? (
             <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-slate-300 bg-white py-16 text-center">
               <CalendarCheck size={40} className="mb-3 text-slate-300" />
               <p className="font-semibold text-slate-600">No scheduled applicants yet.</p>
