@@ -1,3 +1,4 @@
+import type React from 'react';
 import './table-loading.css';
 
 /** What a placeholder cell looks like: one bar, name over subtext, a status pill, or a small button. */
@@ -80,6 +81,38 @@ export function TableRefreshBar({ active, colSpan }: TableRefreshBarProps) {
         </div>
       </th>
     </tr>
+  );
+}
+
+/**
+ * One shimmer bar, for loaders that aren't table rows (card grids, lists).
+ * Size it with `className` or `style`.
+ */
+export function Skeleton({ className = '', style }: { className?: string; style?: React.CSSProperties }) {
+  return <span aria-hidden="true" className={`tl-skel ${className}`.trim()} style={style} />;
+}
+
+/** Visually hidden live status, to pair with <Skeleton> placeholders. */
+export function LoadingStatus({ label = 'Loading…' }: { label?: string }) {
+  return <span role="status" className="tl-sr-only">{label}</span>;
+}
+
+/**
+ * Placeholder rows for a list or panel that isn't a <table>: a name line over
+ * a meta line, per row. Wrap it in the list's own card.
+ */
+export function SkeletonList({ show, rows = DEFAULT_ROWS, label = 'Loading…' }: { show: boolean; rows?: number; label?: string }) {
+  if (!show) return null;
+  return (
+    <div className="tl-list">
+      <LoadingStatus label={label} />
+      {Array.from({ length: rows }, (_, r) => (
+        <div key={r} className="tl-list-row" aria-hidden="true">
+          <span className="tl-skel" style={{ width: TEXT_WIDTHS[r % TEXT_WIDTHS.length] }} />
+          <span className="tl-skel tl-skel--sub" />
+        </div>
+      ))}
+    </div>
   );
 }
 

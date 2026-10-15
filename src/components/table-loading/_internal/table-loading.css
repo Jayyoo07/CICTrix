@@ -19,6 +19,10 @@
 .tl-skel--button { width: 76px; height: 32px; border-radius: var(--radius-pill); margin-left: auto; }
 @keyframes tl-shimmer { from { background-position: 200% 0; } to { background-position: -200% 0; } }
 
+/* List / panel variant (not a <table>). */
+.tl-list-row { padding: var(--table-cell-pad-y, 12px) var(--table-cell-pad-x, 16px); }
+.tl-list-row + .tl-list-row { border-top: 1px solid var(--neutral-200); }
+
 /* Holds the screen-reader status without adding visible height. */
 .tl-status-row td { padding: 0 !important; border: 0 !important; height: 0; }
 .tl-sr-only {

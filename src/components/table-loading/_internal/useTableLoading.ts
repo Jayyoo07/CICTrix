@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useLayoutEffect, useRef, useState } from 'react';
 
 /** Loads faster than this never show a loader, so quick pages don't flash. */
 export const LOADER_SHOW_DELAY_MS = 200;
@@ -14,7 +14,10 @@ export function useDelayedLoading(loading: boolean): boolean {
   const [visible, setVisible] = useState(false);
   const shownAt = useRef<number | null>(null);
 
-  useEffect(() => {
+  // A layout effect, so the delay timer is cleared in the same commit that
+  // renders the data. With a passive effect the timer could fire between that
+  // commit and the cleanup, and put the skeleton back over loaded rows.
+  useLayoutEffect(() => {
     if (loading) {
       if (shownAt.current !== null) return undefined;
       const timer = setTimeout(() => {
