@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PM Dashboard</title>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  /* ABYAN tokens (DESIGN_IDENTITY.md §14.1) */
+  :root{
+    --color-primary:#363EE8; --color-primary-700:#191FA8; --color-primary-900:#040E6B;
+    --color-primary-200:#C8D1FF; --color-primary-50:#EEF0FF; --series-4:#8A96FF;
+    --bg-page:#F1F5F9; --bg-surface:#FFFFFF;
+    --neutral-800:#28343D; --neutral-600:#515F69; --neutral-400:#94A3B8; --neutral-200:#E2E8F0;
+    --success-100:#DCFCE7; --success-500:#16A85A; --success-700:#0F7A40;
+    --warning-100:#FCE8C8; --warning-500:#E8821A; --warning-700:#A8590A;
+    --error-100:#FDE2E2; --error-500:#E05252; --error-700:#B42323;
+    --gradient-hero:linear-gradient(180deg,#363EE8 0%,#040E6B 100%);
+    --gradient-button:linear-gradient(180deg,#363EE8 0%,#191FA8 100%);
+    --radius-md:8px; --radius-lg:12px; --radius-pill:999px;
+    --shadow-1:0 1px 2px rgba(16,30,41,.06),0 1px 3px rgba(16,30,41,.08);
+    --ease:cubic-bezier(.2,.8,.2,1);
+    --rail:72px; --font:'Poppins',system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;
+    /* Adjectival rating series: brand blues for passing ratings, status colors only for U and P (§9.11) */
+    --r-o:#040E6B; --r-vs:#363EE8; --r-s:#C8D1FF; --r-u:var(--warning-500); --r-p:var(--error-500);
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:var(--font);background:var(--bg-page);color:var(--neutral-800);font-size:13px;line-height:18px}
+  a{color:var(--color-primary);text-decoration:none;font-weight:500}
+  a:hover{color:var(--color-primary-700);text-decoration:underline}
+  svg.i{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.75;stroke-linecap:round;stroke-linejoin:round;flex:none}
+  svg.i.s{width:16px;height:16px}
+
+  /* Top bar §8.2 */
+  .topbar{position:sticky;top:0;z-index:5;height:56px;background:var(--color-primary);display:flex;align-items:center;padding:0 20px;gap:12px;color:#fff}
+  .logo{width:32px;height:32px;border:1.5px dashed rgba(255,255,255,.6);border-radius:8px;display:grid;place-items:center;font-size:8px;line-height:9px;text-align:center;color:rgba(255,255,255,.8)}
+  .wordmark{font-weight:700;font-size:18px;letter-spacing:.5px}
+  .sysname{font-size:14px}
+  .user{margin-left:auto;display:flex;align-items:center;gap:12px}
+  .avatar{width:32px;height:32px;border-radius:50%;background:rgba(255,255,255,.18);display:grid;place-items:center}
+  .user b{display:block;font-size:13px;font-weight:600}
+  .user small{display:block;font-size:12px;opacity:.8}
+  .divider{width:1px;height:28px;background:rgba(255,255,255,.25)}
+  .logout{display:flex;align-items:center;gap:8px;height:36px;padding:0 12px;border-radius:12px;background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.35);color:#fff;font:600 13px var(--font);cursor:pointer}
+  .logout span{color:#fff}
+
+  /* Icon rail §9.12 (collapsed) */
+  .rail{position:fixed;left:0;top:56px;bottom:0;width:var(--rail);background:var(--gradient-hero);padding:16px 0;display:flex;flex-direction:column;gap:8px;z-index:4}
+  .rail .item{margin-left:12px;width:48px;height:48px;border-radius:24px;display:grid;place-items:center}
+  .rail .chip{width:40px;height:40px;border-radius:50%;display:grid;place-items:center;background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.22);color:rgba(255,255,255,.85)}
+  .rail .item.active{background:var(--bg-page)}
+  .rail .item.active .chip{background:transparent;border-color:transparent;color:var(--color-primary)}
+  .rail .bottom{margin-top:auto}
+  .page{margin-left:var(--rail)}
+
+  /* Compact hero (§8.2 sub-page): straight edges, gradient only */
+  .hero{background:var(--gradient-hero);color:#fff;padding:16px 24px 76px;display:flex;justify-content:space-between;align-items:flex-end;gap:16px;flex-wrap:wrap}
+  .crumbs{font-size:12px;color:rgba(255,255,255,.85);display:flex;gap:6px;align-items:center;margin-bottom:6px}
+  .crumbs b{color:#fff;font-weight:600}
+  .hero h1{font-size:22px;line-height:28px;font-weight:700;color:#fff}
+  .hero p{color:rgba(255,255,255,.9);margin-top:2px}
+  .hero-meta{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+  .select-white{display:inline-flex;align-items:center;gap:6px;height:32px;padding:0 12px;border-radius:var(--radius-pill);border:1px solid rgba(255,255,255,.5);color:#fff;font-size:12px;font-weight:500;cursor:pointer}
+  .asof{font-size:12px;color:rgba(255,255,255,.8);margin-left:4px}
+
+  main{padding:0 24px 32px;margin-top:-60px;display:grid;gap:16px}
+
+  /* KPI cards §9.7 */
+  .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px}
+  .kpi{background:var(--bg-surface);border:1px solid var(--neutral-200);border-radius:var(--radius-lg);padding:20px;display:flex;flex-direction:column;gap:12px;cursor:pointer;transition:box-shadow .18s var(--ease),border-color .18s var(--ease);color:inherit}
+  .kpi:hover{box-shadow:var(--shadow-1);border-color:var(--color-primary-200);text-decoration:none;color:inherit}
+  .kpi:focus-visible{outline:2px solid var(--color-primary);outline-offset:2px}
+  .kpi-h{display:flex;align-items:center;gap:10px;font-size:14px;line-height:16px;font-weight:500;color:var(--neutral-600)}
+  .ichip{width:36px;height:36px;border-radius:10px;background:var(--color-primary-50);color:var(--color-primary);display:grid;place-items:center;flex:none}
+  .kpi .v{font-size:36px;line-height:40px;font-weight:700;color:var(--color-primary-900);display:flex;align-items:baseline;gap:8px}
+  .kpi .v small{font-size:13px;font-weight:500;color:var(--neutral-600)}
+  .kpi .sub{font-size:12px;line-height:16px;color:var(--neutral-600);margin-top:-6px}
+  .kpi .foot{margin-top:auto;display:flex;align-items:center;justify-content:space-between;gap:8px;min-height:22px}
+  .track{height:6px;border-radius:3px;background:var(--color-primary-50);overflow:hidden}
+  .track i{display:block;height:100%;border-radius:3px;background:var(--color-primary)}
+
+  /* Badges §9.8 */
+  .badge{display:inline-flex;align-items:center;gap:6px;height:22px;padding:0 10px;border-radius:var(--radius-pill);font-size:12px;font-weight:500;white-space:nowrap}
+  .badge::before{content:"";width:6px;height:6px;border-radius:50%;background:var(--d)}
+  .b-warning{background:var(--warning-100);color:var(--warning-700);--d:var(--warning-500)}
+  .b-error{background:var(--error-100);color:var(--error-700);--d:var(--error-500)}
+  .b-info{background:#E0E5FF;color:var(--color-primary-700);--d:var(--color-primary)}
+  .b-neutral{background:var(--bg-page);color:var(--neutral-800);--d:#64748B}
+
+  /* Section cards */
+  .card{background:var(--bg-surface);border:1px solid var(--neutral-200);border-radius:var(--radius-lg);padding:16px 20px 20px;min-width:0}
+  .card-h{display:flex;justify-content:space-between;align-items:center;gap:12px;padding-bottom:12px;margin-bottom:16px;border-bottom:1px solid var(--neutral-200);flex-wrap:wrap}
+  .sec-h{display:flex;align-items:center;gap:10px}
+  .sec-h h3{font-size:16px;line-height:22px;font-weight:600;color:var(--color-primary-900)}
+  .sec-h p{font-size:12px;color:var(--neutral-600)}
+  .actions{display:flex;align-items:center;gap:16px}
+  .btn{display:inline-flex;align-items:center;gap:8px;height:36px;padding:0 16px;border-radius:var(--radius-pill);font:600 13px var(--font);cursor:pointer;border:1.5px solid transparent;white-space:nowrap;transition:background .15s,box-shadow .15s}
+  .btn-primary{background:var(--gradient-button);color:#fff}
+  .btn-primary:hover{background:var(--color-primary-700)}
+  .btn-primary:focus-visible{box-shadow:0 4px 14px rgba(54,62,232,.4),0 0 0 3px var(--color-primary-200);outline:none}
+  .overline{font-size:12px;font-weight:600;letter-spacing:.4px;text-transform:uppercase;color:var(--neutral-600);margin-bottom:10px;display:flex;justify-content:space-between;align-items:center;gap:8px}
+
+  /* Tables §9.5 */
+  .tbl{border:1px solid var(--neutral-200);border-radius:var(--radius-lg);overflow:hidden;overflow-x:auto}
+  table{width:100%;border-collapse:collapse}
+  th{background:var(--bg-page);text-align:left;font-size:12px;font-weight:600;color:var(--color-primary-900);padding:9px 14px;white-space:nowrap}
+  td{padding:10px 14px;border-top:1px solid var(--neutral-200);font-size:13px;font-weight:500;vertical-align:middle}
+  tr:hover td{background:#F8FAFF}
+  .n{text-align:right;font-variant-numeric:tabular-nums}
+  .pri{color:var(--color-primary-900);font-weight:600}
+  .meta{display:block;font-size:12px;color:var(--neutral-600);font-weight:500}
+  .mute{color:var(--neutral-400)}
+
+  /* Submission rate row bar with target marker */
+  .rate{display:flex;align-items:center;gap:10px;min-width:180px}
+  .rate .track{flex:1;position:relative;overflow:visible;height:8px;border-radius:4px}
+  .rate .track i{border-radius:4px}
+  .rate .track i.low{background:var(--warning-500)}
+  .rate .track::after{content:"";position:absolute;left:85%;top:-3px;bottom:-3px;width:2px;border-radius:1px;background:var(--color-primary-900);opacity:.35}
+  .rate b{width:38px;text-align:right;color:var(--color-primary-900);font-weight:600;font-variant-numeric:tabular-nums}
+
+  /* Results */
+  .metrics{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:20px}
+  .m .l{font-size:12px;font-weight:500;color:var(--neutral-600)}
+  .m .v{font-size:24px;line-height:30px;font-weight:700;color:var(--color-primary-900)}
+  .m .v small{font-size:12px;font-weight:500;color:var(--neutral-600);margin-left:4px}
+  .m .f{font-size:12px;font-weight:500;color:var(--neutral-600)}
+  .m .f.up{color:var(--success-700)} .m .f.err{color:var(--error-700)}
+  .split{display:grid;grid-template-columns:minmax(0,1.75fr) minmax(280px,1fr);gap:24px}
+  .stack{display:flex;height:10px;border-radius:5px;overflow:hidden;gap:2px;background:transparent}
+  .stack i{display:block;height:100%}
+  .stack.lg{height:14px;border-radius:7px}
+  .legend{display:flex;gap:14px;flex-wrap:wrap;font-size:12px;font-weight:500;color:var(--neutral-600);text-transform:none;letter-spacing:0}
+  .legend span{display:inline-flex;align-items:center;gap:6px}
+  .legend span::before{content:"";width:10px;height:10px;border-radius:3px;background:var(--c)}
+  .legend b{color:var(--color-primary-900);font-weight:600}
+  .callout{display:flex;gap:8px;align-items:flex-start;margin-top:12px;padding:10px 12px;border-radius:var(--radius-md);background:var(--color-primary-50);font-size:12px;color:var(--color-primary-700)}
+
+  .people{display:grid}
+  .person{display:grid;grid-template-columns:36px 1fr auto;gap:12px;align-items:center;padding:10px 0;border-top:1px solid var(--neutral-200)}
+  .person:first-child{border-top:0;padding-top:0}
+  .pchip{width:36px;height:36px;border-radius:50%;background:var(--color-primary-50);color:var(--color-primary-700);display:grid;place-items:center;font-size:12px;font-weight:600}
+  .person .name{color:var(--color-primary-900);font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .person .why{font-size:12px;color:var(--error-700);font-weight:500}
+  .viewall{display:block;margin-top:12px;padding-top:12px;border-top:1px solid var(--neutral-200)}
+
+  .notes{background:#fff;border:1px dashed var(--color-primary-200);border-radius:var(--radius-lg);padding:14px 20px}
+  .notes h3{font-size:14px;font-weight:600;color:var(--color-primary-900);margin-bottom:8px}
+  .notes ol{padding-left:18px;display:grid;gap:4px;font-size:12px}
+  .notes b{color:var(--color-primary-900)}
+
+  @media (prefers-reduced-motion:reduce){*{transition:none!important}}
+  @media (max-width:1100px){.split{grid-template-columns:1fr}}
+  @media (max-width:1023px){.sysname{display:none}.metrics{grid-template-columns:1fr 1fr}}
+  @media (max-width:639px){
+    .user b,.user small,.divider,.logout span{display:none}
+    .rail{display:none}.page{margin-left:0}
+    .hero{padding:16px 16px 72px}main{padding:0 16px 24px}
+  }
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="logo" title="Use the real USWAG mark file (§2)">logo<br>mark</div>
+  <span class="wordmark">ABYAN</span><span class="sysname">Human Resource Information System</span>
+  <div class="user">
+    <span class="avatar"><svg class="i" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="10" r="3"/><path d="M7 20.7a6 6 0 0 1 10 0"/></svg></span>
+    <div><b>PM Admin</b><small>PM Division</small></div>
+    <span class="divider"></span>
+    <button class="logout" aria-label="Logout"><svg class="i s" viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/></svg><span>Logout</span></button>
+  </div>
+</header>
+
+<aside class="rail" aria-label="Main navigation">
+  <a class="item active" aria-label="Dashboard" aria-current="page"><span class="chip"><svg class="i" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="9" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="14" y="12" width="7" height="9" rx="1"/><rect x="3" y="16" width="7" height="5" rx="1"/></svg></span></a>
+  <a class="item" aria-label="Departments"><span class="chip"><svg class="i" viewBox="0 0 24 24"><path d="M6 22V4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v18Z"/><path d="M6 12H4a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h2M18 9h2a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-2M10 6h4M10 10h4M10 14h4M10 18h4"/></svg></span></a>
+  <a class="item" aria-label="Reports"><span class="chip"><svg class="i" viewBox="0 0 24 24"><path d="M3 3v18h18"/><path d="M18 17V9M13 17V5M8 17v-3"/></svg></span></a>
+  <a class="item" aria-label="IPCR"><span class="chip"><svg class="i" viewBox="0 0 24 24"><rect x="8" y="2" width="8" height="4" rx="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="m9 14 2 2 4-4"/></svg></span></a>
+  <a class="item" aria-label="Guidelines"><span class="chip"><svg class="i" viewBox="0 0 24 24"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2zM22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg></span></a>
+  <a class="item" aria-label="Archive"><span class="chip"><svg class="i" viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="5" rx="1"/><path d="M4 8v11a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8M10 12h4"/></svg></span></a>
+  <a class="item bottom" aria-label="Settings"><span class="chip"><svg class="i" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg></span></a>
+</aside>
+
+<div class="page">
+  <section class="hero">
+    <div>
+      <div class="crumbs">Performance Management <span>›</span> <b>Dashboard</b></div>
+      <h1>PM Dashboard</h1>
+      <p>Performance evaluation overview for the Jan–Jun 2026 rating period</p>
+    </div>
+    <div class="hero-meta">
+      <span class="select-white">Jan–Jun 2026 <svg class="i s" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg></span>
+      <span class="select-white">All departments <svg class="i s" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg></span>
+      <span class="asof">As of Oct 16, 2026</span>
+    </div>
+  </section>
+
+  <main>
+
+    <!-- KPI ROW -->
+    <section class="kpis" aria-label="Key metrics">
+      <a class="kpi" href="#submission" data-choice="kpi-submission">
+        <div class="kpi-h"><span class="ichip"><svg class="i" viewBox="0 0 24 24"><rect x="8" y="2" width="8" height="4" rx="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="m9 14 2 2 4-4"/></svg></span>IPCR submission rate</div>
+        <div class="v">79%<small>142 of 180</small></div>
+        <div class="track" role="img" aria-label="79 percent submitted"><i style="width:79%"></i></div>
+        <div class="foot"><span class="badge b-error">2 overdue</span><span class="sub" style="margin:0">7 due in 30 days</span></div>
+      </a>
+      <a class="kpi" href="#">
+        <div class="kpi-h"><span class="ichip"><svg class="i" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg></span>Pending IPCR reviews</div>
+        <div class="v">12</div>
+        <div class="sub">Awaiting validation</div>
+        <div class="foot"><span class="badge b-warning">Oldest 6 days</span></div>
+      </a>
+      <a class="kpi" href="#">
+        <div class="kpi-h"><span class="ichip"><svg class="i" viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M19 8v6M22 11h-6"/></svg></span>Pending IPCR (probationary)</div>
+        <div class="v">5</div>
+        <div class="sub">Hired within 6 months</div>
+        <div class="foot"><span class="badge b-warning">3 reach 6 months soon</span></div>
+      </a>
+      <a class="kpi" href="#">
+        <div class="kpi-h"><span class="ichip"><svg class="i" viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg></span>Pending IPCR (regular)</div>
+        <div class="v">33</div>
+        <div class="sub">Tenured over 6 months</div>
+        <div class="foot"></div>
+      </a>
+    </section>
+
+    <!-- SUBMISSION BY DEPARTMENT -->
+    <section class="card" id="submission">
+      <div class="card-h">
+        <div class="sec-h"><span class="ichip"><svg class="i" viewBox="0 0 24 24"><path d="M6 22V4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v18Z"/><path d="M6 12H4a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h2M18 9h2a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-2M10 6h4M10 10h4M10 14h4M10 18h4"/></svg></span>
+          <div><h3>IPCR submission by department</h3><p>Lowest rate first · deadline Jul 31, 2026 · target 85%</p></div></div>
+        <div class="actions"><a href="#">View all departments →</a></div>
+      </div>
+      <div class="tbl"><table>
+        <thead><tr><th scope="col">Department</th><th scope="col" style="width:38%">Submission rate</th><th scope="col" class="n">Submitted</th><th scope="col" class="n">Not submitted</th><th scope="col">Status</th></tr></thead>
+        <tbody>
+          <tr><td class="pri">City Health Office</td><td><div class="rate"><div class="track"><i class="low" style="width:70%"></i></div><b>70%</b></div></td><td class="n">28 / 40</td><td class="n">12</td><td><span class="badge b-error">1 overdue</span></td></tr>
+          <tr><td class="pri">City Treasurer's Office</td><td><div class="rate"><div class="track"><i class="low" style="width:71%"></i></div><b>71%</b></div></td><td class="n">12 / 17</td><td class="n">5</td><td><span class="badge b-warning">Below target</span></td></tr>
+          <tr><td class="pri">Office of the City Engineer</td><td><div class="rate"><div class="track"><i class="low" style="width:73%"></i></div><b>73%</b></div></td><td class="n">35 / 48</td><td class="n">13</td><td><span class="badge b-error">1 overdue</span></td></tr>
+          <tr><td class="pri">Social Welfare and Development</td><td><div class="rate"><div class="track"><i class="low" style="width:83%"></i></div><b>83%</b></div></td><td class="n">15 / 18</td><td class="n">3</td><td><span class="badge b-warning">Below target</span></td></tr>
+          <tr><td class="pri">City Accounting Office</td><td><div class="rate"><div class="track"><i style="width:88%"></i></div><b>88%</b></div></td><td class="n">22 / 25</td><td class="n">3</td><td><span class="mute">On track</span></td></tr>
+          <tr><td class="pri">Human Resource Management Office</td><td><div class="rate"><div class="track"><i style="width:94%"></i></div><b>94%</b></div></td><td class="n">30 / 32</td><td class="n">2</td><td><span class="mute">On track</span></td></tr>
+        </tbody>
+      </table></div>
+      <div class="legend" style="margin-top:10px"><span style="--c:var(--color-primary)">At or above target</span><span style="--c:var(--warning-500)">Below 85% target</span><span style="--c:rgba(4,14,107,.35)">Target line</span></div>
+    </section>
+
+    <!-- IPCR RESULTS -->
+    <section class="card">
+      <div class="card-h">
+        <div class="sec-h"><span class="ichip"><svg class="i" viewBox="0 0 24 24"><path d="M3 3v18h18"/><path d="M18 17V9M13 17V5M8 17v-3"/></svg></span>
+          <div><h3>IPCR results</h3><p>142 evaluated · Jan–Jun 2026</p></div></div>
+        <div class="actions"><a href="#">Full report →</a></div>
+      </div>
+
+      <div class="metrics">
+        <div class="m"><div class="l">Office average</div><div class="v">3.81<small>Very Satisfactory</small></div><div class="f up">▲ 0.12 vs Jul–Dec 2025</div></div>
+        <div class="m"><div class="l">Outstanding</div><div class="v">27<small>19%</small></div><div class="f">▲ 4 vs last period</div></div>
+        <div class="m"><div class="l">Very Satisfactory or higher</div><div class="v">67<small>%</small></div><div class="f">95 of 142</div></div>
+        <div class="m"><div class="l">Rated U or P</div><div class="v">6<small>4%</small></div><div class="f err">Needs intervention</div></div>
+      </div>
+
+      <div class="split">
+        <div>
+          <div class="overline"><span>Rating distribution · whole office</span></div>
+          <div class="stack lg" role="img" aria-label="Outstanding 27, Very Satisfactory 68, Satisfactory 41, Unsatisfactory 5, Poor 1">
+            <i style="width:19%;background:var(--r-o)"></i><i style="width:48%;background:var(--r-vs)"></i><i style="width:29%;background:var(--r-s)"></i><i style="width:3.5%;background:var(--r-u)"></i><i style="width:.7%;min-width:3px;background:var(--r-p)"></i>
+          </div>
+          <div class="legend" style="margin:10px 0 20px"><span style="--c:var(--r-o)">Outstanding <b>27</b></span><span style="--c:var(--r-vs)">Very Satisfactory <b>68</b></span><span style="--c:var(--r-s)">Satisfactory <b>41</b></span><span style="--c:var(--r-u)">Unsatisfactory <b>5</b></span><span style="--c:var(--r-p)">Poor <b>1</b></span></div>
+
+          <div class="overline"><span>By department · highest average first</span></div>
+          <div class="tbl"><table>
+            <thead><tr><th scope="col">Department</th><th scope="col" style="width:42%">Rating mix</th><th scope="col" class="n">Average</th><th scope="col">Rating</th></tr></thead>
+            <tbody>
+              <tr><td class="pri">Human Resource Management Office</td><td><div class="stack"><i style="width:40%;background:var(--r-o)"></i><i style="width:47%;background:var(--r-vs)"></i><i style="width:13%;background:var(--r-s)"></i></div></td><td class="n pri">4.27</td><td><span class="badge b-info">Very Satisfactory</span></td></tr>
+              <tr><td class="pri">City Accounting Office</td><td><div class="stack"><i style="width:18%;background:var(--r-o)"></i><i style="width:64%;background:var(--r-vs)"></i><i style="width:18%;background:var(--r-s)"></i></div></td><td class="n pri">4.00</td><td><span class="badge b-info">Very Satisfactory</span></td></tr>
+              <tr><td class="pri">Social Welfare and Development</td><td><div class="stack"><i style="width:20%;background:var(--r-o)"></i><i style="width:47%;background:var(--r-vs)"></i><i style="width:33%;background:var(--r-s)"></i></div></td><td class="n pri">3.87</td><td><span class="badge b-info">Very Satisfactory</span></td></tr>
+              <tr><td class="pri">City Health Office</td><td><div class="stack"><i style="width:14%;background:var(--r-o)"></i><i style="width:50%;background:var(--r-vs)"></i><i style="width:29%;background:var(--r-s)"></i><i style="width:7%;background:var(--r-u)"></i></div></td><td class="n pri">3.71</td><td><span class="badge b-info">Very Satisfactory</span></td></tr>
+              <tr><td class="pri">City Treasurer's Office</td><td><div class="stack"><i style="width:8%;background:var(--r-o)"></i><i style="width:50%;background:var(--r-vs)"></i><i style="width:42%;background:var(--r-s)"></i></div></td><td class="n pri">3.66</td><td><span class="badge b-info">Very Satisfactory</span></td></tr>
+              <tr><td class="pri">Office of the City Engineer</td><td><div class="stack"><i style="width:9%;background:var(--r-o)"></i><i style="width:37%;background:var(--r-vs)"></i><i style="width:43%;background:var(--r-s)"></i><i style="width:8%;background:var(--r-u)"></i><i style="width:3%;background:var(--r-p)"></i></div></td><td class="n pri">3.41</td><td><span class="badge b-neutral">Satisfactory</span></td></tr>
+            </tbody>
+          </table></div>
+          <div class="callout"><svg class="i s" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg><span>HRMO rated 40% of its staff Outstanding, about twice the office rate of 19%. Check whether its success indicators were set at the right level.</span></div>
+        </div>
+
+        <div>
+          <div class="overline"><span>Needs intervention</span><span class="badge b-error" style="text-transform:none;letter-spacing:0">6 employees</span></div>
+          <div class="people">
+            <div class="person"><span class="pchip">RD</span><div style="min-width:0"><div class="name">R. Dela Cruz</div><span class="meta">Engineering Aide · City Engineer</span></div><span class="badge b-error">Poor</span></div>
+            <div class="person"><span class="pchip">JS</span><div style="min-width:0"><div class="name">J. Santos</div><span class="meta">Engineer II · City Engineer</span><span class="why">2nd consecutive Unsatisfactory</span></div><span class="badge b-warning">Unsatisfactory</span></div>
+            <div class="person"><span class="pchip">MR</span><div style="min-width:0"><div class="name">M. Reyes</div><span class="meta">Nurse I · City Health</span></div><span class="badge b-warning">Unsatisfactory</span></div>
+            <div class="person"><span class="pchip">AV</span><div style="min-width:0"><div class="name">A. Villanueva</div><span class="meta">Midwife II · City Health</span></div><span class="badge b-warning">Unsatisfactory</span></div>
+          </div>
+          <a class="viewall" href="#">View all (6) →</a>
+          <button class="btn btn-primary" style="width:100%;justify-content:center;margin-top:12px"><svg class="i s" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>Create Development Plans</button>
+        </div>
+      </div>
+    </section>
+
+    <section class="notes">
+      <h3>How this follows DESIGN_IDENTITY.md</h3>
+      <ol>
+        <li><b>Portal chrome §8.2, §9.12.</b> Same top bar, rail and compact hero as the RSP dashboard. The breadcrumb, title and period filters sit in the hero, and the KPI row overlaps it.</li>
+        <li><b>KPI cards §9.7.</b> Each card has a brand-tint icon chip, a sentence-case title and a 36px value. The submission rate card replaces "Completed evaluations" because it shows the same count against the total. Status appears only in the small badges, never as colored numbers.</li>
+        <li><b>Color means something §1, §9.11.</b> Passing ratings use brand blues (Outstanding is the deepest). Orange and red appear only for Unsatisfactory, Poor, below-target departments and overdue items, and each one has a text label.</li>
+        <li><b>Tables §9.5.</b> Numbers are right-aligned, departments sort worst first for submissions and best first for results, and the target line shows how far each department has to go.</li>
+        <li><b>One primary action §9.1.</b> Create Development Plans is the only filled button on the page. Everything else is a link.</li>
+        <li><b>Not shown.</b> The Action Required Queue stays as it is, below these sections. All numbers and names are sample data.</li>
+      </ol>
+    </section>
+
+  </main>
+</div>
+</body>
+</html>
