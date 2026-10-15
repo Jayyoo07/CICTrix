@@ -1,7 +1,7 @@
 ---
 title: PM dashboard submission rate and IPCR results
 date: 2026-10-16
-status: In Progress
+status: Done
 summary: Replace the PM dashboard header, KPI cards and Performance Distribution donut with a gradient header, an IPCR submission rate KPI, a submission-by-department table and an IPCR results section, all in DESIGN_IDENTITY.md colors.
 spec: docs/mockups/2026-10-16-pm-dashboard.html (chosen 2026-10-16, v3)
 ---
