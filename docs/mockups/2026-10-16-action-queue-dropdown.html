@@ -1,0 +1,39 @@
+<h2>Action Required Queue: one collapsible card (chosen 2026-10-16)</h2>
+<p class="subtitle">Both start collapsed so the dashboard stays short. Click the bars to open and close them.</p>
+
+<div class="cards" style="grid-template-columns:1fr;">
+
+  <!-- A: whole card collapses -->
+  <div class="card" data-choice="a" onclick="toggleSelect(this)">
+    <div class="card-image" style="background:#F1F5F9;padding:20px;font-family:Poppins,system-ui,sans-serif;">
+      <details style="background:#fff;border:1px solid #E2E8F0;border-radius:12px;overflow:hidden;max-width:760px;margin:auto;">
+        <summary style="list-style:none;display:flex;align-items:center;gap:10px;padding:14px 20px;cursor:pointer;">
+          <span style="font:600 16px/24px Poppins;color:#040E6B;">Action required</span>
+          <span style="background:#FCE8C8;color:#A8590A;font:500 12px/16px Poppins;padding:3px 10px;border-radius:999px;">20 pending</span>
+          <span style="background:#FDE2E2;color:#B42323;font:500 12px/16px Poppins;padding:3px 10px;border-radius:999px;">3 overdue</span>
+          <span style="margin-left:auto;font:500 13px Poppins;color:#515F69;">Show ⌄</span>
+        </summary>
+        <div style="font:500 14px/18px Poppins;border-top:1px solid #E2E8F0;">
+          <div style="display:flex;align-items:center;gap:12px;padding:12px 20px;border-bottom:1px solid #E2E8F0;">
+            <div style="flex:1;"><div style="color:#040E6B;font-weight:600;">Maria Reyes</div><div style="font-size:12px;color:#515F69;">Accounting Office · IPCR Validation</div></div>
+            <span style="background:#FDE2E2;color:#B42323;font-size:12px;padding:3px 10px;border-radius:999px;">Waiting 9 days</span>
+            <button style="height:32px;padding:0 14px;border-radius:999px;border:1.5px solid #363EE8;color:#363EE8;background:#fff;font:600 13px Poppins;">Review</button>
+          </div>
+          <div style="display:flex;align-items:center;gap:12px;padding:12px 20px;border-bottom:1px solid #E2E8F0;">
+            <div style="flex:1;"><div style="color:#040E6B;font-weight:600;">Juan Santos</div><div style="font-size:12px;color:#515F69;">City Engineer's Office · Other Relevant Documents</div></div>
+            <span style="background:#FDE2E2;color:#B42323;font-size:12px;padding:3px 10px;border-radius:999px;">Waiting 8 days</span>
+            <button style="height:32px;padding:0 14px;border-radius:999px;border:1.5px solid #363EE8;color:#363EE8;background:#fff;font:600 13px Poppins;">Review</button>
+          </div>
+          <div style="display:flex;align-items:center;gap:12px;padding:12px 20px;border-bottom:1px solid #E2E8F0;">
+            <div style="flex:1;"><div style="color:#040E6B;font-weight:600;">Ana Lim</div><div style="font-size:12px;color:#515F69;">HRMO · Self Evaluation</div></div>
+            <span style="background:#F1F5F9;color:#28343D;font-size:12px;padding:3px 10px;border-radius:999px;">Today</span>
+            <button style="height:32px;padding:0 14px;border-radius:999px;border:1.5px solid #363EE8;color:#363EE8;background:#fff;font:600 13px Poppins;">Review</button>
+          </div>
+          <div style="padding:12px 20px;text-align:center;"><a style="color:#363EE8;font:500 14px Poppins;">View all 20 →</a></div>
+        </div>
+      </details>
+    </div>
+    <div class="card-body"><h3>A. One collapsible card</h3><p>Collapsed, it's a single 52px bar with the pending and overdue counts. Open, it shows the 5 oldest items and a "View all" link. Simplest; one click to see anything.</p></div>
+  </div>
+
+</div>

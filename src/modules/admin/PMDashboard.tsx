@@ -102,6 +102,30 @@ type EvaluationGroup = {
   employees: EvaluationEmployeeRow[];
 };
 
+// Action Required Queue (docs/plans/2026-10-16-action-queue-dropdown.md)
+const QUEUE_PREVIEW_ROWS = 5;
+const QUEUE_WARNING_DAYS = 3;
+const QUEUE_OVERDUE_DAYS = 7;
+const MS_PER_DAY = 24 * 60 * 60 * 1000;
+
+type ActionQueueItem = {
+  key: string;
+  name: string | null;
+  dept: string | null;
+  type: string;
+  daysWaiting: number;
+  overdue: boolean;
+};
+
+const queueAgeChip = (item: ActionQueueItem) => {
+  const label = item.daysWaiting === 0
+    ? 'Today'
+    : `Waiting ${item.daysWaiting} day${item.daysWaiting === 1 ? '' : 's'}`;
+  if (item.overdue) return { label, className: 'bg-[var(--error-100)] text-[var(--error-700)]' };
+  if (item.daysWaiting >= QUEUE_WARNING_DAYS) return { label, className: 'bg-[var(--warning-100)] text-[var(--warning-700)]' };
+  return { label, className: 'bg-[var(--neutral-100)] text-[var(--neutral-800)]' };
+};
+
 
 interface EvaluationCycle {
   id: number;
@@ -428,6 +452,8 @@ export const PMDashboard = ({
   });
   const [ipcrLoading, setIpcrLoading] = useState(false);
   const [ipcrSubmissionTab, setIpcrSubmissionTab] = useState<'pending' | 'recent'>('pending');
+  const [actionQueueOpen, setActionQueueOpen] = useState(false);
+  const [actionQueueShowAll, setActionQueueShowAll] = useState(false);
 
   const refreshDocumentRequests = async () => {
     const result = await getDocumentRequests({ source: 'PM' });
@@ -453,30 +479,42 @@ export const PMDashboard = ({
   const reviewPageData = reviewsData.slice(reviewStartIdx, reviewStartIdx + reviewRowsPerPage);
 
   // Action-required queue: pending document requests + evaluations awaiting review.
+  // Oldest first, so the longest-waiting items lead the collapsed preview.
   const actionRequiredQueue = (() => {
-    const items: Array<{ name: string; dept: string; type: string; typeColor: string }> = [];
+    const now = Date.now();
+    const daysSince = (iso: string) => Math.max(0, Math.floor((now - new Date(iso).getTime()) / MS_PER_DAY));
+    const items: ActionQueueItem[] = [];
     for (const e of evaluations) {
       if (e.status === 'Supervisor Review' || e.status === 'Self Evaluation') {
+        const daysWaiting = daysSince(e.submitted_at ?? e.created_at);
         items.push({
-          name: e.employee_name ?? 'Unknown',
-          dept: e.department ?? 'Unassigned',
+          key: `eval-${e.id}`,
+          name: e.employee_name ?? null,
+          dept: e.department ?? null,
           type: e.status === 'Supervisor Review' ? 'IPCR Validation' : 'Self Evaluation',
-          typeColor: 'bg-emerald-100 text-emerald-700',
+          daysWaiting,
+          overdue: daysWaiting >= QUEUE_OVERDUE_DAYS,
         });
       }
     }
     for (const d of documentRequests) {
       if (d.status === 'Pending' || d.status === 'Submitted') {
+        const daysWaiting = daysSince(d.uploaded_at);
+        const pastDue = d.due_date !== null && new Date(d.due_date).getTime() < now;
         items.push({
-          name: d.employee_name ?? 'Unknown',
-          dept: d.department ?? 'Unassigned',
+          key: `doc-${d.id}`,
+          name: d.employee_name ?? null,
+          dept: d.department ?? null,
           type: d.document_type,
-          typeColor: 'bg-slate-100 text-slate-600',
+          daysWaiting,
+          overdue: pastDue || daysWaiting >= QUEUE_OVERDUE_DAYS,
         });
       }
     }
-    return items;
+    return items.sort((a, b) => b.daysWaiting - a.daysWaiting);
   })();
+  const actionQueueOverdue = actionRequiredQueue.filter(item => item.overdue).length;
+  const actionQueueRows = actionQueueShowAll ? actionRequiredQueue : actionRequiredQueue.slice(0, QUEUE_PREVIEW_ROWS);
 
   // Recent IPCR submissions for the dashboard table (most recent first, top 6).
   const recentIPCRs = evaluations
@@ -1029,45 +1067,72 @@ export const PMDashboard = ({
                 {/* â”€â”€ Middle Section (60/40) â”€â”€ */}
                 <div className="mt-6 grid grid-cols-1 xl:grid-cols-5 gap-6">
                   {/* Left â€“ Action Required Queue (60%) */}
-                  <section className="xl:col-span-3 rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">
-                    <header className="px-5 py-3.5 border-b border-slate-100 flex items-center justify-between">
-                      <div className="flex items-center gap-2.5">
-                        <span className="inline-block h-2.5 w-2.5 rounded-full bg-orange-400" />
-                        <h3 className="text-sm font-bold text-slate-800">Action Required Queue</h3>
-                        <span className="rounded-full bg-emerald-100 px-2.5 py-0.5 text-[11px] font-semibold text-emerald-700">{actionRequiredQueue.length} pending</span>
-                      </div>
-                      <button type="button" className="text-xs font-medium text-blue-600 hover:underline">View all</button>
-                    </header>
-                    {/* Column headers */}
-                    <div className="grid grid-cols-12 items-center gap-2 px-5 py-2 text-[11px] font-semibold text-slate-400 uppercase tracking-wider border-b border-slate-50">
-                      <div className="col-span-3">Employee</div>
-                      <div className="col-span-3">Department</div>
-                      <div className="col-span-3">Request Type</div>
-                      <div className="col-span-3 text-right">Action</div>
-                    </div>
-                    <div className="divide-y divide-slate-100 relative min-h-[60px]">
-                      {evaluationsLoading && <div className="absolute inset-0 bg-white/50 backdrop-blur-[1px] z-10" />}
-                      {actionRequiredQueue.length === 0 && !evaluationsLoading ? (
-                        <div className="py-8 text-center text-slate-500 text-sm italic">
-                          No pending actions
-                        </div>
-                      ) : (
-                        actionRequiredQueue.map((row, idx) => (
-                          <div key={`${row.name}-${idx}`} className="grid grid-cols-12 items-center gap-2 px-5 py-3.5 text-sm hover:bg-slate-50/60 transition">
-                            <div className="col-span-3 font-semibold text-slate-800">{row.name}</div>
-                            <div className="col-span-3 text-slate-500">{row.dept}</div>
-                            <div className="col-span-3">
-                              <span className={`inline-block rounded-full px-3 py-0.5 text-xs font-semibold ${row.typeColor}`}>{row.type}</span>
-                            </div>
-                            <div className="col-span-3 text-right">
-                              <button type="button" className="inline-flex items-center gap-1 rounded-lg border border-slate-300 bg-white px-3.5 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition">
-                                Review <span className="text-slate-400">&gt;</span>
-                              </button>
-                            </div>
+                  {/* Collapsed by default so it doesn't push the dashboard down (docs/mockups/2026-10-16-action-queue-dropdown.html). */}
+                  <section className="abyan-ds xl:col-span-3 self-start rounded-xl border border-[var(--neutral-200)] bg-[var(--bg-surface)] overflow-hidden">
+                    <h3>
+                      <button
+                        type="button"
+                        aria-expanded={actionQueueOpen}
+                        aria-controls="pm-action-queue-list"
+                        onClick={() => setActionQueueOpen(open => !open)}
+                        className="flex w-full items-center gap-2.5 px-5 py-3.5 text-left hover:bg-[var(--bg-page)] focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[var(--color-primary)] transition-colors"
+                      >
+                        <span className="text-title-s text-[var(--color-primary-900)]">Action required</span>
+                        {actionRequiredQueue.length > 0 ? (
+                          <span className="text-body-s rounded-full bg-[var(--warning-100)] px-2.5 py-0.5 text-[var(--warning-700)]">{actionRequiredQueue.length} pending</span>
+                        ) : (
+                          <span className="text-body-s rounded-full bg-[var(--neutral-100)] px-2.5 py-0.5 text-[var(--neutral-800)]">None pending</span>
+                        )}
+                        {actionQueueOverdue > 0 && (
+                          <span className="text-body-s rounded-full bg-[var(--error-100)] px-2.5 py-0.5 text-[var(--error-700)]">{actionQueueOverdue} overdue</span>
+                        )}
+                        <span className="text-caption ml-auto inline-flex items-center gap-1 text-[var(--neutral-600)]">
+                          {actionQueueOpen ? 'Hide' : 'Show'}
+                          {actionQueueOpen ? <ChevronUp className="h-4 w-4" aria-hidden="true" /> : <ChevronDown className="h-4 w-4" aria-hidden="true" />}
+                        </span>
+                      </button>
+                    </h3>
+                    {actionQueueOpen && (
+                      <div id="pm-action-queue-list" className="relative min-h-[60px] border-t border-[var(--neutral-200)]">
+                        {evaluationsLoading && <div className="absolute inset-0 bg-white/50 backdrop-blur-[1px] z-10" />}
+                        {actionRequiredQueue.length === 0 && !evaluationsLoading ? (
+                          <p className="text-body-m py-8 text-center text-[var(--neutral-600)]">No pending actions</p>
+                        ) : (
+                          <ul className="divide-y divide-[var(--neutral-200)]">
+                            {actionQueueRows.map(row => {
+                              const age = queueAgeChip(row);
+                              return (
+                                <li key={row.key} className="flex items-center gap-3 px-5 py-3">
+                                  <div className="min-w-0 flex-1">
+                                    {row.name ? (
+                                      <p className="text-body-m truncate font-semibold text-[var(--color-primary-900)]" title={row.name}>{row.name}</p>
+                                    ) : (
+                                      <p className="text-body-m font-semibold italic text-[var(--neutral-600)]">Employee not linked</p>
+                                    )}
+                                    <p className="text-body-s truncate text-[var(--neutral-600)]" title={`${row.dept ?? 'No department'} · ${row.type}`}>
+                                      {row.dept ?? 'No department'} · {row.type}
+                                    </p>
+                                  </div>
+                                  <span className={`text-body-s shrink-0 rounded-full px-2.5 py-0.5 ${age.className}`}>{age.label}</span>
+                                  <button type="button" className="btn btn-sm btn-secondary shrink-0">Review</button>
+                                </li>
+                              );
+                            })}
+                          </ul>
+                        )}
+                        {actionRequiredQueue.length > QUEUE_PREVIEW_ROWS && (
+                          <div className="border-t border-[var(--neutral-200)] px-5 py-3 text-center">
+                            <button
+                              type="button"
+                              onClick={() => setActionQueueShowAll(all => !all)}
+                              className="text-body-m font-medium text-[var(--color-primary)] hover:text-[var(--color-primary-700)] hover:underline"
+                            >
+                              {actionQueueShowAll ? 'Show fewer' : `View all ${actionRequiredQueue.length} →`}
+                            </button>
                           </div>
-                        ))
-                      )}
-                    </div>
+                        )}
+                      </div>
+                    )}
                   </section>
 
                   {/* Right â€“ Performance Distribution Donut (40%) */}
