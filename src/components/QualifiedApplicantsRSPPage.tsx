@@ -4,6 +4,7 @@ import { ApplicantsTabBar } from './ApplicantsTabBar';
 import { PendingAssignmentList } from './PendingAssignmentList';
 import { QualifiedApplicantsSection } from './QualifiedApplicantsSection';
 import { Sidebar } from './Sidebar';
+import { useRealtimeRefresh } from '../hooks/useRealtimeRefresh';
 import { supabase } from '../lib/supabase';
 import { buildEvaluationSnapshotMap, subscribeToEvaluationChanges, type EvaluationSnapshot } from '../lib/evaluationScores';
 import { mockDatabase } from '../lib/mockDatabase';
@@ -50,6 +51,13 @@ export const QualifiedApplicantsRSPPage = ({ mode = 'score' }: QualifiedApplican
   const [completedEvaluationIds, setCompletedEvaluationIds] = useState<Set<string>>(new Set());
   const [evaluationsByApplicant, setEvaluationsByApplicant] = useState<Record<string, InterviewerEvaluation>>({});
   const [loading, setLoading] = useState(true);
+
+  // Live updates: the page and its sections reload on this event.
+  useRealtimeRefresh({
+    channel: 'rsp-qualified-applicants',
+    tables: ['applicants'],
+    onChange: () => { window.dispatchEvent(new CustomEvent('cictrix:applicants-updated')); },
+  });
 
   useEffect(() => {
     const loadData = async () => {

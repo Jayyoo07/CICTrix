@@ -1,4 +1,5 @@
 import { useBackClosesView } from '../hooks/useHistoryBack';
+import { useRealtimeRefresh } from '../hooks/useRealtimeRefresh';
 import { SalaryGradeSelect } from './SalaryGradeSelect';
 import { formatSalary, listSalaryGrades, type SalaryGradeRow } from '../lib/api/salaryGrades';
 import {
@@ -29,6 +30,7 @@ import {
     formatPHDate,
     getApplicants,
     getJobPostings,
+    loadJobPostings,
     saveApplicants,
     saveJobPostings,
     saveJobPostingsAndWait,
@@ -222,8 +224,7 @@ export const JobPostingsPage = () => {
   const [jobApplicantsSlotFilter, setJobApplicantsSlotFilter] = useState<string>('all');
   const [jobApplicantsLoading, setJobApplicantsLoading] = useState(false);
   const [jobApplicantsSearch, setJobApplicantsSearch] = useState('');
-  const [showAllApplicants, setShowAllApplicants] = useState(false);
-  useBackClosesView(viewingApplicantsFor !== null, () => { setViewingApplicantsFor(null); setShowAllApplicants(false); }, 'jobposting-applicants');
+  useBackClosesView(viewingApplicantsFor !== null, () => { setViewingApplicantsFor(null); }, 'jobposting-applicants');
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | JobPosting['status']>('all');
   const [officeFilter, setOfficeFilter] = useState<string>('all');
@@ -472,6 +473,20 @@ export const JobPostingsPage = () => {
       window.removeEventListener('cictrix:job-postings-updated', bump as EventListener);
     };
   }, []);
+
+  // Live updates: a job post change reloads the shared cache (which fires
+  // 'cictrix:job-postings-updated'); an applicant change fires the existing
+  // applicants refresh, which recomputes counts and the open applicant list.
+  useRealtimeRefresh({
+    channel: 'rsp-job-posts-postings',
+    tables: ['job_postings'],
+    onChange: () => { void loadJobPostings(); },
+  });
+  useRealtimeRefresh({
+    channel: 'rsp-job-posts-applicants',
+    tables: ['applicants'],
+    onChange: () => { window.dispatchEvent(new CustomEvent('cictrix:applicants-updated')); },
+  });
 
   useEffect(() => {
     ensureRecruitmentSeedData();
@@ -1269,9 +1284,7 @@ export const JobPostingsPage = () => {
             : bySearch.filter((r) => r.slotIds.includes(jobApplicantsSlotFilter));
 
           const matchedRows = searched.filter((r) => r.matched);
-          const otherRows = searched.filter((r) => !r.matched);
           const totalMatched = jobApplicantsRows.filter((r) => r.matched).length;
-          const totalInDb = jobApplicantsRows.length;
 
           const statusClass = (status: string) => {
             const s = status.toLowerCase();
@@ -1286,7 +1299,7 @@ export const JobPostingsPage = () => {
           };
 
           // The cards shown, in shown order, so the details page can step through them.
-          const visibleRows = showAllApplicants ? [...matchedRows, ...otherRows] : matchedRows;
+          const visibleRows = matchedRows;
 
           const renderCard = (a: typeof jobApplicantsRows[number], i: number) => (
             <article
@@ -1372,7 +1385,7 @@ export const JobPostingsPage = () => {
               <section className="flex items-center gap-4 rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
                 <button
                   type="button"
-                  onClick={() => { setViewingApplicantsFor(null); setShowAllApplicants(false); }}
+                  onClick={() => { setViewingApplicantsFor(null); }}
                   className="rounded-xl border border-slate-300 bg-slate-50 p-2.5 text-slate-600 hover:bg-slate-100"
                   aria-label="Back to job postings"
                 >
@@ -1388,7 +1401,7 @@ export const JobPostingsPage = () => {
                     {jobSlots.length > 1
                       ? `${jobSlots.length} plantillas`
                       : jobSlots[0] ? plantillaLabel(jobSlots[0]) : 'Plantilla 1'}{' '}
-                    · {totalMatched} matched · {totalInDb} in database
+                    · {totalMatched} applicant{totalMatched === 1 ? '' : 's'}
                   </p>
                 </div>
                 {(() => {
@@ -1432,15 +1445,6 @@ export const JobPostingsPage = () => {
                     ))}
                   </select>
                 )}
-                <label className="flex items-center gap-2 text-sm text-slate-700">
-                  <input
-                    type="checkbox"
-                    checked={showAllApplicants}
-                    onChange={(e) => setShowAllApplicants(e.target.checked)}
-                    className="h-4 w-4 rounded border-slate-300"
-                  />
-                  Show all applicants in database ({totalInDb - totalMatched} unmatched)
-                </label>
               </section>
 
               <section className="mt-4 flex flex-col gap-3">
@@ -1448,48 +1452,19 @@ export const JobPostingsPage = () => {
                   <div className="rounded-xl border border-dashed border-slate-300 bg-white p-10 text-center text-sm text-slate-500">
                     Loading applicants…
                   </div>
-                ) : totalInDb === 0 ? (
+                ) : totalMatched === 0 ? (
                   <div className="rounded-xl border border-dashed border-slate-300 bg-white p-10 text-center">
                     <Users className="mx-auto mb-3 h-10 w-10 text-slate-300" />
-                    <p className="!mb-1 font-semibold text-slate-600">No applicants in database</p>
+                    <p className="!mb-1 font-semibold text-slate-600">No applicants yet</p>
                     <p className="!mb-0 text-sm text-slate-400">
-                      The applicants table is empty, or row-level security is blocking reads for this account.
+                      Applications for this position will appear here once submitted.
                     </p>
                   </div>
                 ) : (
                   <>
-                    {matchedRows.length > 0 && (
-                      <>
-                        {matchedRows.map((a, i) => renderCard(a, i))}
-                      </>
-                    )}
+                    {matchedRows.map((a, i) => renderCard(a, i))}
 
-                    {matchedRows.length === 0 && !showAllApplicants && (
-                      <div className="rounded-xl border border-amber-200 bg-amber-50 p-5 text-sm text-amber-800">
-                        <p className="!mb-1 font-semibold">No applicants matched this job posting directly.</p>
-                        <p className="!mb-2">
-                          {totalInDb} applicant{totalInDb !== 1 ? 's are' : ' is'} in the database, but none were linked to <span className="font-semibold">{job.title}</span> by position or item number.
-                        </p>
-                        <button
-                          type="button"
-                          onClick={() => setShowAllApplicants(true)}
-                          className="rounded-lg bg-amber-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-amber-700"
-                        >
-                          Show all applicants in database
-                        </button>
-                      </div>
-                    )}
-
-                    {showAllApplicants && otherRows.length > 0 && (
-                      <>
-                        <p className="!mb-0 mt-2 text-xs font-semibold uppercase tracking-widest text-slate-500">
-                          Other applicants in database ({otherRows.length})
-                        </p>
-                        {otherRows.map((a, i) => renderCard(a, matchedRows.length + i))}
-                      </>
-                    )}
-
-                    {searched.length === 0 && term && (
+                    {matchedRows.length === 0 && term && (
                       <div className="rounded-xl border border-dashed border-slate-300 bg-white p-10 text-center">
                         <p className="!mb-0 text-sm text-slate-500">No applicants match your search.</p>
                       </div>
