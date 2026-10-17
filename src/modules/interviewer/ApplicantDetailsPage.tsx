@@ -12,6 +12,7 @@ import {
   Pencil,
   MessageSquare,
   RefreshCw,
+  RotateCcw,
   Send,
   Star,
   User,
@@ -30,6 +31,15 @@ import { sendEmail } from '../../lib/email';
 import { getApplicants, getAuthoritativeJobPostings, saveApplicants } from '../../lib/recruitmentData';
 import { ATTACHMENTS_BUCKET, isMockModeEnabled, supabase } from '../../lib/supabase';
 import { normalizeStatus } from '../../lib/api/applicantStatus';
+import { getAdminEmail } from '../../lib/adminSession';
+import {
+  buildDocumentHistory,
+  listDocumentEvents,
+  mergeResubmissionRequests,
+  recordDocumentEvent,
+  undoDocumentValidation,
+  type DocumentEvent,
+} from '../../lib/api/applicantDocumentEvents';
 import {
   DISQUALIFICATION_REASON_OPTIONS,
   FAILURE_TO_ATTEND,
@@ -192,6 +202,19 @@ const formatDate = (value?: string) => {
     month: 'short',
     day: 'numeric',
     year: 'numeric',
+  });
+};
+
+const formatDateTime = (value?: string) => {
+  if (!value) return '--';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '--';
+  return date.toLocaleString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
   });
 };
 
@@ -801,6 +824,11 @@ function ApplicantDetailsPageView() {
   const [docReviews, setDocReviews] = useState<Record<string, DocReview>>(loadDocReviews);
   const [openedDocFilePaths, setOpenedDocFilePaths] = useState<Set<string>>(new Set());
   const [docsValidated, setDocsValidated] = useState(false);
+  const [docEvents, setDocEvents] = useState<DocumentEvent[]>([]);
+  const [docEventsLoaded, setDocEventsLoaded] = useState(false);
+  const [confirmValidateOpen, setConfirmValidateOpen] = useState(false);
+  const [validationBusy, setValidationBusy] = useState(false);
+  const [validationError, setValidationError] = useState<string | null>(null);
   const [showResubmitModal, setShowResubmitModal] = useState(false);
   const [resubmitSelectedSlots, setResubmitSelectedSlots] = useState<string[]>([]);
   const [resubmitReason, setResubmitReason] = useState('');
@@ -814,12 +842,18 @@ function ApplicantDetailsPageView() {
   // doc_validated row for it (e.g., insert failed in a previous session), create it now.
   // Also pings applicants.updated_at so the tracker's realtime subscription fires.
   useEffect(() => {
-    if (!applicant?.id || !attachments.length) return;
+    if (!applicant?.id || !attachments.length || !docEventsLoaded) return;
     const existingValidatedTypes = new Set(
       attachments.filter((a) => a.document_type === 'doc_validated').map((a) => a.file_name),
     );
     const realDocs = attachments.filter(
       (a) => a.document_type !== 'resubmission_request' && a.document_type !== 'resubmission_resolved' && a.document_type !== 'doc_validated',
+    );
+    // An approval older than the last saved undo was undone on purpose; don't
+    // re-create its marker (possibly from another machine's stale storage).
+    const lastUndoAt = Math.max(
+      0,
+      ...docEvents.filter((e) => e.event_type === 'validation_undone').map((e) => new Date(e.created_at).getTime()),
     );
     let synced = false;
     for (const att of realDocs) {
@@ -827,6 +861,7 @@ function ApplicantDetailsPageView() {
       const rawDocType = (att.document_type as string | null) || FILE_NAME_TO_TYPE[att.file_name] || 'other';
       if (
         docReviews[key]?.status === 'approved' &&
+        new Date(docReviews[key].reviewedAt).getTime() > lastUndoAt &&
         !existingValidatedTypes.has(rawDocType) &&
         !syncedValidatedRef.current.has(rawDocType)
       ) {
@@ -847,7 +882,7 @@ function ApplicantDetailsPageView() {
       void (supabase as any).from('applicants').update({ updated_at: new Date().toISOString() }).eq('id', applicant.id);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [applicant?.id, attachments, docReviews]);
+  }, [applicant?.id, attachments, docReviews, docEvents, docEventsLoaded]);
 
   // Validation state is derived from the durable doc_validated rows, not from
   // localStorage — otherwise an applicant validated on one RSP machine still
@@ -1152,6 +1187,19 @@ function ApplicantDetailsPageView() {
     return () => { void (supabase as any).removeChannel(channel); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
+
+  // Saved document review history (resubmission requests, validate, undo).
+  const reloadDocEvents = async () => {
+    if (!applicant?.id) return;
+    const result = await listDocumentEvents(applicant.id);
+    if (result.ok) setDocEvents(result.events);
+    setDocEventsLoaded(true);
+  };
+
+  useEffect(() => {
+    void reloadDocEvents();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [applicant?.id, attachments]);
 
   const fullName = useMemo(() => (applicant ? getFullName(applicant) : ''), [applicant]);
   const resolvedStatus = recruitmentApplicant?.status || applicant?.status;
@@ -1639,7 +1687,7 @@ function ApplicantDetailsPageView() {
     const now = new Date().toISOString();
     setRecruitmentApplicant((prev) => {
       if (!prev) return prev;
-      return { ...prev, timeline: [...(prev.timeline ?? []), { event, date: now, actor: 'RSP Admin' }] };
+      return { ...prev, timeline: [...(prev.timeline ?? []), { event, date: now, actor: getAdminEmail('RSP') }] };
     });
   };
 
@@ -1704,7 +1752,16 @@ function ApplicantDetailsPageView() {
       } catch (supaErr) {
         console.warn('[handleSubmitResubmission] Supabase insert failed for', slotLabel, supaErr);
       }
+      const saved = await recordDocumentEvent({
+        applicantId: applicant.id,
+        eventType: 'resubmission_requested',
+        documentType: slot.type,
+        reason: resubmitNotes.trim() ? `${resubmitReason.trim()} — Note: ${resubmitNotes.trim()}` : resubmitReason.trim(),
+        actorEmail: getAdminEmail('RSP'),
+      });
+      if (!saved.ok) console.warn('[handleSubmitResubmission] history event not saved for', slotLabel, saved.error);
     }
+    void reloadDocEvents();
 
     addDocTimeline(`Action Required: Resubmission requested for ${resubmitSelectedSlots.join(', ')} — "${resubmitReason.trim()}".`);
     await persistStatus('action_required');
@@ -1758,8 +1815,53 @@ function ApplicantDetailsPageView() {
     }
     setDocsValidated(true);
     addDocTimeline('Documents Validated: All submitted documents have been reviewed and validated.');
+    const saved = await recordDocumentEvent({ applicantId: applicant.id, eventType: 'validated', actorEmail: getAdminEmail('RSP') });
+    if (!saved.ok) console.warn('[handleValidateAllDocs] history event not saved:', saved.error);
+    void reloadDocEvents();
     void (supabase as any).from('applicants').update({ updated_at: new Date().toISOString() }).eq('id', applicant.id);
     setToast('Documents validated — applicant tracker updated to show Verified.');
+  };
+
+  const handleConfirmValidate = async () => {
+    setValidationBusy(true);
+    try {
+      await handleValidateAllDocs();
+    } finally {
+      setValidationBusy(false);
+      setConfirmValidateOpen(false);
+    }
+  };
+
+  // Undo is allowed until an exam or interview is scheduled; the database
+  // enforces the same lock.
+  const isScheduledForAssessment = Boolean(
+    applicant?.exam_date || applicant?.oral_exam_date || applicant?.interview_date,
+  );
+
+  const handleUndoValidation = async () => {
+    if (!applicant?.id || isScheduledForAssessment) return;
+    setValidationBusy(true);
+    setValidationError(null);
+    const result = await undoDocumentValidation(applicant.id, getAdminEmail('RSP'));
+    setValidationBusy(false);
+    if (!result.ok) {
+      setValidationError(
+        result.locked
+          ? 'Validation can no longer be undone: an exam or interview is already scheduled.'
+          : "We couldn't undo the validation. Check your connection and try again.",
+      );
+      return;
+    }
+    setDocsValidated(false);
+    setAttachments((prev) => prev.filter((a) => a.document_type !== 'doc_validated'));
+    const remainingReviews = Object.fromEntries(
+      Object.entries(docReviews).filter(([key, review]) => !(key.startsWith(`${id}::`) && review.status === 'approved')),
+    );
+    setDocReviews(remainingReviews);
+    localStorage.setItem(DOC_REVIEW_KEY, JSON.stringify(remainingReviews));
+    addDocTimeline('Document Validation Undone.');
+    void reloadDocEvents();
+    setToast('Validation undone.');
   };
 
   const isDocLocked = () => {
@@ -2109,7 +2211,16 @@ function ApplicantDetailsPageView() {
                     </article>
 
                     <article className="rounded-xl border border-slate-200">
-                      <h3 className="border-b border-slate-200 px-4 py-2.5 text-sm font-bold uppercase tracking-wide text-slate-500">Qualifications</h3>
+                      <div className="flex items-center justify-between border-b border-slate-200 px-4 py-2.5">
+                        <h3 className="!mb-0 text-sm font-bold uppercase tracking-wide text-slate-500">Qualifications</h3>
+                        {isRspAdmin && (
+                          <span className="abyan-ds">
+                            <button type="button" className="btn btn-sm btn-secondary" onClick={() => setShowEditDetails(true)}>
+                              <Pencil size={16} /> Edit
+                            </button>
+                          </span>
+                        )}
+                      </div>
                       <div className="divide-y divide-slate-100 px-4">
                         <div className="flex items-start justify-between py-2.5">
                           <span className="text-xs font-semibold text-slate-500 w-36 shrink-0">Education</span>
@@ -2184,15 +2295,34 @@ function ApplicantDetailsPageView() {
                         <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3">
                           <h3 className="text-sm font-bold uppercase tracking-wide text-slate-500">Submitted Documents</h3>
                           {!isDocLocked() && realAttachments.length > 0 && (
-                            <div className="flex items-center gap-2">
+                            <div className="relative flex items-center gap-2">
                               {docsValidatedEffective ? (
-                                <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-700">
-                                  <CheckCircle2 size={12} /> Validated
-                                </span>
+                                <>
+                                  <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-700">
+                                    <CheckCircle2 size={12} /> Validated
+                                  </span>
+                                  <span className="abyan-ds">
+                                    <button
+                                      type="button"
+                                      className="btn btn-sm btn-secondary"
+                                      onClick={() => void handleUndoValidation()}
+                                      disabled={validationBusy || isScheduledForAssessment}
+                                      title={
+                                        isScheduledForAssessment
+                                          ? 'Locked: an exam or interview is already scheduled'
+                                          : 'Undo the document validation'
+                                      }
+                                    >
+                                      {isScheduledForAssessment ? <Lock size={16} /> : <RotateCcw size={16} />} Undo
+                                    </button>
+                                  </span>
+                                </>
                               ) : (
                                 <button
                                   type="button"
-                                  onClick={() => void handleValidateAllDocs()}
+                                  onClick={() => setConfirmValidateOpen(true)}
+                                  aria-haspopup="dialog"
+                                  aria-expanded={confirmValidateOpen}
                                   disabled={docsAwaitingValidation.length === 0}
                                   title={
                                     docsAwaitingValidation.length === 0
@@ -2205,8 +2335,52 @@ function ApplicantDetailsPageView() {
                                   <CheckCircle2 size={12} /> Validate Documents
                                 </button>
                               )}
+                              {confirmValidateOpen && !docsValidatedEffective && (
+                                <div
+                                  role="dialog"
+                                  aria-label="Confirm document validation"
+                                  className="absolute right-0 top-full z-30 mt-2 w-72 rounded-xl border border-slate-200 bg-white p-4 shadow-lg"
+                                  onKeyDown={(e) => { if (e.key === 'Escape') setConfirmValidateOpen(false); }}
+                                >
+                                  <p className="!mb-0 text-sm font-semibold text-[#040E6B]">Are you sure?</p>
+                                  <p className="!mb-0 mt-1 text-xs text-slate-600">
+                                    This validates all {docsAwaitingValidation.length} submitted document(s). You can undo it until an exam or interview is scheduled.
+                                  </p>
+                                  <div className="abyan-ds mt-3 flex justify-end gap-2">
+                                    <button type="button" className="btn btn-sm btn-secondary" onClick={() => setConfirmValidateOpen(false)} autoFocus>
+                                      Cancel
+                                    </button>
+                                    <button type="button" className="btn btn-sm btn-primary" disabled={validationBusy} onClick={() => void handleConfirmValidate()}>
+                                      Validate
+                                    </button>
+                                  </div>
+                                </div>
+                              )}
                             </div>
                           )}
+                        </div>
+                      );
+                    })()}
+
+                    {(() => {
+                      const validationLog = docEvents.filter((e) => e.event_type !== 'resubmission_requested');
+                      if (validationLog.length === 0 && !validationError) return null;
+                      return (
+                        <div className="border-b border-slate-200 px-4 py-2.5 text-xs">
+                          {validationError && <p className="!mb-1 font-medium text-[#B42323]">{validationError}</p>}
+                          {docsValidatedEffective && isScheduledForAssessment && (
+                            <p className="!mb-1 inline-flex items-center gap-1 text-slate-500">
+                              <Lock size={12} /> Validation is locked: an exam or interview is scheduled.
+                            </p>
+                          )}
+                          <ul className="space-y-0.5">
+                            {validationLog.map((e) => (
+                              <li key={e.id} className="text-slate-600">
+                                <span className="font-semibold text-[#040E6B]">{e.event_type === 'validated' ? 'Validated' : 'Validation undone'}</span>
+                                {' · '}{formatDateTime(e.created_at)} · {e.actor_email || 'RSP'}
+                              </li>
+                            ))}
+                          </ul>
                         </div>
                       );
                     })()}
@@ -2258,72 +2432,58 @@ function ApplicantDetailsPageView() {
                                   )}
                                 </div>
 
-                                {/* Resubmission notice detail */}
-                                {slotNotice && (() => {
-                                  const parts = slotNotice.file_name.split('::');
-                                  const reason = parts[2] ?? '';
-                                  const notes = slotNotice.file_path === '—' ? '' : slotNotice.file_path;
-                                  return (
-                                    <div className="mt-1.5 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs">
-                                      {reason && <p className="text-amber-800"><span className="font-semibold">Reason:</span> {reason}</p>}
-                                      {notes && <p className="mt-0.5 text-amber-700"><span className="font-semibold">RSP Note:</span> {notes}</p>}
-                                      <p className="mt-0.5 text-amber-500">Sent: {formatDate(slotNotice.created_at)}</p>
-                                    </div>
-                                  );
-                                })()}
-
                                 {!isSubmitted && (
                                   <p className="mt-1 text-xs italic text-slate-400">Not yet submitted</p>
                                 )}
 
-                                {/* All versions of this document */}
-                                {matched.map((doc, versionIdx) => {
-                                  const reviewKey = getDocReviewKey(doc.file_path);
-                                  const review = docReviews[reviewKey];
-                                  const localStatus: DocReviewStatus = review?.status ?? 'pending';
-                                  const isLatest = versionIdx === matched.length - 1;
-                                  
-                                  const isTrueResubmission = versionIdx > 0 && (
-                                    hasSupabaseResubmissionRequest ||
-                                    localStatus === 'resubmission_requested' ||
-                                    attachments.some((a) => a.document_type === 'resubmission_request' && a.file_name.includes(slot.label))
-                                  );
+                                {/* History of this document, newest first: current
+                                    version, re-uploads and resubmission requests,
+                                    then the original upload. */}
+                                {(() => {
+                                  const eventRequests = docEvents
+                                    .filter((e) => e.event_type === 'resubmission_requested' && e.document_type === slot.type)
+                                    .map((e) => ({ id: e.id, reason: e.reason ?? '', created_at: e.created_at, actorEmail: e.actor_email }));
+                                  // Requests saved before the history table existed: no RSP user recorded.
+                                  const legacyRequests = attachments
+                                    .filter((a) => a.document_type === 'resubmission_request' && a.file_name.split('::')[1] === slot.label)
+                                    .map((a) => {
+                                      const reason = a.file_name.split('::')[2] ?? '';
+                                      const notes = a.file_path === '—' ? '' : a.file_path;
+                                      return { id: a.id, reason: notes ? `${reason} — Note: ${notes}` : reason, created_at: a.created_at ?? '', actorEmail: null };
+                                    });
+                                  const history = buildDocumentHistory(matched, mergeResubmissionRequests(eventRequests, legacyRequests));
 
-                                  const versionLabel = isTrueResubmission
-                                    ? `Resubmission #${versionIdx}`
-                                    : versionIdx > 0
-                                      ? `Submission Version ${versionIdx + 1}`
-                                      : 'Original Submission';
-
-                                  return (
-                                    <div key={doc.id} className={`mt-2 rounded-lg border px-3 py-2 ${isTrueResubmission ? 'border-emerald-200 bg-emerald-50/50' : 'border-slate-100 bg-slate-50'}`}>
-                                      <div className="flex items-start justify-between gap-4">
-                                        <button className="flex-1 text-left" onClick={() => void handleOpenDocument(doc.file_path)}>
-                                          <div className="flex items-center gap-1.5 flex-wrap">
-                                            <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${isTrueResubmission ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-600'}`}>
-                                              {versionLabel}
+                                  return history.map((entry) => {
+                                    if (entry.kind === 'resubmission_request') {
+                                      return (
+                                        <div key={`req-${entry.id}`} className="mt-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs">
+                                          <span className="rounded-full bg-amber-100 px-2 py-0.5 font-semibold text-amber-700">Resubmission requested</span>
+                                          {entry.reason && <p className="!mb-0 mt-1 text-amber-800"><span className="font-semibold">Reason:</span> {entry.reason}</p>}
+                                          <p className="!mb-0 mt-0.5 text-slate-500">
+                                            {formatDateTime(entry.date)} · {entry.actorEmail || 'RSP (user not recorded)'}
+                                          </p>
+                                        </div>
+                                      );
+                                    }
+                                    const approved = docReviews[getDocReviewKey(entry.filePath)]?.status === 'approved';
+                                    return (
+                                      <div key={entry.id} className={`mt-2 rounded-lg border px-3 py-2 ${entry.isCurrent ? 'border-blue-200 bg-white' : 'border-slate-100 bg-slate-50'}`}>
+                                        <button className="w-full text-left" onClick={() => void handleOpenDocument(entry.filePath)}>
+                                          <div className="flex flex-wrap items-center gap-1.5">
+                                            <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${entry.isCurrent ? 'bg-blue-100 text-blue-700' : 'bg-slate-100 text-slate-600'}`}>
+                                              {entry.label}
                                             </span>
-                                            {isLatest && (
-                                              <span className="rounded-full bg-blue-100 px-2 py-0.5 text-xs font-semibold text-blue-700">Current</span>
-                                            )}
-                                            {localStatus === 'approved' && (
+                                            {entry.isCurrent && approved && (
                                               <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-semibold text-emerald-700">✓ Approved</span>
                                             )}
-                                            {localStatus === 'resubmission_requested' && (
-                                              <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-700">⚠ Resubmission</span>
-                                            )}
                                           </div>
-                                          <p className="mt-1 truncate text-xs text-slate-500">{doc.file_name}</p>
-                                          <p className="text-xs text-slate-400">Uploaded {formatDate(doc.created_at || applicant.created_at)}</p>
-                                          {localStatus === 'resubmission_requested' && review?.remarks && (
-                                            <p className="mt-0.5 text-xs text-amber-700 font-medium">Reason: {review.remarks}</p>
-                                          )}
+                                          <p className="!mb-0 mt-1 truncate text-xs text-slate-500">{entry.fileName}</p>
+                                          <p className="!mb-0 text-xs text-slate-400">Uploaded {formatDateTime(entry.date || applicant.created_at)}</p>
                                         </button>
-
                                       </div>
-                                    </div>
-                                  );
-                                })}
+                                    );
+                                  });
+                                })()}
                               </div>
                             </div>
                           </article>
