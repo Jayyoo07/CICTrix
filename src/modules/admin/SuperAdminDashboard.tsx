@@ -4,6 +4,7 @@ import { AdminHeader } from '../../components/AdminHeader';
 import { Sidebar } from '../../components/Sidebar';
 import { supabase } from '../../lib/supabase';
 import '../../styles/admin.css';
+import '../../styles/dashboard-scale.css';
 
 /**
  * KPI card per DESIGN_IDENTITY §9.7: icon chip, title, value.
@@ -112,7 +113,8 @@ export const SuperAdminDashboard = () => {
       <AdminHeader userName="Super Admin" divisionLabel="System Administrator" />
       <div className="flex flex-col md:flex-row">
       <Sidebar />
-      <main className="min-w-0 flex-1 overflow-auto">
+      {/* dash-25: dashboard text at +25% (src/styles/dashboard-scale.css). */}
+      <main className="dash-25 min-w-0 flex-1 overflow-auto">
         <div className="p-4 sm:p-6 lg:p-8">
           <div className="mb-8">
             <h1 className="text-2xl font-bold leading-8 text-[#040E6B]">Super Admin Dashboard</h1>

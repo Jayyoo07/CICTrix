@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Briefcase, CalendarDays, ChevronDown, ChevronLeft, ChevronRight, GitBranch, Users } from 'lucide-react';
 import { getSuccessionDashboardOverview, type SuccessionOverview } from '../../lib/api/succession';
 import '../../styles/rsp-dashboard.css';
+import '../../styles/dashboard-scale.css';
 
 // RSP dashboard overview, built to docs/mockups/2026-10-15-rsp-dashboard-kpis.html.
 // Pure presentation over data RSPDashboard already loads; the only fetch of its
@@ -347,7 +348,7 @@ export function RspDashboardOverview({
     setCalendarMonth((m) => new Date(m.getFullYear(), m.getMonth() + delta, 1));
 
   return (
-    <div className="rspdash">
+    <div className="rspdash dash-25">
       <section className="rd-hero">
         <div>
           {/* Not an <h1>: admin.css forces .admin-content h1 to brand blue with !important. */}
