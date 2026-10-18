@@ -106,6 +106,35 @@ export function isMissingTable(error: { code?: string; message?: string } | null
   );
 }
 
+/**
+ * Was the write refused for permission reasons rather than bad input?
+ *
+ * The schedule is writable only by super admins, enforced by RLS. Postgres
+ * reports that as "new row violates row-level security policy" on an insert,
+ * and as a zero-row result on an update — neither tells an admin anything they
+ * can act on, and the first reads as a bug in the form, which is how it was
+ * first reported.
+ */
+export function isNotPermitted(error: { code?: string; message?: string } | null | undefined): boolean {
+  if (!error) return false;
+  const code = String(error.code ?? '');
+  const msg = String(error.message ?? '').toLowerCase();
+  return (
+    code === '42501' ||
+    code === 'PGRST116' ||          // update matched no row: RLS filtered it out
+    msg.includes('row-level security')
+  );
+}
+
+/**
+ * Shown instead of the Postgres wording. It names the two things that actually
+ * cause this — the account, and a signed-out session — because the second is
+ * invisible: the portal keeps showing "Super Admin" from its own stored session
+ * long after the Supabase token behind the request has gone.
+ */
+const NOT_PERMITTED_MESSAGE =
+  'The database refused this change. Only a super admin can edit the salary schedule, and that is checked against your Supabase sign-in rather than the portal session shown in the header. Sign out and back in; if it persists, the account is not registered as a super admin.';
+
 export async function listSalaryGrades(): Promise<Result<SalaryGradeRow[]>> {
   try {
     const { data, error } = await supabase
@@ -155,7 +184,10 @@ export async function updateSalaryStep(
       .eq('step', step)
       .select()
       .single();
-    if (error) return { ok: false, error: error.message ?? 'Failed to save the amount.' };
+    if (error) {
+      if (isNotPermitted(error)) return { ok: false, error: NOT_PERMITTED_MESSAGE };
+      return { ok: false, error: error.message ?? 'Failed to save the amount.' };
+    }
     return { ok: true, data: fromRow(data) };
   } catch (err) {
     return { ok: false, error: err instanceof Error ? err.message : String(err) };
@@ -176,7 +208,10 @@ export async function addSalaryStep(
       .insert([{ salary_grade: grade, step, monthly_salary: monthlySalary }])
       .select()
       .single();
-    if (error) return { ok: false, error: error.message ?? 'Failed to add the step.' };
+    if (error) {
+      if (isNotPermitted(error)) return { ok: false, error: NOT_PERMITTED_MESSAGE };
+      return { ok: false, error: error.message ?? 'Failed to add the step.' };
+    }
     return { ok: true, data: fromRow(data) };
   } catch (err) {
     return { ok: false, error: err instanceof Error ? err.message : String(err) };
@@ -195,7 +230,10 @@ export async function deleteSalaryStep(grade: number, step: number): Promise<Res
       .delete()
       .eq('salary_grade', grade)
       .eq('step', step);
-    if (error) return { ok: false, error: error.message ?? 'Failed to remove the step.' };
+    if (error) {
+      if (isNotPermitted(error)) return { ok: false, error: NOT_PERMITTED_MESSAGE };
+      return { ok: false, error: error.message ?? 'Failed to remove the step.' };
+    }
     return { ok: true, data: true };
   } catch (err) {
     return { ok: false, error: err instanceof Error ? err.message : String(err) };
