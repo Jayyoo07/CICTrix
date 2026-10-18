@@ -13,6 +13,8 @@ import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import { useHistoryBack } from '../hooks/useHistoryBack';
 import { useState, useEffect, useMemo, type ReactNode } from 'react';
 import { getJobPostings, loadJobPostings } from '../lib/recruitmentData';
+import { useSalarySchedule } from '../hooks/useSalarySchedule';
+import { formatSalaryRange, stepRangeFor } from '../lib/api/salaryGrades';
 import { supabase } from '../lib/supabase';
 import { JobPosting } from '../types/recruitment.types';
 import { fetchSlotApplicantCounts } from '../lib/plantillaSlots';
@@ -75,6 +77,7 @@ export const JobDetailsPage = () => {
   const goBack = useHistoryBack(isAdminView ? '/admin/rsp' : '/');
   // Lazy initializer reads location.state immediately, preventing "not found" flash
   const [landingJob] = useState<LandingJobData | null>(() => location.state?.landingJob ?? null);
+  const salarySchedule = useSalarySchedule();
   const [job, setJob] = useState<JobPosting | null>(
     // The Job Portal navigates by item number and hands us the posting it
     // already loaded. Seed from it so the qualifications render on that path too.
@@ -274,6 +277,19 @@ export const JobDetailsPage = () => {
 
   // Salary grade can live on the posting or on each plantilla item. Show the
   // posting's, else the items' ("SG 10", or a range when they differ).
+  const monthlySalaryText = (() => {
+    const grades = job?.salaryGrade != null
+      ? [job.salaryGrade]
+      : Array.from(new Set(choices.map((c) => c.salaryGrade).filter((g): g is number => g != null)));
+    const amounts: number[] = [];
+    for (const g of grades) {
+      const range = stepRangeFor(g, salarySchedule);
+      if (range) amounts.push(range.min, range.max);
+    }
+    if (amounts.length > 0) return formatSalaryRange(Math.min(...amounts), Math.max(...amounts));
+    return job?.monthlySalary != null ? formatPeso(job.monthlySalary) : '';
+  })();
+
   const salaryGradeText = (() => {
     if (job?.salaryGrade != null) return `SG ${job.salaryGrade}`;
     const grades = Array.from(new Set(choices.map((c) => c.salaryGrade).filter((g): g is number => g != null))).sort((a, b) => a - b);
@@ -328,7 +344,10 @@ export const JobDetailsPage = () => {
       <dl className="af-rows">
         <Row label="Place of assignment" value={department} />
         <Row label="Salary grade" value={salaryGradeText} />
-        {job?.monthlySalary != null && <Row label="Monthly salary" value={formatPeso(job.monthlySalary)} />}
+        {/* The grade's pay range across its steps, not just the Step 1 hiring
+            rate — that is the least the post pays, not what it pays. Falls
+            back to the stored figure when the grade is not in the schedule. */}
+        {monthlySalaryText && <Row label="Monthly salary" value={monthlySalaryText} />}
         <Row label="Posted" value={formatShortDate(postingDate)} />
         <Row label="Application closes" value={formatShortDate(closingDate)} />
       </dl>
@@ -476,9 +495,15 @@ export const JobDetailsPage = () => {
               {/* A plantilla shows its name and salary grade only, never a code. */}
               <span className="af-choice-name">
                 {choiceLabel(choice)}
-                {choice.monthlySalary != null && (
-                  <span className="af-choice-meta">{formatPeso(choice.monthlySalary)} monthly</span>
-                )}
+                {(() => {
+                  const range = stepRangeFor(choice.salaryGrade, salarySchedule);
+                  const text = range
+                    ? formatSalaryRange(range.min, range.max)
+                    : choice.monthlySalary != null
+                      ? formatPeso(choice.monthlySalary)
+                      : '';
+                  return text ? <span className="af-choice-meta">{text} monthly</span> : null;
+                })()}
               </span>
               {choice.salaryGrade != null && <span className="af-choice-sg">SG {choice.salaryGrade}</span>}
               <StatusBadge status={choice.status} />

@@ -20,6 +20,7 @@ import abyanLogo from '../assets/abyan-logo.png';
 import { SharedFooter } from './SharedFooter';
 import { getAuthoritativeJobPostings, loadJobPostings } from '../lib/recruitmentData';
 import { vacancySalaryLabel } from '../lib/vacancySalary';
+import { useSalarySchedule } from '../hooks/useSalarySchedule';
 import { LoadingStatus, Skeleton, TableSkeletonRows, tableBodyClass, useTableLoading } from './table-loading';
 
 export function JobPortalPage() {
@@ -27,6 +28,8 @@ export function JobPortalPage() {
   const contactRef = useRef<HTMLElement>(null);
   
   const [jobs, setJobs] = useState<any[]>([]);
+  // Loaded once for the whole table so every row shows the same range.
+  const salarySchedule = useSalarySchedule();
   const [loading, setLoading] = useState(true);
   const vacanciesLoad = useTableLoading(loading, jobs.length > 0);
   const [viewMode, setViewMode] = useState<'card' | 'table'>('card');
@@ -421,7 +424,7 @@ export function JobPortalPage() {
                   <div className="space-y-2 border-t border-slate-100 pt-4 mb-6">
                     <div className="flex items-center justify-between text-xs text-slate-500">
                       <span className="flex items-center gap-1"><Banknote size={13} /> Monthly Salary</span>
-                      <span className="font-semibold text-slate-700">{vacancySalaryLabel(job.originalJob)}</span>
+                      <span className="font-semibold text-slate-700">{vacancySalaryLabel(job.originalJob, salarySchedule)}</span>
                     </div>
                     <div className="flex items-center justify-between text-xs text-slate-500">
                       <span className="flex items-center gap-1"><Calendar size={13} /> Posted Date</span>
@@ -486,7 +489,7 @@ export function JobPortalPage() {
                         {job.type}
                       </span>
                     </td>
-                    <td className="whitespace-nowrap px-6 py-4 text-slate-600">{vacancySalaryLabel(job.originalJob)}</td>
+                    <td className="whitespace-nowrap px-6 py-4 text-slate-600">{vacancySalaryLabel(job.originalJob, salarySchedule)}</td>
                     <td className="px-6 py-4 font-medium text-rose-600">{formatDate(job.closingDate)}</td>
                     <td className="px-6 py-4 text-center">
                       <span className="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-bold bg-indigo-50 text-[#363EE8]">

@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
   HIRING_STEP,
+  formatSalaryRange,
+  stepRangeFor,
   isMissingTable,
   MAX_SALARY_GRADE,
   MIN_SALARY_GRADE,
@@ -146,5 +148,56 @@ describe('isMissingTable', () => {
     expect(isMissingTable({ message: 'network error' })).toBe(false);
     expect(isMissingTable(null)).toBe(false);
     expect(isMissingTable(undefined)).toBe(false);
+  });
+});
+
+describe('stepRangeFor — the minimum and maximum an applicant sees', () => {
+  const table = groupSteps([
+    step(1, 1, 14634), step(1, 8, 16349),          // both ends set
+    step(2, 1, 15522),                              // hiring rate only
+    step(3, 1, 16486), step(3, 3, 17200),           // part-entered: 1 and 3
+    step(4, 8, 20000),                              // only the ceiling
+  ]);
+
+  it('runs from Step 1 to Step 8', () => {
+    expect(stepRangeFor(1, table)).toEqual({ min: 14634, max: 16349 });
+  });
+
+  it('collapses to one amount when only the hiring rate is set', () => {
+    // Every grade looks like this until steps 2-8 are filled in. The caller
+    // must show a single figure, not "14,634 - 14,634".
+    expect(stepRangeFor(2, table)).toEqual({ min: 15522, max: 15522 });
+  });
+
+  it('ignores steps between the two ends', () => {
+    // Grade 3 has steps 1 and 3. Reporting 1-3 as the range would advertise a
+    // ceiling that is an artefact of part-finished data entry, not the
+    // schedule. Step 8 is the ceiling or there is no ceiling yet.
+    expect(stepRangeFor(3, table)).toEqual({ min: 16486, max: 16486 });
+  });
+
+  it('copes with only the ceiling set', () => {
+    expect(stepRangeFor(4, table)).toEqual({ min: 20000, max: 20000 });
+  });
+
+  it('returns null for a grade with nothing set, or no grade at all', () => {
+    expect(stepRangeFor(99, table)).toBeNull();
+    expect(stepRangeFor(null, table)).toBeNull();
+    expect(stepRangeFor(undefined, table)).toBeNull();
+  });
+
+  it('does not render backwards if Step 8 was mistyped below Step 1', () => {
+    const wrong = groupSteps([step(5, 1, 20000), step(5, 8, 15000)]);
+    expect(stepRangeFor(5, wrong)).toEqual({ min: 15000, max: 20000 });
+  });
+});
+
+describe('formatSalaryRange', () => {
+  it('shows a range when the ends differ', () => {
+    expect(formatSalaryRange(14634, 16349)).toBe('₱14,634 – ₱16,349');
+  });
+
+  it('shows one amount when they are the same', () => {
+    expect(formatSalaryRange(14634, 14634)).toBe('₱14,634');
   });
 });

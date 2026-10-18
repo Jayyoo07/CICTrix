@@ -18,6 +18,7 @@ import '../styles/landing-hero.css';
 import { getAuthoritativeJobPostings, getJobPostingsLoadError, loadJobPostings } from '../lib/recruitmentData';
 import type { JobPosting } from '../types/recruitment.types';
 import { vacancySalaryLabel } from '../lib/vacancySalary';
+import { useSalarySchedule } from '../hooks/useSalarySchedule';
 import { TableSkeletonRows, tableBodyClass, useTableLoading } from './table-loading';
 
 /* ── trish UI theme tokens ──────────────────────────────────────────
@@ -81,6 +82,8 @@ export const LandingPage = () => {
   const jobsTableRef = useRef<HTMLDivElement>(null);
   const contactRef = useRef<HTMLElement>(null);
   const [itemsPerPage, setItemsPerPage] = useState(5);
+  // Loaded once for the whole table so every row shows the same range.
+  const salarySchedule = useSalarySchedule();
   const [currentPage, setCurrentPage] = useState(1);
   const [vacancyJobs, setVacancyJobs] = useState<VacancyRow[]>([]);
   const [vacanciesLoading, setVacanciesLoading] = useState(true);
@@ -452,7 +455,7 @@ export const LandingPage = () => {
                         <td className="px-4 py-3 text-slate-600">
                           {job.openSlots} open {job.openSlots === 1 ? 'slot' : 'slots'}
                         </td>
-                        <td className="whitespace-nowrap px-4 py-3 text-slate-600">{vacancySalaryLabel(job.originalJob)}</td>
+                        <td className="whitespace-nowrap px-4 py-3 text-slate-600">{vacancySalaryLabel(job.originalJob, salarySchedule)}</td>
                         <td className="px-4 py-3 text-slate-600">
                           {job.closingDate ? formatDate(job.closingDate) : 'Until filled'}
                         </td>

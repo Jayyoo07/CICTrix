@@ -285,6 +285,52 @@ export function formatSalary(amount: number | null | undefined): string {
 }
 
 /**
+ * The pay range of a grade: Step 1 to Step 8.
+ *
+ * Applicants are told one figure today — the Step 1 hiring rate — which is the
+ * least a post pays, not what it pays.
+ *
+ * Deliberately the two ENDS of the scale rather than the highest and lowest
+ * step that happen to be configured. A grade with steps 1 and 3 filled in is a
+ * part-entered grade, and reporting "Step 1 to Step 3" as the range would
+ * advertise a ceiling that is an artefact of data entry rather than the
+ * schedule. Step 1 is what the post pays on hiring; Step 8 is where the grade
+ * tops out.
+ *
+ * Returns null when neither end is set. When only one is, min and max are
+ * equal and the caller shows a single amount instead of the same number twice.
+ */
+export function stepRangeFor(
+  grade: number | null | undefined,
+  table: SalaryGradeRow[],
+): { min: number; max: number } | null {
+  if (grade == null || !Number.isFinite(Number(grade))) return null;
+  const row = table.find((r) => r.salaryGrade === Number(grade));
+  if (!row) return null;
+
+  const amountAt = (step: number) => {
+    const found = row.steps.find((s) => s.step === step);
+    return found && Number.isFinite(found.monthlySalary) && found.monthlySalary > 0
+      ? found.monthlySalary
+      : null;
+  };
+
+  const low = amountAt(HIRING_STEP);
+  const high = amountAt(MAX_STEP);
+  if (low == null && high == null) return null;
+  if (low == null) return { min: high as number, max: high as number };
+  if (high == null) return { min: low, max: low };
+  // Guarded rather than assumed ascending: a mistyped Step 8 below Step 1
+  // should still render as a range, not backwards.
+  return { min: Math.min(low, high), max: Math.max(low, high) };
+}
+
+/** "₱14,634" when there is one amount, "₱14,634 – ₱16,349" when there is a spread. */
+export function formatSalaryRange(min: number, max: number): string {
+  return min === max ? formatSalary(min) : `${formatSalary(min)} – ${formatSalary(max)}`;
+}
+
+/**
  * The salary grade of an employee's position (decision D3).
  *
  * Resolved the same way succession ranks employees: `position_id` first, then
