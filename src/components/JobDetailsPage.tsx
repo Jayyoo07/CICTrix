@@ -7,6 +7,7 @@ import {
   ChevronDown,
   ListChecks,
   Lock,
+  Pencil,
 } from 'lucide-react';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import { useHistoryBack } from '../hooks/useHistoryBack';
@@ -574,14 +575,29 @@ export const JobDetailsPage = () => {
             <ArrowLeft size={16} strokeWidth={1.75} aria-hidden="true" />
             Back
           </button>
-          <h1>{title}</h1>
-          <p className="af-hero-sub">
-            <Briefcase size={18} strokeWidth={1.75} aria-hidden="true" />
-            {isMultiSlot
-              ? `${slots.length} Plantillas · ${openSlots.length} open`
-              : slots[0] ? plantillaLabel(slots[0]) : 'Plantilla 1'}
-            {department ? ` · ${department}` : ''}
-          </p>
+          <div className="af-hero-head">
+            <div>
+              <h1>{title}</h1>
+              <p className="af-hero-sub">
+                <Briefcase size={18} strokeWidth={1.75} aria-hidden="true" />
+                {isMultiSlot
+                  ? `${slots.length} Plantillas · ${openSlots.length} open`
+                  : slots[0] ? plantillaLabel(slots[0]) : 'Plantilla 1'}
+                {department ? ` · ${department}` : ''}
+              </p>
+            </div>
+            {/* RSP only (docs/mockups/2026-10-18-job-edit-entry.html, option B). Opens the Job posts edit form. */}
+            {isAdminView && job && (
+              <button
+                type="button"
+                className="btn btn-md btn-white"
+                onClick={() => navigate('/admin/rsp/jobs', { state: { editJobId: job.id } })}
+              >
+                <Pencil size={18} strokeWidth={1.75} aria-hidden="true" />
+                Edit Posting
+              </button>
+            )}
+          </div>
         </div>
       </section>
 

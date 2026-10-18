@@ -8,6 +8,7 @@ import {
   internalPlantillaKey,
   isPlantillaHasApplicationsError,
   plantillaLabel,
+  slotNumbersForLabels,
   validatePlantillaLabels,
 } from './plantillaRules';
 
@@ -216,13 +217,18 @@ export const saveSlotsForJob = async (
   // straight onto rows that are being reshuffled would collide with the rows
   // still holding those numbers. Park the existing ones above the range first.
   // Labels are unique per posting too, so parked rows get a temporary label.
-  const parkOffset = existing.length + cleaned.length + 100;
+  // Without the label column, slot_number carries the typed plantilla number
+  // (the UI shows "Plantilla <slot_number>"), so it can be large: park above
+  // every number in play.
+  const typedSlotNumbers = slotNumbersForLabels(withIds.map((draft) => draft.label));
+  const parkOffset =
+    Math.max(existing.length + cleaned.length, ...typedSlotNumbers, ...existing.map((slot) => slot.slotNumber)) + 100;
 
   const buildRows = (withLabel: boolean) =>
     withIds.map((draft, index) => ({
       id: draft.id,
       job_posting_id: jobPostingId,
-      slot_number: index + 1,
+      slot_number: withLabel ? index + 1 : typedSlotNumbers[index],
       ...(withLabel ? { label: draft.label } : {}),
       item_number: draft.itemNumber,
       salary_grade: draft.salaryGrade ?? null,

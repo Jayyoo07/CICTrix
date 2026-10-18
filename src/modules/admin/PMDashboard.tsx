@@ -89,6 +89,7 @@ import { CompetencyFrameworkPage } from './CompetencyFrameworkPageView';
 import { PMArchive } from './pm/PMArchive';
 import { SummaryOfRatings } from './pm/SummaryOfRatings';
 import { SkeletonList, TableRefreshBar, TableSkeletonRows, tableBodyClass, useTableLoading } from '../../components/table-loading';
+import { PmDashboardOverview } from './PmDashboardOverview';
 
 type EvaluationEmployeeRow = { name: string; position: string; status: string };
 type EvaluationGroup = {
@@ -1006,7 +1007,8 @@ export const PMDashboard = ({
             />
           )}
 
-          <main className="min-w-0 flex-1 p-4 sm:p-6">
+          {/* The dashboard draws its own full-width gradient header strip. */}
+          <main className={`min-w-0 flex-1 ${activeSection === 'dashboard' ? 'p-0' : 'p-4 sm:p-6'}`}>
 
             {activeSection === 'office-directory' && (
               <OfficeDirectorySection showBulkRequest={false} />
@@ -1014,67 +1016,20 @@ export const PMDashboard = ({
 
             {activeSection === 'dashboard' && (
               <>
-                {/* â”€â”€ Header Area â”€â”€ */}
-                <div className="flex items-center justify-between mb-1">
-                  <p className="text-sm text-blue-600 font-medium">Performance Management <span className="mx-1 text-slate-400">&gt;</span> <span className="text-slate-500">Dashboard</span></p>
-                  <button type="button" className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50 transition">
-                    <Clock className="h-4 w-4" /> How to Navigate
-                  </button>
-                </div>
-                <h2 className="text-2xl font-bold text-slate-900 tracking-tight">PM Dashboard</h2>
-                <p className="text-sm text-slate-500 mt-0.5">Performance evaluation overview â€” FY 2025</p>
+                <PmDashboardOverview
+                  pending={pendingSubmissions}
+                  onOpenSummary={() => setActiveSection('summary-of-ratings')}
+                />
 
+                <div className="px-4 pb-6 sm:px-6">
                 {errorMessage && (
-                  <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-2.5 text-sm text-amber-800">
+                  <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-2.5 text-sm text-amber-800">
                     {errorMessage}
                   </div>
                 )}
-
-                {/* â”€â”€ KPI Cards Row â”€â”€ */}
-                <div className="mt-5 grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
-                  <div className="rounded-xl border border-slate-200 bg-white px-5 py-4 shadow-sm relative overflow-hidden">
-                    {evaluationsLoading && <div className="absolute inset-0 bg-white/50 backdrop-blur-[1px] z-10" />}
-                    <div className="flex items-center gap-2 mb-1">
-                      <CheckCircle2 className="h-4 w-4 text-emerald-500" />
-                      <p className="text-xs font-medium text-slate-500">Completed Evaluations</p>
-                    </div>
-                    <p className="text-3xl font-extrabold text-slate-900 leading-none">{statusCounts.Approved}</p>
-                    <p className="text-xs text-slate-400 mt-1">FY 2025 total</p>
-                  </div>
-                  <div className="rounded-xl border border-slate-200 bg-white px-5 py-4 shadow-sm relative overflow-hidden">
-                    {evaluationsLoading && <div className="absolute inset-0 bg-white/50 backdrop-blur-[1px] z-10" />}
-                    <div className="flex items-center gap-2 mb-1">
-                      <AlertCircle className="h-4 w-4 text-red-500" />
-                      <p className="text-xs font-medium text-slate-500">Pending IPCR Reviews</p>
-                    </div>
-                    <p className="text-3xl font-extrabold text-orange-500 leading-none">{statusCounts['Supervisor Review']}</p>
-                    <p className="text-xs text-slate-400 mt-1">Awaiting validation</p>
-                  </div>
-                  <div className="rounded-xl border border-slate-200 bg-white px-5 py-4 shadow-sm relative overflow-hidden">
-                    {ipcrLoading && <div className="absolute inset-0 bg-white/50 backdrop-blur-[1px] z-10" />}
-                    <div className="flex items-center gap-2 mb-1">
-                      <AlertTriangle className="h-4 w-4 text-amber-500" />
-                      <p className="text-xs font-medium text-slate-500">Pending IPCR (Probationary)</p>
-                    </div>
-                    <p className="text-3xl font-extrabold text-amber-600 leading-none">{probationarySubmissionsCount}</p>
-                    <p className="text-xs text-slate-400 mt-1">Hired within 6 months</p>
-                  </div>
-                  <div className="rounded-xl border border-slate-200 bg-white px-5 py-4 shadow-sm relative overflow-hidden">
-                    {ipcrLoading && <div className="absolute inset-0 bg-white/50 backdrop-blur-[1px] z-10" />}
-                    <div className="flex items-center gap-2 mb-1">
-                      <Users className="h-4 w-4 text-blue-500" />
-                      <p className="text-xs font-medium text-slate-500">Pending IPCR (Regular)</p>
-                    </div>
-                    <p className="text-3xl font-extrabold text-blue-600 leading-none">{regularSubmissionsCount}</p>
-                    <p className="text-xs text-slate-400 mt-1">Tenured &gt; 6 months</p>
-                  </div>
-                </div>
-
-                {/* â”€â”€ Middle Section (60/40) â”€â”€ */}
-                <div className="mt-6 grid grid-cols-1 xl:grid-cols-5 gap-6">
                   {/* Left â€“ Action Required Queue (60%) */}
                   {/* Collapsed by default so it doesn't push the dashboard down (docs/mockups/2026-10-16-action-queue-dropdown.html). */}
-                  <section className="abyan-ds xl:col-span-3 self-start rounded-xl border border-[var(--neutral-200)] bg-[var(--bg-surface)] overflow-hidden">
+                  <section className="abyan-ds rounded-xl border border-[var(--neutral-200)] bg-[var(--bg-surface)] overflow-hidden">
                     <h3>
                       <button
                         type="button"
@@ -1141,75 +1096,6 @@ export const PMDashboard = ({
                     )}
                   </section>
 
-                  {/* Right â€“ Performance Distribution Donut (40%) */}
-                  <section className="xl:col-span-2 rounded-xl border border-slate-200 bg-white p-5 shadow-sm relative overflow-hidden">
-                    {evaluationsLoading && <div className="absolute inset-0 bg-white/50 backdrop-blur-[1px] z-10" />}
-                    <div className="flex items-center justify-between mb-4">
-                      <div className="flex items-center gap-2">
-                        <TrendingUp className="h-4 w-4 text-slate-500" />
-                        <h3 className="text-sm font-bold text-slate-800">Performance Distribution</h3>
-                      </div>
-                      <span className="text-xs text-slate-400">Current</span>
-                    </div>
-                    {(() => {
-                      const total = distributionEvaluated;
-                      const circ = 289;
-                      const oPct = total > 0 ? (performanceDistribution['Outstanding'] / total) * circ : 0;
-                      const vsPct = total > 0 ? (performanceDistribution['Very Satisfactory'] / total) * circ : 0;
-                      const sPct = total > 0 ? (performanceDistribution['Satisfactory'] / total) * circ : 0;
-                      const uPct = total > 0 ? (performanceDistribution['Unsatisfactory'] / total) * circ : 0;
-                      const pPct = total > 0 ? (performanceDistribution['Poor'] / total) * circ : 0;
-
-                      const oOff = 0;
-                      const vsOff = oOff - oPct;
-                      const sOff = vsOff - vsPct;
-                      const uOff = sOff - sPct;
-                      const pOff = uOff - uPct;
-
-                      return (
-                        <div className="flex flex-col items-center">
-                          <svg viewBox="0 0 120 120" className="w-44 h-44">
-                            <circle cx="60" cy="60" r="46" fill="none" stroke="#22c55e" strokeWidth="18"
-                              strokeDasharray={`${oPct} ${circ}`} strokeDashoffset={oOff}
-                              transform="rotate(-90 60 60)" />
-                            <circle cx="60" cy="60" r="46" fill="none" stroke="#3b82f6" strokeWidth="18"
-                              strokeDasharray={`${vsPct} ${circ}`} strokeDashoffset={vsOff}
-                              transform="rotate(-90 60 60)" />
-                            <circle cx="60" cy="60" r="46" fill="none" stroke="#eab308" strokeWidth="18"
-                              strokeDasharray={`${sPct} ${circ}`} strokeDashoffset={sOff}
-                              transform="rotate(-90 60 60)" />
-                            <circle cx="60" cy="60" r="46" fill="none" stroke="#f97316" strokeWidth="18"
-                              strokeDasharray={`${uPct} ${circ}`} strokeDashoffset={uOff}
-                              transform="rotate(-90 60 60)" />
-                            <circle cx="60" cy="60" r="46" fill="none" stroke="#ef4444" strokeWidth="18"
-                              strokeDasharray={`${pPct} ${circ}`} strokeDashoffset={pOff}
-                              transform="rotate(-90 60 60)" />
-                            {total === 0 && <circle cx="60" cy="60" r="46" fill="none" stroke="#f1f5f9" strokeWidth="18" />}
-                            <text x="60" y="56" textAnchor="middle" fill="#1e293b" fontSize="22" fontWeight="700">{total}</text>
-                            <text x="60" y="72" textAnchor="middle" fill="#94a3b8" fontSize="9" fontWeight="500">Evaluated</text>
-                          </svg>
-                          <div className="mt-4 w-full space-y-1.5">
-                            {[
-                              { label: 'Outstanding', value: performanceDistribution['Outstanding'], color: '#22c55e' },
-                              { label: 'Very Satisfactory', value: performanceDistribution['Very Satisfactory'], color: '#3b82f6' },
-                              { label: 'Satisfactory', value: performanceDistribution['Satisfactory'], color: '#eab308' },
-                              { label: 'Unsatisfactory', value: performanceDistribution['Unsatisfactory'], color: '#f97316' },
-                              { label: 'Poor', value: performanceDistribution['Poor'], color: '#ef4444' },
-                            ].map((item) => (
-                              <div key={item.label} className="flex items-center justify-between text-xs">
-                                <div className="flex items-center gap-2">
-                                  <span className="inline-block h-2.5 w-2.5 rounded-full" style={{ backgroundColor: item.color }} />
-                                  <span className="text-slate-600">{item.label}</span>
-                                </div>
-                                <span className="font-semibold text-slate-800">{item.value}</span>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      );
-                    })()}
-                  </section>
-                </div>
 
                 {/* â”€â”€ Bottom Section (50/50) â”€â”€ */}
                 <div className="mt-6 grid grid-cols-1 xl:grid-cols-2 gap-6">
@@ -1412,6 +1298,7 @@ export const PMDashboard = ({
                       )}
                     </div>
                   </section>
+                </div>
                 </div>
               </>
             )}

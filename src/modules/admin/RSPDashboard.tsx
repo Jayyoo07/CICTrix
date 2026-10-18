@@ -44,6 +44,7 @@ import { Button } from '../../components/Button';
 import { Sidebar } from '../../components/Sidebar';
 import { useDepartmentNames } from '../../hooks/useDepartmentOptions';
 import { useBackClosesView } from '../../hooks/useHistoryBack';
+import { useRealtimeRefresh } from '../../hooks/useRealtimeRefresh';
 import { getPreferredDataSourceMode } from '../../lib/dataSourceMode';
 import {
   createPassword,
@@ -64,6 +65,7 @@ import {
   getDeletedJobReports,
   getEmployeeRecordsFromSupabase,
   getJobPostingsFromSupabase,
+  loadJobPostings,
   getNewlyHiredFromSupabase,
   getApplicants as getRecruitmentApplicants,
   saveDeletedJobReports,
@@ -823,6 +825,18 @@ const normalizeWrittenScore = (value: number): number => {
 export const RSPDashboard = () => {
   // Plantilla names for posting/application rows (never their internal keys).
   const { nameFor: plantillaNameFor, summaryForPosting } = usePlantillaNames();
+
+  // Live updates: both events feed the dashboard's existing syncJobs reload.
+  useRealtimeRefresh({
+    channel: 'rsp-dashboard-postings',
+    tables: ['job_postings'],
+    onChange: () => { void loadJobPostings(); },
+  });
+  useRealtimeRefresh({
+    channel: 'rsp-dashboard-applicants',
+    tables: ['applicants', 'evaluations'],
+    onChange: () => { window.dispatchEvent(new CustomEvent('cictrix:applicants-updated')); },
+  });
   const navigate = useNavigate();
   const location = useLocation();
   const section = resolveSection(location.pathname, location.search);

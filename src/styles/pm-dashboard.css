@@ -1,0 +1,161 @@
+/* ============================================================================
+   PM dashboard overview (docs/mockups/2026-10-16-pm-dashboard.html)
+   ----------------------------------------------------------------------------
+   Colors are DESIGN_IDENTITY.md tokens only (§3, §9.7, §9.8, §9.11). Everything
+   is scoped to .pmdash. The reset below beats globals.css, which colors every
+   span / p / button / heading directly and would otherwise override us.
+   ============================================================================ */
+
+.pmdash {
+  --pd-ink: #040E6B;
+  --pd-ink-2: #515F69;
+  --pd-body: #28343D;
+  --pd-muted: #94A3B8;
+  --pd-line: #E2E8F0;
+  --pd-bg: #F1F5F9;
+  --pd-accent: #363EE8;
+  --pd-accent-soft: #EEF0FF;
+  --pd-tint: #C8D1FF;
+  --pd-warn: #E8821A;
+  --pd-warn-soft: #FCE8C8;
+  --pd-warn-t: #A8590A;
+  --pd-risk: #E05252;
+  --pd-risk-soft: #FDE2E2;
+  --pd-risk-t: #B42323;
+  --pd-info-soft: #E0E5FF;
+  --pd-info-t: #191FA8;
+  /* Adjectival ratings: brand blues for passing ratings, status colors only for U and P (§9.11). */
+  --pd-r-o: #040E6B;
+  --pd-r-vs: #363EE8;
+  --pd-r-s: #C8D1FF;
+  --pd-r-u: #E8821A;
+  --pd-r-p: #E05252;
+
+  background: var(--pd-bg);
+  color: var(--pd-ink);
+  font-family: 'Poppins', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.pmdash :is(h1, h2, h3, p, span, b, small, button, label, a, td, th, div, li) {
+  color: inherit;
+  margin: 0;
+  letter-spacing: normal;
+}
+.pmdash button { font: inherit; background: none; border: 0; padding: 0; cursor: pointer; }
+
+/* ── Header strip ─────────────────────────────────────────────────────────── */
+.pmdash .pd-hero {
+  background: linear-gradient(180deg, #363EE8 0%, #040E6B 100%);
+  color: #fff;
+  padding: 18px 24px 22px;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 12px 24px;
+  flex-wrap: wrap;
+}
+.pmdash .pd-crumbs { font-size: 12px; color: rgba(255, 255, 255, .85); margin-bottom: 4px; }
+.pmdash .pd-crumbs b { color: #fff; font-weight: 600; }
+.pmdash .pd-hero-title { font-size: 22px; line-height: 28px; font-weight: 700; color: #fff; }
+.pmdash .pd-hero-sub { font-size: 13px; color: rgba(255, 255, 255, .9); margin-top: 2px; }
+.pmdash .pd-filters { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.pmdash .pd-select { position: relative; display: flex; align-items: center; height: 32px; border-radius: 999px; border: 1px solid rgba(255, 255, 255, .5); color: #fff; }
+.pmdash .pd-select:focus-within { outline: 2px solid #fff; outline-offset: 2px; }
+.pmdash .pd-select select { appearance: none; background: transparent; border: 0; color: #fff; font: 500 12px 'Poppins', sans-serif; padding: 0 30px 0 12px; height: 100%; cursor: pointer; outline: none; max-width: 260px; }
+.pmdash .pd-select select option { color: #28343D; }
+.pmdash .pd-select svg { position: absolute; right: 10px; pointer-events: none; }
+.pmdash .pd-asof { font-size: 12px; color: rgba(255, 255, 255, .8); }
+
+/* ── Layout ───────────────────────────────────────────────────────────────── */
+.pmdash .pd-main { padding: 20px 24px 8px; display: grid; gap: 16px; }
+.pmdash .pd-error { padding: 12px 16px; border-radius: 12px; background: var(--pd-risk-soft); color: var(--pd-risk-t); font-weight: 500; }
+.pmdash .pd-card { background: #fff; border: 1px solid var(--pd-line); border-radius: 12px; padding: 16px 20px 20px; min-width: 0; }
+.pmdash .pd-card-h { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding-bottom: 12px; margin-bottom: 16px; border-bottom: 1px solid var(--pd-line); }
+.pmdash .pd-card-h h2 { font-size: 16px; line-height: 22px; font-weight: 600; color: var(--pd-ink); }
+.pmdash .pd-card-h .pd-link { margin-left: auto; }
+.pmdash .pd-desc { font-size: 12px; color: var(--pd-ink-2); }
+.pmdash .pd-ico { width: 36px; height: 36px; border-radius: 10px; display: grid; place-items: center; flex: none; background: var(--pd-accent-soft); color: var(--pd-accent); }
+.pmdash .pd-link { font-size: 12px; font-weight: 500; color: var(--pd-accent); white-space: nowrap; }
+.pmdash .pd-link:hover { color: #191FA8; text-decoration: underline; }
+.pmdash .pd-link:focus-visible { outline: 2px solid var(--pd-accent); outline-offset: 2px; border-radius: 4px; }
+.pmdash .pd-empty { font-size: 13px; color: var(--pd-ink-2); padding: 12px 0; }
+.pmdash .pd-muted { color: var(--pd-muted); }
+
+/* ── KPI cards (§9.7) ─────────────────────────────────────────────────────── */
+/* auto-fill keeps the lone card at one column wide instead of stretching it across the page. */
+.pmdash .pd-kpis { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 16px; }
+.pmdash .pd-kpi { background: #fff; border: 1px solid var(--pd-line); border-radius: 12px; padding: 20px; display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.pmdash .pd-kpi-h { display: flex; align-items: center; gap: 10px; font-size: 14px; line-height: 16px; font-weight: 500; color: var(--pd-ink-2); }
+.pmdash .pd-kpi-v { display: flex; align-items: baseline; gap: 8px; font-size: 36px; line-height: 40px; font-weight: 700; color: var(--pd-ink); }
+.pmdash .pd-kpi-v small { font-size: 13px; font-weight: 500; color: var(--pd-ink-2); }
+.pmdash .pd-kpi-sub { font-size: 12px; line-height: 16px; color: var(--pd-ink-2); }
+.pmdash .pd-kpi-foot { margin-top: auto; display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 22px; flex-wrap: wrap; }
+.pmdash .pd-track { height: 6px; border-radius: 3px; background: var(--pd-accent-soft); overflow: hidden; }
+.pmdash .pd-track i { display: block; height: 100%; border-radius: 3px; background: var(--pd-accent); }
+
+/* ── Badges (§9.8) ────────────────────────────────────────────────────────── */
+.pmdash .pd-pill { display: inline-flex; align-items: center; gap: 6px; height: 22px; padding: 0 10px; border-radius: 999px; font-size: 12px; font-weight: 500; white-space: nowrap; }
+.pmdash .pd-pill::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: var(--d); }
+.pmdash .pd-p-warn { background: var(--pd-warn-soft); color: var(--pd-warn-t); --d: var(--pd-warn); }
+.pmdash .pd-p-risk { background: var(--pd-risk-soft); color: var(--pd-risk-t); --d: var(--pd-risk); }
+.pmdash .pd-p-info { background: var(--pd-info-soft); color: var(--pd-info-t); --d: var(--pd-accent); }
+.pmdash .pd-p-n { background: var(--pd-bg); color: var(--pd-body); --d: #64748B; }
+
+/* ── Tables (§9.5) ────────────────────────────────────────────────────────── */
+.pmdash .pd-tbl { border: 1px solid var(--pd-line); border-radius: 12px; overflow-x: auto; }
+.pmdash .pd-tbl table { width: 100%; border-collapse: collapse; }
+.pmdash .pd-tbl th { background: var(--pd-bg); text-align: left; font-size: 12px; font-weight: 600; color: var(--pd-ink); padding: 9px 14px; white-space: nowrap; }
+.pmdash .pd-tbl td { padding: 10px 14px; border-top: 1px solid var(--pd-line); font-size: 13px; font-weight: 500; color: var(--pd-body); vertical-align: middle; }
+.pmdash .pd-tbl tr:hover td { background: #F8FAFF; }
+.pmdash .pd-tbl .n { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.pmdash .pd-tbl .pd-bar-col { width: 36%; min-width: 160px; }
+.pmdash .pd-pri { color: var(--pd-ink); font-weight: 600; }
+.pmdash .pd-meta { display: block; font-size: 12px; font-weight: 500; color: var(--pd-ink-2); }
+.pmdash .pd-rate { display: flex; align-items: center; gap: 10px; }
+.pmdash .pd-rate .pd-track { flex: 1; height: 8px; border-radius: 4px; }
+.pmdash .pd-rate b { width: 40px; text-align: right; font-weight: 600; color: var(--pd-ink); font-variant-numeric: tabular-nums; }
+
+/* ── Results ──────────────────────────────────────────────────────────────── */
+.pmdash .pd-metrics { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 20px; }
+.pmdash .pd-m { display: flex; flex-direction: column; min-width: 0; }
+.pmdash .pd-m .l { font-size: 12px; font-weight: 500; color: var(--pd-ink-2); }
+.pmdash .pd-m .v { font-size: 24px; line-height: 30px; font-weight: 700; color: var(--pd-ink); }
+.pmdash .pd-m .v small { font-size: 12px; font-weight: 500; color: var(--pd-ink-2); margin-left: 6px; }
+.pmdash .pd-m .f { font-size: 12px; font-weight: 500; color: var(--pd-ink-2); }
+.pmdash .pd-m .f.risk { color: var(--pd-risk-t); }
+.pmdash .pd-split { display: grid; grid-template-columns: minmax(0, 1.75fr) minmax(280px, 1fr); gap: 24px; }
+.pmdash .pd-col { min-width: 0; }
+.pmdash .pd-overline { display: block; font-size: 12px; font-weight: 600; letter-spacing: .4px; text-transform: uppercase; color: var(--pd-ink-2); margin-bottom: 10px; }
+.pmdash .pd-overline-gap { margin-top: 20px; }
+.pmdash .pd-overline-row { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.pmdash .pd-overline-row .pd-pill { text-transform: none; letter-spacing: 0; }
+.pmdash .pd-stack { display: flex; gap: 2px; height: 10px; border-radius: 5px; overflow: hidden; min-width: 120px; }
+.pmdash .pd-stack i { display: block; height: 100%; min-width: 3px; }
+.pmdash .pd-stack-lg { height: 14px; border-radius: 7px; }
+.pmdash .pd-legend { display: flex; flex-wrap: wrap; gap: 6px 14px; margin-top: 10px; font-size: 12px; font-weight: 500; color: var(--pd-ink-2); }
+.pmdash .pd-legend span { display: inline-flex; align-items: center; gap: 6px; }
+.pmdash .pd-legend span::before { content: ''; width: 10px; height: 10px; border-radius: 3px; background: var(--c); }
+.pmdash .pd-legend b { color: var(--pd-ink); font-weight: 600; }
+.pmdash .pd-callout { margin-top: 12px; padding: 10px 12px; border-radius: 8px; background: var(--pd-accent-soft); font-size: 12px; color: var(--pd-info-t); }
+
+.pmdash .pd-people { list-style: none; padding: 0; margin: 0; }
+.pmdash .pd-people li { display: grid; grid-template-columns: 36px minmax(0, 1fr) auto; gap: 12px; align-items: center; padding: 10px 0; border-top: 1px solid var(--pd-line); }
+.pmdash .pd-people li:first-child { border-top: 0; padding-top: 0; }
+.pmdash .pd-avatar { width: 36px; height: 36px; border-radius: 50%; display: grid; place-items: center; background: var(--pd-accent-soft); color: var(--pd-info-t); font-size: 12px; font-weight: 600; }
+.pmdash .pd-person { min-width: 0; }
+.pmdash .pd-person > span { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pmdash .pd-viewall { display: block; width: 100%; text-align: left; margin-top: 4px; padding-top: 12px; border-top: 1px solid var(--pd-line); }
+
+@media (prefers-reduced-motion: reduce) {
+  .pmdash * { transition: none !important; }
+}
+@media (max-width: 1100px) {
+  .pmdash .pd-split { grid-template-columns: 1fr; }
+}
+@media (max-width: 760px) {
+  .pmdash .pd-metrics { grid-template-columns: 1fr 1fr; }
+  .pmdash .pd-desc { display: none; }
+  .pmdash .pd-main, .pmdash .pd-hero { padding-left: 16px; padding-right: 16px; }
+}

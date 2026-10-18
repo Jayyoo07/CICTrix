@@ -22,6 +22,7 @@ import { TableRefreshBar, TableSkeletonRows, tableBodyClass, useTableLoading } f
 import { buildEvaluationSnapshotMap, subscribeToEvaluationChanges, type EvaluationSnapshot } from '../lib/evaluationScores';
 import {
   ArrowLeft,
+  Briefcase,
   Building2,
   CheckCircle,
   ChevronRight,
@@ -100,7 +101,9 @@ export const ForHiringPage = () => {
   const [selectedDept, setSelectedDept]         = useState<string | null>(null);
   const [selected, setSelected]                 = useState<Set<string>>(new Set());
   const [confirmTarget, setConfirmTarget]       = useState<HiringRow[] | null>(null);
-  useBackClosesView(selectedDept !== null, () => { setSelectedDept(null); setSelected(new Set()); }, 'for-hiring-dept');
+  useBackClosesView(selectedDept !== null, () => { setSelectedDept(null); setSelectedPosition(null); setSelected(new Set()); }, 'for-hiring-dept');
+  const [selectedPosition, setSelectedPosition] = useState<string | null>(null);
+  useBackClosesView(selectedPosition !== null, () => { setSelectedPosition(null); setSelected(new Set()); }, 'for-hiring-position');
   const [hiring, setHiring]                     = useState(false);
   const [credentialsResult, setCredentialsResult] = useState<CredentialResult[]>([]);
   const [showCredentialsModal, setShowCredentialsModal] = useState(false);
@@ -417,13 +420,28 @@ export const ForHiringPage = () => {
       .sort((a, b) => a.dept.localeCompare(b.dept));
   }, [rows]);
 
-  // ── Applicants for the selected department, sorted by interview score ─────
-  const deptApplicants = useMemo(() => {
+  // ── Position folders inside the selected department ───────────────────────
+  const positionList = useMemo(() => {
     if (!selectedDept) return [];
-    return rows
+    const counts = new Map<string, number>();
+    rows
       .filter(r => (r.department || 'No Department') === selectedDept)
-      .sort((a, b) => (b.interviewScore ?? b.examScore ?? -1) - (a.interviewScore ?? a.examScore ?? -1));
+      .forEach(r => {
+        const position = r.position || 'No Position';
+        counts.set(position, (counts.get(position) ?? 0) + 1);
+      });
+    return Array.from(counts.entries())
+      .map(([position, applicantCount]) => ({ position, applicantCount }))
+      .sort((a, b) => a.position.localeCompare(b.position));
   }, [rows, selectedDept]);
+
+  // ── Applicants for the selected position, sorted by interview score ───────
+  const deptApplicants = useMemo(() => {
+    if (!selectedDept || !selectedPosition) return [];
+    return rows
+      .filter(r => (r.department || 'No Department') === selectedDept && (r.position || 'No Position') === selectedPosition)
+      .sort((a, b) => (b.interviewScore ?? b.examScore ?? -1) - (a.interviewScore ?? a.examScore ?? -1));
+  }, [rows, selectedDept, selectedPosition]);
 
   // ── Selection helpers ─────────────────────────────────────────────────────
   const toggleRow = (id: string) =>
@@ -792,14 +810,77 @@ export const ForHiringPage = () => {
     </Shell>
   );
 
-  // ── VIEW 2 — Ranked applicant list for the selected department ────────────
+  // ── VIEW 2 — Position folder table for the selected department ────────────
+  if (!selectedPosition) return (
+    <Shell>
+      <div className="p-6">
+        <div className="mb-5">
+          <h1 className="text-xl font-bold text-slate-900">{selectedDept}</h1>
+          <p className="text-sm text-slate-500">
+            {positionList.length} position{positionList.length !== 1 ? 's' : ''} with qualified applicants
+          </p>
+        </div>
+        {positionList.length === 0 ? (
+          <div className="flex flex-col items-center justify-center rounded-2xl border border-slate-200 bg-white py-20 text-slate-400">
+            <Users className="mb-3 h-10 w-10" />
+            <p className="font-medium">No applicants in this department.</p>
+          </div>
+        ) : (
+          <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
+            <table className="w-full min-w-full">
+              <thead>
+                <tr className="border-b border-slate-200 bg-slate-50">
+                  <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">Position</th>
+                  <th className="px-5 py-3 text-center text-xs font-semibold uppercase tracking-wider text-slate-500">Applicants</th>
+                  <th className="w-10 px-5 py-3" />
+                </tr>
+              </thead>
+              <tbody>
+                {positionList.map(({ position, applicantCount }) => (
+                  <tr
+                    key={position}
+                    onClick={() => { setSelectedPosition(position); setSelected(new Set()); }}
+                    className="border-b border-slate-100 last:border-0 cursor-pointer transition-colors hover:bg-blue-50/40 group"
+                  >
+                    <td className="px-5 py-4">
+                      <div className="flex items-center gap-3">
+                        <div className="shrink-0 rounded-xl bg-[#363EE8]/10 p-2 text-[#363EE8]">
+                          <Briefcase className="h-5 w-5" />
+                        </div>
+                        <span className="text-sm font-semibold text-slate-900">{position}</span>
+                      </div>
+                    </td>
+                    <td className="px-5 py-4 text-center">
+                      <span className="inline-flex items-center gap-1 rounded-full bg-[#363EE8]/10 px-2.5 py-0.5 text-xs font-semibold text-[#363EE8]">
+                        <Users className="h-3 w-3" />
+                        {applicantCount} {applicantCount === 1 ? 'applicant' : 'applicants'}
+                      </span>
+                    </td>
+                    <td className="px-5 py-4 text-slate-400 group-hover:text-[#363EE8] transition-colors">
+                      <ChevronRight className="h-4 w-4" />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      {renderConfirmDialog()}
+      {renderCredentialsModal()}
+    </Shell>
+  );
+
+  // ── VIEW 3 — Ranked applicant list for the selected position ──────────────
   return (
     <Shell>
       <div className="p-6">
         {/* Header */}
         <div className="mb-5 flex flex-wrap items-center justify-between gap-4">
           <div>
-            <h1 className="text-xl font-bold text-slate-900">{selectedDept}</h1>
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">{selectedDept}</p>
+            <h1 className="text-xl font-bold text-slate-900">{selectedPosition}</h1>
             <p className="text-sm text-slate-500">
               {deptApplicants.length} qualified applicant{deptApplicants.length !== 1 ? 's' : ''} — ranked by interview score
             </p>
@@ -818,7 +899,7 @@ export const ForHiringPage = () => {
         {deptApplicants.length === 0 ? (
           <div className="flex flex-col items-center justify-center rounded-2xl border border-slate-200 bg-white py-20 text-slate-400">
             <Users className="mb-3 h-10 w-10" />
-            <p className="font-medium">No applicants in this department.</p>
+            <p className="font-medium">No applicants for this position.</p>
           </div>
         ) : (
           <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white">

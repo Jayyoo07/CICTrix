@@ -42,7 +42,41 @@ const ABYAN_CODE_PATTERN = /^\s*abyan[\s-]*\d/i;
 
 // ── Admin: plantilla labels ─────────────────────────────────────────────────
 
-export const normalizePlantillaLabel = (value: string | null | undefined): string =>
+/** The number in a "Plantilla 21" label, or '' when the label isn't one (older free-text names). */
+export const plantillaNumberOf = (label: string | null | undefined): string =>
+  /^\s*plantilla\s+(\d+)\s*$/i.exec(String(label ?? ''))?.[1] ?? '';
+
+/**
+ * The label the admin form stores for a typed plantilla number: "21" → "Plantilla 21".
+ * Non-digits and leading zeros are dropped so "021" and "21" can't both exist; '' stays ''.
+ */
+export const plantillaLabelForNumber = (typed: string): string => {
+  const digits = String(typed ?? '').replace(/\D/g, '').replace(/^0+(?=\d)/, '');
+  return digits ? `Plantilla ${digits}` : '';
+};
+
+/**
+ * Slot numbers that carry the typed plantilla numbers, for databases without
+ * the `label` column (migration 20260928 not applied), where the UI shows
+ * "Plantilla <slot_number>". "Plantilla 21" → 21; a label with no number takes
+ * the lowest number not already used, so every number stays unique.
+ */
+export const slotNumbersForLabels = (labels: string[]): number[] => {
+  const typed = labels.map((label) => {
+    const n = Number(plantillaNumberOf(label));
+    return Number.isInteger(n) && n > 0 ? n : null;
+  });
+  const used = new Set(typed.filter((n): n is number => n != null));
+  let next = 1;
+  return typed.map((n) => {
+    if (n != null) return n;
+    while (used.has(next)) next += 1;
+    used.add(next);
+    return next;
+  });
+};
+
+export const normalizePlantillaLabel =(value: string | null | undefined): string =>
   String(value ?? '').trim().replace(/\s+/g, ' ').toLowerCase();
 
 /**
