@@ -12,6 +12,7 @@ import { fetchApplicantSlotLinks, fetchSlotsByJobPosting } from '../lib/plantill
 import { plantillaLabel } from '../lib/plantillaRules';
 import { samePositionRows } from '../lib/applicantReviewQueue';
 import { SortHeader, toTime, useTableSort } from './tableSort';
+import { TableRefreshBar, TableSkeletonRows, tableBodyClass, useTableLoading } from './table-loading';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -126,6 +127,7 @@ export const ApplicationsListPage = () => {
   // ── Load applicants ────────────────────────────────────────────────────────
   useEffect(() => {
     const load = async () => {
+      setLoading(true);
       try {
         const preferredMode = isMockModeEnabled ? 'local' : getPreferredDataSourceMode();
         const client: any = preferredMode === 'local' ? mockDatabase : supabase;
@@ -292,25 +294,7 @@ export const ApplicationsListPage = () => {
   };
   const paged      = sortedApplicants.slice((safePage - 1) * ITEMS_PER_PAGE, safePage * ITEMS_PER_PAGE);
 
-  // ── Loading ────────────────────────────────────────────────────────────────
-  if (loading) {
-    return (
-      <div className="rsp-ds min-h-screen bg-[#f8f9fa]">
-        <AdminHeader userName="RSP Admin" divisionLabel="RSP Division" />
-        <div className="admin-layout">
-          <Sidebar activeModule="RSP" userRole="rsp" />
-          <main className="admin-content bg-slate-50 !p-0">
-            <div className="border-b border-slate-200 bg-white px-8 py-6">
-              <h1 className="!mb-1 !text-2xl font-bold">Applications</h1>
-              <p className="!mb-0 text-base text-slate-500">All applicants submitted across all job positions</p>
-            </div>
-            <ApplicantsTabBar />
-            <div className="flex items-center justify-center p-16 text-slate-500">Loading applicants…</div>
-          </main>
-        </div>
-      </div>
-    );
-  }
+  const applicantsLoad = useTableLoading(loading, applicants.length > 0);
 
   // ── Render ─────────────────────────────────────────────────────────────────
   return (
@@ -373,9 +357,13 @@ export const ApplicationsListPage = () => {
                     <SortHeader label="Type" sortKey="type" sort={applicantSort} onSort={sortApplicants} />
                     <SortHeader label="Applied" sortKey="applied" sort={applicantSort} onSort={sortApplicants} />
                   </tr>
+                  <TableRefreshBar active={applicantsLoad.refreshing} colSpan={6} />
                 </thead>
-                <tbody>
-                  {paged.map(a => (
+                <tbody className={tableBodyClass(applicantsLoad.refreshing)}>
+                  {applicantsLoad.initialLoading ? (
+                    <TableSkeletonRows show={applicantsLoad.showSkeleton} rows={ITEMS_PER_PAGE}
+                      columns={['two-line', 'text', 'text', 'text', 'badge', 'text']} label="Loading applicants…" />
+                  ) : paged.map(a => (
                     <tr key={a.id} onClick={() => openApplicant(a.id, sortedApplicants)} className="cursor-pointer border-b border-slate-100 hover:bg-slate-50 transition-colors last:border-0">
 
                       {/* Name — clickable */}
@@ -413,7 +401,7 @@ export const ApplicationsListPage = () => {
                       <td className="px-5 py-4 text-xs text-slate-500 whitespace-nowrap">{fmtDate(a.created_at)}</td>
                     </tr>
                   ))}
-                  {paged.length === 0 && (
+                  {!applicantsLoad.initialLoading && paged.length === 0 && (
                     <tr>
                       <td colSpan={6} className="px-5 py-12 text-center text-slate-500">
                         <Search className="mx-auto mb-2 h-8 w-8 text-slate-300" />
@@ -428,7 +416,7 @@ export const ApplicationsListPage = () => {
             {/* Pagination */}
             <div className="mt-3 flex items-center justify-between px-1 text-sm text-slate-600">
               <p>
-                {filtered.length === 0 ? 'No results'
+                {applicantsLoad.initialLoading ? 'Loading…' : filtered.length === 0 ? 'No results'
                   : `Showing ${(safePage - 1) * ITEMS_PER_PAGE + 1}–${Math.min(safePage * ITEMS_PER_PAGE, filtered.length)} of ${filtered.length}`}
               </p>
               <div className="flex items-center gap-2">
@@ -487,9 +475,13 @@ export const ApplicationsListPage = () => {
                       <SortHeader label="Type" sortKey="type" sort={shortlistSort} onSort={toggleShortlistSort} />
                       <SortHeader label="Applied" sortKey="applied" sort={shortlistSort} onSort={toggleShortlistSort} />
                     </tr>
+                    <TableRefreshBar active={applicantsLoad.refreshing} colSpan={7} />
                   </thead>
-                  <tbody>
-                    {sortedShortlisted.map(a => (
+                  <tbody className={tableBodyClass(applicantsLoad.refreshing)}>
+                    {applicantsLoad.initialLoading ? (
+                      <TableSkeletonRows show={applicantsLoad.showSkeleton} rows={3}
+                        columns={['text', 'two-line', 'text', 'text', 'text', 'badge', 'text']} label="Loading shortlisted applicants…" />
+                    ) : sortedShortlisted.map(a => (
                       <tr key={a.id} className="border-b border-slate-100 hover:bg-slate-50 transition-colors last:border-0">
                         <td className="px-5 py-4">
                           <input
@@ -523,7 +515,7 @@ export const ApplicationsListPage = () => {
                         <td className="px-5 py-4 text-xs text-slate-500 whitespace-nowrap">{fmtDate(a.created_at)}</td>
                       </tr>
                     ))}
-                    {shortlisted.length === 0 && (
+                    {!applicantsLoad.initialLoading && shortlisted.length === 0 && (
                       <tr>
                         <td colSpan={7} className="px-5 py-12 text-center text-slate-500">
                           <p className="font-medium">No shortlisted applicants yet.</p>

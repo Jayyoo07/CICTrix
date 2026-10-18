@@ -18,6 +18,7 @@ import { plantillaLabel } from '../lib/plantillaRules';
 import { sendEmail } from '../lib/email';
 import { createPassword, getEmployeePortalAccounts, upsertEmployeePortalAccount } from '../lib/employeePortalData';
 import { supabase } from '../lib/supabase';
+import { TableRefreshBar, TableSkeletonRows, tableBodyClass, useTableLoading } from './table-loading';
 import { buildEvaluationSnapshotMap, subscribeToEvaluationChanges, type EvaluationSnapshot } from '../lib/evaluationScores';
 import {
   ArrowLeft,
@@ -399,6 +400,8 @@ export const ForHiringPage = () => {
   }, []);
 
   // ── Department folder list ────────────────────────────────────────────────
+  const rowsLoad = useTableLoading(loading, rows.length > 0);
+
   const departmentList = useMemo(() => {
     const map = new Map<string, { positions: Set<string>; count: number }>();
     rows.forEach(r => {
@@ -742,17 +745,11 @@ export const ForHiringPage = () => {
     </div>
   );
 
-  if (loading) return (
-    <Shell>
-      <div className="flex items-center justify-center p-16 text-slate-500">Loading…</div>
-    </Shell>
-  );
-
   // ── VIEW 1 — Department folder table ──────────────────────────────────────
   if (!selectedDept) return (
     <Shell>
       <div className="p-6">
-        {departmentList.length === 0 ? (
+        {!rowsLoad.initialLoading && departmentList.length === 0 ? (
           <div className="flex flex-col items-center justify-center rounded-2xl border border-slate-200 bg-white py-20 text-slate-400">
             <Users className="mb-3 h-10 w-10" />
             <p className="font-medium">No qualified applicants yet.</p>
@@ -768,9 +765,12 @@ export const ForHiringPage = () => {
                   <th className="px-5 py-3 text-center text-xs font-semibold uppercase tracking-wider text-slate-500">Applicants</th>
                   <th className="w-10 px-5 py-3" />
                 </tr>
+                <TableRefreshBar active={rowsLoad.refreshing} colSpan={4} />
               </thead>
-              <tbody>
-                {departmentList.map(({ dept, positionCount, applicantCount }) => (
+              <tbody className={tableBodyClass(rowsLoad.refreshing)}>
+                {rowsLoad.initialLoading ? (
+                  <TableSkeletonRows show={rowsLoad.showSkeleton} columns={['text', 'text', 'text', 'text']} label="Loading departments…" />
+                ) : departmentList.map(({ dept, positionCount, applicantCount }) => (
                   <tr
                     key={dept}
                     onClick={() => { setSelectedDept(dept); setSelected(new Set()); }}
@@ -921,8 +921,9 @@ export const ForHiringPage = () => {
                   <th className="px-5 py-3 text-center text-xs font-semibold uppercase tracking-wider text-slate-500">Interview Score</th>
                   <th className="px-5 py-3 text-center text-xs font-semibold uppercase tracking-wider text-slate-500">Exam Score</th>
                 </tr>
+                <TableRefreshBar active={rowsLoad.refreshing} colSpan={6} />
               </thead>
-              <tbody>
+              <tbody className={tableBodyClass(rowsLoad.refreshing)}>
                 {deptApplicants.map((row, idx) => {
                   const rank = idx + 1;
                   const medalBg =

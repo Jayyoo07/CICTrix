@@ -10,6 +10,7 @@ import {
   XCircle,
 } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
+import { TableSkeletonRows, tableBodyClass, useTableLoading } from './table-loading';
 import { getPreferredDataSourceMode } from '../lib/dataSourceMode';
 import { mockDatabase } from '../lib/mockDatabase';
 import { getAuthoritativeJobPostings } from '../lib/recruitmentData';
@@ -210,6 +211,9 @@ const getClientEntries = () => {
 
 export const RaterManagementPage = () => {
   const [ratersData, setRatersData] = useState<RaterSourceRow[]>([]);
+  // First load only; focus and storage-event refetches stay silent.
+  const [initialLoad, setInitialLoad] = useState(true);
+  const ratersLoad = useTableLoading(initialLoad, ratersData.length > 0);
   const [profileAccounts, setProfileAccounts] = useState<ProfileAccountRow[]>([]);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('All Status');
@@ -328,6 +332,8 @@ export const RaterManagementPage = () => {
       );
     } catch {
       setRatersData([]);
+    } finally {
+      setInitialLoad(false);
     }
   };
 
@@ -752,8 +758,12 @@ export const RaterManagementPage = () => {
                   <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider text-gray-500">Actions</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-100">
-                {filteredRaters.map((rater) => (
+              <tbody className={`divide-y divide-gray-100 ${tableBodyClass(false)}`}>
+                {ratersLoad.initialLoading && (
+                  <TableSkeletonRows show={ratersLoad.showSkeleton}
+                    columns={['two-line', 'text', 'badge', 'text', 'text', 'badge', 'button']} label="Loading raters…" />
+                )}
+                {!ratersLoad.initialLoading && filteredRaters.map((rater) => (
                   <tr key={`${rater.source}-${rater.id}-${rater.email}`} className="transition-colors hover:bg-gray-50">
                     <td className="whitespace-nowrap px-6 py-4">
                       <div className="flex items-center">
@@ -813,7 +823,7 @@ export const RaterManagementPage = () => {
                   </tr>
                 ))}
 
-                {filteredRaters.length === 0 && (
+                {!ratersLoad.initialLoading && filteredRaters.length === 0 && (
                   <tr>
                     <td className="px-6 py-8 text-sm text-gray-500" colSpan={7}>
                       No raters found.

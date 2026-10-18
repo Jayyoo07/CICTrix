@@ -88,6 +88,7 @@ import { PMIPCRManagement } from './pm/PMIPCRManagement';
 import { CompetencyFrameworkPage } from './CompetencyFrameworkPageView';
 import { PMArchive } from './pm/PMArchive';
 import { SummaryOfRatings } from './pm/SummaryOfRatings';
+import { SkeletonList, TableRefreshBar, TableSkeletonRows, tableBodyClass, useTableLoading } from '../../components/table-loading';
 import { PmDashboardOverview } from './PmDashboardOverview';
 
 type EvaluationEmployeeRow = { name: string; position: string; status: string };
@@ -418,7 +419,8 @@ export const PMDashboard = ({
   // these state slots; per-section useEffects below populate them. No mock
   // fallbacks â€” empty arrays render the "No data" empty state in each widget.
   const [evaluations, setEvaluations] = useState<PerformanceEvaluation[]>([]);
-  const [evaluationsLoading, setEvaluationsLoading] = useState(false);
+  // Start true: the dashboard section fetches on mount, so the first paint is the skeleton, not an empty table.
+  const [evaluationsLoading, setEvaluationsLoading] = useState(true);
   const [statusCounts, setStatusCounts] = useState<Record<EvaluationStatus, number>>({
     'Planning': 0,
     'Self Evaluation': 0,
@@ -451,7 +453,7 @@ export const PMDashboard = ({
     due: 0,
     nextDue: '—'
   });
-  const [ipcrLoading, setIpcrLoading] = useState(false);
+  const [ipcrLoading, setIpcrLoading] = useState(true);
   const [ipcrSubmissionTab, setIpcrSubmissionTab] = useState<'pending' | 'recent'>('pending');
   const [actionQueueOpen, setActionQueueOpen] = useState(false);
   const [actionQueueShowAll, setActionQueueShowAll] = useState(false);
@@ -518,6 +520,10 @@ export const PMDashboard = ({
   const actionQueueRows = actionQueueShowAll ? actionRequiredQueue : actionRequiredQueue.slice(0, QUEUE_PREVIEW_ROWS);
 
   // Recent IPCR submissions for the dashboard table (most recent first, top 6).
+  const pendingLoad = useTableLoading(ipcrLoading, pendingSubmissions.length > 0);
+  const recentLoad = useTableLoading(evaluationsLoading, evaluations.length > 0);
+  const cyclesLoad = useTableLoading(loading, cycles.length > 0);
+
   const recentIPCRs = evaluations
     .filter(e => e.final_score !== null || e.status === 'Approved' || e.status === 'Supervisor Review')
     .slice(0, 6)
@@ -1182,7 +1188,6 @@ export const PMDashboard = ({
                       </span>
                     </header>
                     <div className="overflow-x-auto relative min-h-[60px]">
-                      {(evaluationsLoading || ipcrLoading) && <div className="absolute inset-0 bg-white/50 backdrop-blur-[1px] z-10" />}
                       
                       {ipcrSubmissionTab === 'pending' ? (
                         <table className="w-full text-xs">
@@ -1194,9 +1199,12 @@ export const PMDashboard = ({
                               <th className="px-4 py-2.5 font-semibold text-slate-400 uppercase tracking-wider">Period</th>
                               <th className="px-4 py-2.5 font-semibold text-slate-400 uppercase tracking-wider">Stage</th>
                             </tr>
+                            <TableRefreshBar active={pendingLoad.refreshing} colSpan={5} />
                           </thead>
-                          <tbody className="divide-y divide-slate-100">
-                            {pendingSubmissions.length === 0 && !ipcrLoading ? (
+                          <tbody className={`divide-y divide-slate-100 ${tableBodyClass(pendingLoad.refreshing)}`}>
+                            {pendingLoad.initialLoading ? (
+                              <TableSkeletonRows show={pendingLoad.showSkeleton} columns={['text', 'text', 'text', 'text', 'badge']} label="Loading pending submissions…" />
+                            ) : pendingSubmissions.length === 0 ? (
                               <tr>
                                 <td colSpan={5} className="py-8 text-center text-slate-500 italic">No pending submissions</td>
                               </tr>
@@ -1249,9 +1257,12 @@ export const PMDashboard = ({
                               <th className="px-4 py-2.5 font-semibold text-slate-400 uppercase tracking-wider">Status</th>
                               <th className="px-4 py-2.5"></th>
                             </tr>
+                            <TableRefreshBar active={recentLoad.refreshing} colSpan={6} />
                           </thead>
-                          <tbody className="divide-y divide-slate-100">
-                            {recentIPCRs.length === 0 && !evaluationsLoading ? (
+                          <tbody className={`divide-y divide-slate-100 ${tableBodyClass(recentLoad.refreshing)}`}>
+                            {recentLoad.initialLoading ? (
+                              <TableSkeletonRows show={recentLoad.showSkeleton} columns={['text', 'text', 'text', 'text', 'badge', 'button']} label="Loading submissions…" />
+                            ) : recentIPCRs.length === 0 ? (
                               <tr>
                                 <td colSpan={6} className="py-8 text-center text-slate-500 italic">No submissions yet</td>
                               </tr>
@@ -1853,9 +1864,9 @@ export const PMDashboard = ({
             </div>
           )}
 
-          {loading ? (
-            <div className="flex items-center justify-center py-12">
-              <p className="text-slate-600">Loading evaluation cycles...</p>
+          {cyclesLoad.initialLoading ? (
+            <div className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-md" aria-busy="true">
+              <SkeletonList show={cyclesLoad.showSkeleton} rows={4} label="Loading evaluation cycles…" />
             </div>
           ) : (
             <div className="bg-white rounded-lg shadow-md border border-slate-200 overflow-hidden">

@@ -23,6 +23,7 @@ import {
 } from '../../lib/api/competencyFramework';
 import { Field, getCurrentAdminEmail, ui } from './moduleUi';
 import '../../styles/admin.css';
+import { SkeletonList, useTableLoading } from '../../components/table-loading';
 
 const SUBTABS = [
   { key: 'requirements', label: 'Position Requirements' },
@@ -97,6 +98,7 @@ export const CompetencyFrameworkPage = () => {
 const PositionRequirements = () => {
   const [reqs, setReqs] = useState<Requirement[]>([]);
   const [loading, setLoading] = useState(true);
+  const reqsLoad = useTableLoading(loading, reqs.length > 0);
   const [error, setError] = useState('');
   const [banner, setBanner] = useState('');
   const [search, setSearch] = useState('');
@@ -171,8 +173,10 @@ const PositionRequirements = () => {
         </button>
       </div>
 
-      {loading ? (
-        <div style={{ ...ui.card, ...ui.emptyBox }}>Loading requirements…</div>
+      {reqsLoad.initialLoading ? (
+        <div style={ui.card} aria-busy="true">
+          <SkeletonList show={reqsLoad.showSkeleton} label="Loading requirements…" />
+        </div>
       ) : byPosition.length === 0 ? (
         <div style={{ ...ui.card, ...ui.emptyBox }}>
           {reqs.length === 0
@@ -309,6 +313,7 @@ const ReviewQueue = () => {
   const [proposals, setProposals] = useState<Proposal[]>([]);
   const [reqs, setReqs] = useState<Requirement[]>([]);
   const [loading, setLoading] = useState(true);
+  const proposalsLoad = useTableLoading(loading, proposals.length > 0);
   const [error, setError] = useState('');
   const [banner, setBanner] = useState('');
   const [showPropose, setShowPropose] = useState(false);
@@ -393,10 +398,10 @@ const ReviewQueue = () => {
         <div style={ui.cardHeader}>
           <FileClock size={18} />
           Pending
-          <span style={{ marginLeft: 'auto', fontSize: '13px', fontWeight: 500, color: '#6b7280' }}>{loading ? '' : pending.length}</span>
+          <span style={{ marginLeft: 'auto', fontSize: '13px', fontWeight: 500, color: '#6b7280' }}>{proposalsLoad.initialLoading ? '' : pending.length}</span>
         </div>
-        {loading ? (
-          <div style={ui.emptyBox}>Loading…</div>
+        {proposalsLoad.initialLoading ? (
+          <SkeletonList show={proposalsLoad.showSkeleton} rows={3} label="Loading proposals…" />
         ) : pending.length === 0 ? (
           <div style={ui.emptyBox}>No pending proposals.</div>
         ) : (
@@ -636,6 +641,7 @@ const actionPill = (action: string): React.CSSProperties => {
 const CompetencyMap = () => {
   const [reqs, setReqs] = useState<Requirement[]>([]);
   const [loading, setLoading] = useState(true);
+  const mapLoad = useTableLoading(loading, reqs.length > 0);
   const [error, setError] = useState('');
   const [positionFilter, setPositionFilter] = useState('');
   const [levelFilter, setLevelFilter] = useState('');
@@ -710,11 +716,11 @@ const CompetencyMap = () => {
           <Grid3x3 size={18} />
           Competency Map
           <span style={{ marginLeft: 'auto', fontSize: '13px', fontWeight: 500, color: '#6b7280' }}>
-            {loading ? '' : `${groupedByPosition.length} position${groupedByPosition.length === 1 ? '' : 's'}`}
+            {mapLoad.initialLoading ? '' : `${groupedByPosition.length} position${groupedByPosition.length === 1 ? '' : 's'}`}
           </span>
         </div>
-        {loading ? (
-          <div style={ui.emptyBox}>Loading…</div>
+        {mapLoad.initialLoading ? (
+          <SkeletonList show={mapLoad.showSkeleton} label="Loading the competency map…" />
         ) : groupedByPosition.length === 0 ? (
           <div style={ui.emptyBox}>No requirements match the current filters.</div>
         ) : (
@@ -771,6 +777,7 @@ const CompetencyMap = () => {
 const ChangeLog = () => {
   const [entries, setEntries] = useState<ChangeLogEntry[]>([]);
   const [loading, setLoading] = useState(true);
+  const entriesLoad = useTableLoading(loading, entries.length > 0);
 
   useEffect(() => {
     (async () => {
@@ -785,10 +792,10 @@ const ChangeLog = () => {
       <div style={ui.cardHeader}>
         <ShieldQuestion size={18} />
         Change Log
-        <span style={{ marginLeft: 'auto', fontSize: '13px', fontWeight: 500, color: '#6b7280' }}>{loading ? '' : `${entries.length} entries`}</span>
+        <span style={{ marginLeft: 'auto', fontSize: '13px', fontWeight: 500, color: '#6b7280' }}>{entriesLoad.initialLoading ? '' : `${entries.length} entries`}</span>
       </div>
-      {loading ? (
-        <div style={ui.emptyBox}>Loading…</div>
+      {entriesLoad.initialLoading ? (
+        <SkeletonList show={entriesLoad.showSkeleton} label="Loading the change log…" />
       ) : entries.length === 0 ? (
         <div style={ui.emptyBox}>No changes recorded yet.</div>
       ) : (

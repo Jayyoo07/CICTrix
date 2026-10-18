@@ -11,6 +11,7 @@ import {
   type IPCRRatingRecord,
 } from './pm/SummaryOfRatings';
 import { CompetencyGapPanel } from './pm/CompetencyGapPanel';
+import { RefreshBar, SkeletonList, tableBodyClass, useTableLoading } from '../../components/table-loading';
 
 // Employees rated below "Satisfactory" (< 3.00 on the IPCR scale) are flagged as
 // needing improvement — the same absolute threshold the department landing counts.
@@ -29,6 +30,7 @@ export const LndSummaryOfRatings = () => {
   const [records, setRecords] = useState<IPCRRatingRecord[]>([]);
   const [headcount, setHeadcount] = useState<Map<string, { name: string; count: number }>>(new Map());
   const [loading, setLoading] = useState(true);
+  const recordsLoad = useTableLoading(loading, records.length > 0);
   const [lastSynced, setLastSynced] = useState<Date | null>(null);
   const [sortAsc, setSortAsc] = useState(true);
   const [deptSortAsc, setDeptSortAsc] = useState(true);
@@ -153,11 +155,7 @@ export const LndSummaryOfRatings = () => {
       {activeDept === null ? (
       /* ── Department landing table ─────────────────────────────── */
       <div className="relative overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
-        {loading && (
-          <div className="absolute inset-0 z-10 flex items-center justify-center bg-white/70 backdrop-blur-[1px]">
-            <span className="text-sm text-gray-500">Loading…</span>
-          </div>
-        )}
+        <RefreshBar active={recordsLoad.refreshing} />
 
         <div className="flex items-center justify-between border-b border-gray-100 bg-gray-50 px-5 py-3">
           <span className="text-[11px] font-semibold uppercase tracking-wide text-gray-400">
@@ -181,7 +179,9 @@ export const LndSummaryOfRatings = () => {
           <div className="col-span-1" />
         </div>
 
-        {deptRows.length === 0 && !loading ? (
+        {recordsLoad.initialLoading ? (
+          <SkeletonList show={recordsLoad.showSkeleton} label="Loading departments…" />
+        ) : deptRows.length === 0 ? (
           <div className="py-12">
             <EmptyState
               title="No departments found"
@@ -189,7 +189,7 @@ export const LndSummaryOfRatings = () => {
             />
           </div>
         ) : (
-          <div className="divide-y divide-gray-100">
+          <div className={`divide-y divide-gray-100 ${tableBodyClass(recordsLoad.refreshing)}`}>
             {deptRows.map(d => {
               return (
                 <button
@@ -237,11 +237,7 @@ export const LndSummaryOfRatings = () => {
 
       {/* Table */}
       <div className="relative overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
-        {loading && (
-          <div className="absolute inset-0 z-10 flex items-center justify-center bg-white/70 backdrop-blur-[1px]">
-            <span className="text-sm text-gray-500">Loading…</span>
-          </div>
-        )}
+        <RefreshBar active={recordsLoad.refreshing} />
 
         {/* Sort toggle */}
         <div className="flex items-center justify-between border-b border-gray-100 bg-gray-50 px-5 py-3">
@@ -267,7 +263,9 @@ export const LndSummaryOfRatings = () => {
         </div>
 
         {/* Rows */}
-        {filteredSorted.length === 0 && !loading ? (
+        {recordsLoad.initialLoading ? (
+          <SkeletonList show={recordsLoad.showSkeleton} label="Loading employees…" />
+        ) : filteredSorted.length === 0 ? (
           <div className="py-12">
             <EmptyState
               title="No employees found"
@@ -275,7 +273,7 @@ export const LndSummaryOfRatings = () => {
             />
           </div>
         ) : (
-          <div className="divide-y divide-gray-100">
+          <div className={`divide-y divide-gray-100 ${tableBodyClass(recordsLoad.refreshing)}`}>
             {filteredSorted.map(row => {
               const isLow =
                 row.numericalRating !== null &&

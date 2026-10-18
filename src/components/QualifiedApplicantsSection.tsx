@@ -17,6 +17,7 @@ import {
   X,
 } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { TableSkeletonRows, tableBodyClass, useTableLoading } from './table-loading';
 import { useBackClosesView } from '../hooks/useHistoryBack';
 import { ATTACHMENTS_BUCKET, supabase } from '../lib/supabase';
 import {
@@ -1479,9 +1480,12 @@ interface QualifiedApplicantsSectionProps {
       compatibility — when absent, the modal falls back to the previous percentage
       derivation, but the PCPT raw score will read 0 (which is what users were seeing). */
   evaluationsByApplicant?: Record<string, EvaluationSnapshot>;
+  /** True while the parent's first fetch is in flight; shows skeleton rows. */
+  loading?: boolean;
 }
 
-export const QualifiedApplicantsSection = ({ applicants, completedEvaluationIds, evaluationsByApplicant }: QualifiedApplicantsSectionProps) => {
+export const QualifiedApplicantsSection = ({ applicants, completedEvaluationIds, evaluationsByApplicant, loading = false }: QualifiedApplicantsSectionProps) => {
+  const folderLoad = useTableLoading(loading, applicants.length > 0);
   const [search,      setSearch]      = useState('');
   const [posFilter,   setPosFilter]   = useState('all');
   const [offFilter,   setOffFilter]   = useState('all');
@@ -1663,8 +1667,12 @@ export const QualifiedApplicantsSection = ({ applicants, completedEvaluationIds,
                   <th className="w-8 px-3 py-3" />
                 </tr>
               </thead>
-              <tbody>
-                {filteredFolders.map(folder => {
+              <tbody className={tableBodyClass(false)}>
+                {folderLoad.initialLoading && (
+                  <TableSkeletonRows show={folderLoad.showSkeleton}
+                    columns={['text', 'text', 'text', 'badge', 'text', 'button', 'text']} label="Loading applicant folders…" />
+                )}
+                {!folderLoad.initialLoading && filteredFolders.map(folder => {
                   const es = EXAM_STYLES[folder.examStatus];
                   const posExam = examScores[folder.position] ?? {};
                   const scored  = folder.applicants.filter(a => posExam[a.id] && posExam[a.id] !== '').length;
@@ -1719,7 +1727,7 @@ export const QualifiedApplicantsSection = ({ applicants, completedEvaluationIds,
                     </tr>
                   );
                 })}
-                {filteredFolders.length === 0 && (
+                {!folderLoad.initialLoading && filteredFolders.length === 0 && (
                   <tr>
                     <td colSpan={7} className="px-5 py-12 text-center text-slate-500">
                       <FolderOpen size={40} className="mx-auto mb-2 text-slate-300" />

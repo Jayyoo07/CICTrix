@@ -17,6 +17,7 @@ import {
   type QualificationSummary,
 } from '../lib/api/criticalPositionGapAnalysis';
 import { IPCR_RATING_OPTIONS } from './CriticalPositionPage';
+import { SkeletonList, useDelayedLoading } from './table-loading';
 
 interface CriticalPositionGapAnalysisPageProps {
   officeId: string;
@@ -55,6 +56,9 @@ export const CriticalPositionGapAnalysisPage = ({ officeId, officeName }: Critic
   const [profile, setProfile] = useState<EmployeeQualificationProfile | null>(null);
   const [comparison, setComparison] = useState<GapAnalysisResult | null>(null);
   const [loadingComparison, setLoadingComparison] = useState(false);
+  const showListLoader = useDelayedLoading(loading);
+  const listsPending = loading || showListLoader;
+  const showComparisonLoader = useDelayedLoading(loadingComparison);
 
   useEffect(() => {
     if (!officeId) return;
@@ -202,11 +206,11 @@ export const CriticalPositionGapAnalysisPage = ({ officeId, officeName }: Critic
             />
           </div>
           <div className="max-h-72 overflow-y-auto rounded-lg border border-[var(--border-color)]">
-            {loading && <p className="px-3 py-4 text-center text-sm text-[var(--text-secondary)]">Loading…</p>}
-            {!loading && filteredPositions.length === 0 && (
+            {listsPending && <SkeletonList show={showListLoader} rows={4} label="Loading critical positions…" />}
+            {!listsPending && filteredPositions.length === 0 && (
               <p className="px-3 py-4 text-center text-sm text-[var(--text-secondary)]">No critical positions found.</p>
             )}
-            {filteredPositions.map((p) => (
+            {!listsPending && filteredPositions.map((p) => (
               <button
                 key={p.id}
                 onClick={() => setSelectedPositionId(p.id)}
@@ -241,10 +245,11 @@ export const CriticalPositionGapAnalysisPage = ({ officeId, officeName }: Critic
             />
           </div>
           <div className="max-h-72 overflow-y-auto rounded-lg border border-[var(--border-color)]">
-            {filteredEmployees.length === 0 && (
+            {listsPending && <SkeletonList show={showListLoader} rows={4} label="Loading employees…" />}
+            {!listsPending && filteredEmployees.length === 0 && (
               <p className="px-3 py-4 text-center text-sm text-[var(--text-secondary)]">No matching employees.</p>
             )}
-            {filteredEmployees.map((e) => (
+            {!listsPending && filteredEmployees.map((e) => (
               <button
                 key={e.id}
                 onClick={() => setSelectedEmployeeId(e.id)}
@@ -269,9 +274,9 @@ export const CriticalPositionGapAnalysisPage = ({ officeId, officeName }: Critic
           <p className="!mb-1 text-sm font-medium text-[var(--text-primary)]">Select a critical position and an employee</p>
           <p className="!mb-0 text-sm text-[var(--text-secondary)]">The comparison will be generated automatically once both are picked.</p>
         </div>
-      ) : loadingComparison ? (
-        <div className="rounded-xl border border-[var(--border-color)] bg-white px-5 py-10 text-center text-sm text-[var(--text-secondary)]">
-          Comparing qualifications…
+      ) : loadingComparison || showComparisonLoader ? (
+        <div className="overflow-hidden rounded-xl border border-[var(--border-color)] bg-white" aria-busy="true">
+          <SkeletonList show={showComparisonLoader} label="Comparing qualifications…" />
         </div>
       ) : profile && comparison ? (
         <div className="space-y-5">

@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Table loading states</title>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --color-primary:#363EE8; --color-primary-700:#191FA8; --color-primary-900:#040E6B;
+    --color-primary-200:#C8D1FF; --color-primary-50:#EEF0FF;
+    --bg-page:#F1F5F9; --neutral-800:#28343D; --neutral-600:#515F69; --neutral-400:#94A3B8; --neutral-200:#E2E8F0;
+    --success-100:#DCFCE7; --success-700:#0F7A40; --warning-100:#FCE8C8; --warning-700:#A8590A;
+    --ease-standard:cubic-bezier(.2,.8,.2,1);
+  }
+  * { box-sizing:border-box; }
+  body { margin:0; padding:32px 24px 64px; font-family:'Poppins',system-ui,sans-serif; background:var(--bg-page); color:var(--neutral-800); }
+  .wrap { max-width:1100px; margin:0 auto; }
+  h1 { font:700 24px/32px 'Poppins'; color:var(--color-primary-900); margin:0 0 4px; }
+  .lead { font:400 14px/22px 'Poppins'; color:var(--neutral-600); margin:0 0 20px; max-width:760px; }
+  .controls { display:flex; gap:12px; align-items:center; flex-wrap:wrap; margin-bottom:24px; }
+  .btn { height:36px; padding:0 20px; border-radius:999px; font:600 14px 'Poppins'; cursor:pointer; border:1.5px solid var(--color-primary); }
+  .btn-primary { background:var(--color-primary); color:#fff; }
+  .btn-secondary { background:#fff; color:var(--color-primary); }
+  .controls label { font:500 13px 'Poppins'; color:var(--neutral-600); }
+  select { height:36px; border:1px solid var(--neutral-200); border-radius:8px; font:500 13px 'Poppins'; padding:0 8px; }
+
+  .option { background:#fff; border:1px solid var(--neutral-200); border-radius:12px; padding:20px; margin-bottom:24px; }
+  .option.picked { border-color:var(--color-primary); box-shadow:0 0 0 3px rgba(54,62,232,.15); }
+  .opt-head { display:flex; justify-content:space-between; gap:16px; align-items:flex-start; margin-bottom:12px; }
+  .opt-head h2 { font:600 16px/24px 'Poppins'; color:var(--color-primary-900); margin:0; }
+  .opt-head h2 span { display:inline-grid; place-items:center; width:24px; height:24px; border-radius:50%; background:var(--color-primary-50); color:var(--color-primary); font-size:13px; margin-right:8px; }
+  .opt-head p { font:400 13px/20px 'Poppins'; color:var(--neutral-600); margin:4px 0 0; max-width:680px; }
+  .who { font:500 12px/16px 'Poppins'; color:var(--neutral-600); margin-top:4px; }
+  .pick { flex:none; }
+
+  /* Table per §9.5 */
+  .tbl-wrap { position:relative; border:1px solid var(--neutral-200); border-radius:12px; overflow:hidden; }
+  table { width:100%; border-collapse:collapse; }
+  th { background:var(--bg-page); text-align:left; font:600 13px 'Poppins'; color:var(--color-primary-900); padding:10px 16px; }
+  td { padding:12px 16px; border-top:1px solid var(--neutral-200); font:500 14px/18px 'Poppins'; height:57px; }
+  td .name { font:500 14px/20px 'Poppins'; color:var(--color-primary-900); }
+  td .sub { font:500 12px/16px 'Poppins'; color:var(--neutral-600); }
+  .badge { display:inline-flex; align-items:center; height:22px; padding:0 10px; border-radius:999px; font:500 12px 'Poppins'; }
+  .b-ok { background:var(--success-100); color:var(--success-700); }
+  .b-warn { background:var(--warning-100); color:var(--warning-700); }
+  .act { text-align:right; }
+  .mini { height:32px; padding:0 14px; border-radius:999px; font:600 13px 'Poppins'; border:1.5px solid var(--color-primary); background:#fff; color:var(--color-primary); }
+  .foot { display:flex; justify-content:space-between; align-items:center; padding:12px 16px; border-top:1px solid var(--neutral-200); font:500 12px 'Poppins'; color:var(--neutral-600); }
+  .rows-in tr { animation:fadein 200ms ease-out both; }
+  @keyframes fadein { from { opacity:0; } to { opacity:1; } }
+
+  /* A: skeleton rows */
+  .sk { display:block; height:12px; border-radius:6px; background:linear-gradient(90deg,#E9EEF4 0%,#F5F8FB 50%,#E9EEF4 100%); background-size:200% 100%; animation:shimmer 1.2s linear infinite; }
+  .sk.w60{width:60%} .sk.w40{width:40%;height:10px;margin-top:6px} .sk.w70{width:70%} .sk.pill{width:72px;height:22px;border-radius:999px} .sk.btn{width:76px;height:32px;border-radius:999px;margin-left:auto}
+  @keyframes shimmer { from { background-position:200% 0; } to { background-position:-200% 0; } }
+
+  /* B: spinner in the table body */
+  .spin-row td { height:auto; padding:56px 16px; text-align:center; }
+  .spinner { width:28px; height:28px; border-radius:50%; border:3px solid var(--color-primary-200); border-top-color:var(--color-primary); animation:rot 700ms linear infinite; margin:0 auto 12px; }
+  @keyframes rot { to { transform:rotate(360deg); } }
+  .spin-txt { font:500 13px 'Poppins'; color:var(--neutral-600); }
+
+  /* C: progress bar + dim stale rows */
+  .bar { position:absolute; left:0; right:0; top:40px; height:3px; overflow:hidden; background:var(--color-primary-50); opacity:0; transition:opacity 150ms ease-out; z-index:2; }
+  .bar.on { opacity:1; }
+  .bar i { position:absolute; top:0; bottom:0; width:40%; background:var(--color-primary); animation:slide 1.1s var(--ease-standard) infinite; }
+  @keyframes slide { from { left:-40%; } to { left:100%; } }
+  tbody.stale { opacity:.45; pointer-events:none; transition:opacity 150ms ease-out; }
+
+  .rules { background:#fff; border:1px solid var(--neutral-200); border-radius:12px; padding:20px; }
+  .rules h2 { font:600 16px/24px 'Poppins'; color:var(--color-primary-900); margin:0 0 8px; }
+  .rules li { font:400 14px/22px 'Poppins'; margin-bottom:6px; }
+  .rules b { color:var(--color-primary-900); font-weight:600; }
+  @media (prefers-reduced-motion: reduce) { *,*::before,*::after { animation-duration:0ms !important; transition-duration:0ms !important; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>How should Supabase tables look while they load?</h1>
+  <p class="lead">Each table below replays a load. Pick a latency to feel the difference between a fast and a slow connection. Today the page shows nothing, then the rows pop in.</p>
+
+  <div class="controls">
+    <button class="btn btn-primary" onclick="replayAll()">Replay all loads</button>
+    <label>Simulated latency
+      <select id="lat">
+        <option value="250">250ms (fast)</option>
+        <option value="1200" selected>1.2s (typical)</option>
+        <option value="3000">3s (slow 3G)</option>
+      </select>
+    </label>
+  </div>
+
+  <div class="option" id="opt-a">
+    <div class="opt-head">
+      <div>
+        <h2><span>A</span>Skeleton rows (shimmer)</h2>
+        <p>Gray placeholder bars shaped like the real columns, with a soft sweep. The table header, toolbar and footer render immediately; only the body is a placeholder. The layout doesn't jump when data arrives.</p>
+        <div class="who">Used by: GitHub, Linear, Stripe Dashboard, LinkedIn, YouTube. Already in this repo on the Interviewer dashboard.</div>
+      </div>
+      <button class="btn btn-secondary pick" onclick="pick('a')">Pick A</button>
+    </div>
+    <div class="tbl-wrap"><table><thead><tr><th>Applicant</th><th>Position</th><th>Status</th><th class="act">Actions</th></tr></thead><tbody id="a-body"></tbody></table><div class="foot"><span id="a-count">Loading entries…</span><span>‹ Previous · 1 · Next ›</span></div></div>
+  </div>
+
+  <div class="option" id="opt-b">
+    <div class="opt-head">
+      <div>
+        <h2><span>B</span>Spinner inside the table</h2>
+        <p>A centered brand-blue spinner with "Loading applicants…" in the table body. Simple and explicit, but the table is short while loading, then grows, so the page below it shifts.</p>
+        <div class="who">Used by: older admin panels, Material UI and Ant Design defaults, Google Admin.</div>
+      </div>
+      <button class="btn btn-secondary pick" onclick="pick('b')">Pick B</button>
+    </div>
+    <div class="tbl-wrap"><table><thead><tr><th>Applicant</th><th>Position</th><th>Status</th><th class="act">Actions</th></tr></thead><tbody id="b-body"></tbody></table><div class="foot"><span id="b-count">Loading entries…</span><span>‹ Previous · 1 · Next ›</span></div></div>
+  </div>
+
+  <div class="option" id="opt-c">
+    <div class="opt-head">
+      <div>
+        <h2><span>C</span>A skeleton on first load, then a progress bar on refresh</h2>
+        <p>First visit: skeleton rows as in A. Later refetches (search, sort, next page, after saving) keep the old rows visible but dimmed, with a thin indeterminate bar under the header, so the table never blanks out. Click "Refetch" after the first load.</p>
+        <div class="who">Used by: Vercel, Linear, Notion databases, TanStack Query's "keep previous data" pattern.</div>
+      </div>
+      <button class="btn btn-secondary pick" onclick="pick('c')">Pick C</button>
+    </div>
+    <div class="tbl-wrap"><div class="bar" id="c-bar"><i></i></div><table><thead><tr><th>Applicant</th><th>Position</th><th>Status</th><th class="act">Actions</th></tr></thead><tbody id="c-body"></tbody></table><div class="foot"><span id="c-count">Loading entries…</span><span><button class="mini" onclick="refetchC()">Refetch (page 2)</button></span></div></div>
+  </div>
+
+  <div class="rules">
+    <h2>Timing rules that apply to whichever you pick</h2>
+    <ul>
+      <li><b>Wait about 200ms before showing the loader.</b> Fast loads go straight to data with no flash of skeleton (try the 250ms setting).</li>
+      <li><b>Once shown, keep it at least about 400ms,</b> so it doesn't blink on and off.</li>
+      <li><b>Show the same number of placeholder rows as the page size</b> (5 or 8 here), so the table keeps its height.</li>
+      <li><b>Fade the real rows in over 200ms,</b> and turn animation off under reduced motion.</li>
+      <li><b>Mark the table as loading for screen readers</b> with <code>aria-busy="true"</code> and a hidden "Loading…" status.</li>
+      <li><b>If the fetch fails, show the error in the table body</b> with a Retry button, never an empty table.</li>
+    </ul>
+  </div>
+</div>
+
+<script>
+  const ROWS = [
+    ['Maria Santos','maria.santos@mail.com','Administrative Officer II','Under Review','b-warn'],
+    ['Jose Reyes','jose.reyes@mail.com','Nurse I','Qualified','b-ok'],
+    ['Ana Villanueva','ana.v@mail.com','Engineer II','Under Review','b-warn'],
+    ['Paolo Garcia','p.garcia@mail.com','Accountant III','Qualified','b-ok'],
+    ['Liza Mendoza','liza.m@mail.com','Teacher I','Under Review','b-warn'],
+  ];
+  const ROWS2 = [
+    ['Ramon Cruz','ramon.c@mail.com','Driver II','Qualified','b-ok'],
+    ['Grace Lim','grace.lim@mail.com','Records Officer I','Under Review','b-warn'],
+    ['Carlo Bautista','c.bautista@mail.com','Engineer I','Qualified','b-ok'],
+    ['Joy Navarro','joy.n@mail.com','Social Worker II','Under Review','b-warn'],
+    ['Mark Tan','mark.tan@mail.com','IT Officer I','Qualified','b-ok'],
+  ];
+  const SHOW_DELAY = 200, MIN_SHOW = 400;
+  const lat = () => +document.getElementById('lat').value;
+  const dataHtml = rows => rows.map(r => `<tr><td><div class="name">${r[0]}</div><div class="sub">${r[1]}</div></td><td>${r[2]}</td><td><span class="badge ${r[4]}">${r[3]}</span></td><td class="act"><button class="mini">Details</button></td></tr>`).join('');
+  const skelHtml = n => Array.from({length:n}, () => `<tr><td><span class="sk w60"></span><span class="sk w40"></span></td><td><span class="sk w70"></span></td><td><span class="sk pill"></span></td><td><span class="sk btn"></span></td></tr>`).join('');
+  const spinHtml = `<tr class="spin-row"><td colspan="4"><div class="spinner"></div><div class="spin-txt">Loading applicants…</div></td></tr>`;
+
+  // Delay-then-min-duration loader: the rule from the bottom card.
+  function load(id, loaderHtml, rows) {
+    const body = document.getElementById(id + '-body'), count = document.getElementById(id + '-count');
+    body.innerHTML = ''; body.classList.remove('rows-in'); count.textContent = 'Loading entries…';
+    let shownAt = null;
+    const t = setTimeout(() => { body.innerHTML = loaderHtml; shownAt = Date.now(); }, SHOW_DELAY);
+    setTimeout(() => {
+      clearTimeout(t);
+      const wait = shownAt ? Math.max(0, MIN_SHOW - (Date.now() - shownAt)) : 0;
+      setTimeout(() => { body.innerHTML = dataHtml(rows); body.classList.add('rows-in'); count.textContent = 'Showing 1–5 of 42 entries'; }, wait);
+    }, lat());
+  }
+  function refetchC() {
+    const body = document.getElementById('c-body'), bar = document.getElementById('c-bar');
+    if (!body.querySelector('.name')) return;
+    body.classList.add('stale'); bar.classList.add('on');
+    setTimeout(() => {
+      body.classList.remove('stale'); bar.classList.remove('on');
+      const next = body.dataset.page === '2' ? ROWS : ROWS2;
+      body.dataset.page = body.dataset.page === '2' ? '1' : '2';
+      body.innerHTML = dataHtml(next);
+      document.getElementById('c-count').textContent = body.dataset.page === '2' ? 'Showing 6–10 of 42 entries' : 'Showing 1–5 of 42 entries';
+    }, Math.max(lat(), 400));
+  }
+  function replayAll() { load('a', skelHtml(5), ROWS); load('b', spinHtml, ROWS); load('c', skelHtml(5), ROWS); document.getElementById('c-body').dataset.page = '1'; }
+  function pick(k) { document.querySelectorAll('.option').forEach(o => o.classList.toggle('picked', o.id === 'opt-' + k)); }
+  replayAll();
+</script>
+</body>
+</html>

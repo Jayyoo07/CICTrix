@@ -35,6 +35,7 @@ import {
 import { AttendanceGrid } from './AttendanceGrid';
 import { TRAINING_CATEGORIES, categoryColor, type TrainingCategory } from './trainingCategories';
 import { lifecycleStatus, type LifecycleStatus } from '../../lib/api/trainingLifecycle';
+import { TableSkeletonRows, tableBodyClass, useTableLoading } from '../../components/table-loading';
 
 /** Derived planning / published / locked status for a calendar event. */
 const eventLifecycle = (e: CalendarEvent): LifecycleStatus =>
@@ -643,6 +644,7 @@ export const TrainingCalendar = () => {
   const currentYear = new Date().getFullYear();
   const [events, setEvents] = useState<CalendarEvent[]>([]);
   const [loading, setLoading] = useState(true);
+  const eventsLoad = useTableLoading(loading, events.length > 0);
   const [month, setMonth] = useState(new Date().getMonth());
   const [view, setView] = useState<'calendar' | 'list'>('calendar');
   const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
@@ -909,8 +911,7 @@ export const TrainingCalendar = () => {
         </section>
       ) : (
         <section className="rounded-2xl border border-gray-200 bg-white p-5 relative">
-          {loading && <div className="absolute inset-0 bg-white/50 backdrop-blur-[1px] z-10 rounded-2xl" />}
-          {!loading && events.length === 0 ? (
+          {!eventsLoad.initialLoading && events.length === 0 ? (
             <EmptyState title="No trainings this year" description={`No trainings have been scheduled for ${currentYear} yet.`} />
           ) : (
             <div className="overflow-x-auto">
@@ -925,8 +926,12 @@ export const TrainingCalendar = () => {
                     <th className="px-4 py-3 font-semibold text-right">Attendees</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-100">
-                  {events.map((event) => {
+                <tbody className={`divide-y divide-gray-100 ${tableBodyClass(false)}`}>
+                  {eventsLoad.initialLoading && (
+                    <TableSkeletonRows show={eventsLoad.showSkeleton}
+                      columns={['two-line', 'text', 'text', 'text', 'badge', 'text']} label="Loading trainings…" />
+                  )}
+                  {!eventsLoad.initialLoading && events.map((event) => {
                     const color = categoryColor(event.category);
                     return (
                       <tr
