@@ -1,7 +1,7 @@
 ---
 title: Plantilla numbers entered as numbers, not a fixed 1, 2, 3
 date: 2026-10-18
-status: In Progress
+status: Done
 summary: In the Create/Edit Position form, each plantilla row takes a Plantilla No. (digits) behind a fixed "Plantilla" prefix, new rows start empty instead of auto-numbered, and the saved label is "Plantilla <n>".
 spec: docs/mockups/2026-10-18-plantilla-numbers.html (chosen 2026-10-18, option A)
 ---
