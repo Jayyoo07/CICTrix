@@ -10,6 +10,7 @@ import {
   ONE_PER_PLANTILLA_INDEX,
   partitionBySubmitted,
   plantillaLabel,
+  slotNumbersForLabels,
   plantillaLabelForNumber,
   plantillaNumberOf,
   REFERENCE_NO_PATTERN,
@@ -135,5 +136,15 @@ describe('one application per applicant per plantilla', () => {
   it('recognises a blocked plantilla delete', () => {
     expect(isPlantillaHasApplicationsError({ message: 'plantilla_has_applications: "Plantilla 1" has 3 application(s).' })).toBe(true);
     expect(isPlantillaHasApplicationsError({ message: 'something else' })).toBe(false);
+  });
+});
+
+describe('slotNumbersForLabels', () => {
+  it('uses the typed plantilla numbers', () => {
+    expect(slotNumbersForLabels(['Plantilla 21', 'Plantilla 13'])).toEqual([21, 13]);
+  });
+
+  it('gives unnumbered labels the lowest unused numbers', () => {
+    expect(slotNumbersForLabels(['Admin Aide', 'Plantilla 1', 'Old name'])).toEqual([2, 1, 3]);
   });
 });

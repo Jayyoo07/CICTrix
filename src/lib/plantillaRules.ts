@@ -55,6 +55,27 @@ export const plantillaLabelForNumber = (typed: string): string => {
   return digits ? `Plantilla ${digits}` : '';
 };
 
+/**
+ * Slot numbers that carry the typed plantilla numbers, for databases without
+ * the `label` column (migration 20260928 not applied), where the UI shows
+ * "Plantilla <slot_number>". "Plantilla 21" → 21; a label with no number takes
+ * the lowest number not already used, so every number stays unique.
+ */
+export const slotNumbersForLabels = (labels: string[]): number[] => {
+  const typed = labels.map((label) => {
+    const n = Number(plantillaNumberOf(label));
+    return Number.isInteger(n) && n > 0 ? n : null;
+  });
+  const used = new Set(typed.filter((n): n is number => n != null));
+  let next = 1;
+  return typed.map((n) => {
+    if (n != null) return n;
+    while (used.has(next)) next += 1;
+    used.add(next);
+    return next;
+  });
+};
+
 export const normalizePlantillaLabel =(value: string | null | undefined): string =>
   String(value ?? '').trim().replace(/\s+/g, ' ').toLowerCase();
 
