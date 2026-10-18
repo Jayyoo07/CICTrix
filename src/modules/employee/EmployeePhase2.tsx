@@ -12,7 +12,7 @@
  * which unify on success_indicator_ratings (accomplishment + Q/E/T, rated_by).
  */
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Lock, CheckCircle, Loader2, Info } from 'lucide-react';
+import { Lock, CheckCircle, Info } from 'lucide-react';
 import { useRealtimeRefresh } from '../../hooks/useRealtimeRefresh';
 import {
   loadEmployeeRatingSheet,
@@ -21,6 +21,7 @@ import {
   type Phase2Status,
 } from '../../lib/api/ipcrRatings';
 import { markEmployeeNotificationsRead } from '../../lib/api/employeeNotifications';
+import { SkeletonList, useDelayedLoading } from '../../components/table-loading';
 import { DEFAULT_RATING_SCALE, getRatingScale, type RatingScaleEntry } from '../../lib/api/ipcrRatingScale';
 
 const LOCKED_NOTICE =
@@ -54,6 +55,7 @@ const draftCacheKey = (empId: string) => `cictrix_phase2_draft_${empId}`;
 
 export const EmployeePhase2: React.FC<{ employeeId: string | null; phaseOpen?: boolean }> = ({ employeeId, phaseOpen }) => {
   const [loading, setLoading] = useState(true);
+  const showLoader = useDelayedLoading(loading);
   const [sheet, setSheet] = useState<EmployeeRatingSheet | null>(null);
   const [status, setStatus] = useState<Phase2Status>('locked');
   // The rating scale the employee is rating themselves against (§G). Starts
@@ -251,8 +253,12 @@ export const EmployeePhase2: React.FC<{ employeeId: string | null; phaseOpen?: b
     void loadSheet(true);
   };
 
-  if (loading) {
-    return <div className="flex items-center justify-center py-20 text-slate-400"><Loader2 className="h-5 w-5 animate-spin" /></div>;
+  if (loading || showLoader) {
+    return (
+      <div className="overflow-hidden rounded-xl border border-slate-200 bg-white" aria-busy="true">
+        <SkeletonList show={showLoader} label="Loading your rating sheet…" />
+      </div>
+    );
   }
 
   if (!sheet) {
