@@ -1,7 +1,7 @@
 ---
 title: Loading states for Supabase-backed tables
 date: 2026-10-16
-status: In Progress
+status: Done
 summary: Show skeleton rows on first load and keep dimmed rows with a thin progress bar on refetch, so tables stop popping in after a blank pause.
 spec: Option C in docs/mockups/2026-10-16-table-loading-states.html (chosen 2026-10-16)
 ---
