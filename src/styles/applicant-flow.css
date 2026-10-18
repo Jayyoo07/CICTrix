@@ -71,6 +71,8 @@
   padding: 32px 0 40px;
 }
 .abyan-ds .af-hero-back { margin-bottom: 20px; }
+.abyan-ds .af-hero-head { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 16px 24px; }
+.abyan-ds .af-hero-head > div { min-width: 0; }
 .abyan-ds .af-hero h1 {
   margin: 0 0 8px;
   color: var(--color-white);

@@ -3,6 +3,7 @@ import { useRealtimeRefresh } from '../hooks/useRealtimeRefresh';
 import { SalaryGradeSelect } from './SalaryGradeSelect';
 import { formatSalary, listSalaryGrades, type SalaryGradeRow } from '../lib/api/salaryGrades';
 import {
+    AlertTriangle,
     Briefcase,
     Calendar,
     ChevronLeft,
@@ -18,7 +19,7 @@ import {
     X
 } from 'lucide-react';
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { COMPETENCIES, EDUCATION_LEVELS, formatOfficeLabel } from '../constants/positions';
 import { useDepartmentNames } from '../hooks/useDepartmentOptions';
 import { getPreferredDataSourceMode } from '../lib/dataSourceMode';
@@ -209,6 +210,7 @@ const buildDefaultJobForm = (): JobPostFormValues => ({
 
 export const JobPostingsPage = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const modalBodyRef = useRef<HTMLDivElement | null>(null);
   const [jobs, setJobs] = useState<JobPosting[]>([]);
   // Departments come from the canonical Supabase table, shared system-wide.
@@ -232,6 +234,8 @@ export const JobPostingsPage = () => {
   const [showGuide, setShowGuide] = useState(false);
   const [showModal, setShowModal] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
+  /** True when the edit form was opened from a job's Details page. */
+  const [editOpenedFromDetails, setEditOpenedFromDetails] = useState(false);
   const [form, setForm] = useState<JobPostFormValues>(buildDefaultJobForm());
   // The CSC schedule, loaded once here and handed to every plantilla row's
   // SalaryGradeSelect — a posting can have several rows, and each fetching the
@@ -905,6 +909,101 @@ export const JobPostingsPage = () => {
     });
   };
 
+  const openEditModal = (job: JobPosting) => {
+    setEditingId(job.id);
+    setSlotError('');
+    setForm({
+      title: job.title,
+      // `legacy:` ids are the synthetic single slot recruitmentData invents for
+      // a posting with no rows yet — send it back without an id so the save
+      // creates a real row instead of upserting a non-existent one.
+      slots: (job.plantillaSlots ?? []).length > 0
+        ? (job.plantillaSlots ?? []).map((slot) => buildSlotRow({
+            id: slot.id.startsWith('legacy:') ? undefined : slot.id,
+            label: plantillaLabel(slot),
+            itemNumber: slot.itemNumber,
+            // The shared Salary Grade / Monthly Salary fields are gone; a row
+            // that relied on them inherits the posting's value here.
+            salaryGrade: String(slot.salaryGrade ?? job.salaryGrade ?? ''),
+            monthlySalary: String(slot.monthlySalary ?? job.monthlySalary ?? ''),
+            status: slot.status,
+            filledByApplicantId: slot.filledByApplicantId,
+          }))
+        : [buildSlotRow({
+            label: 'Plantilla 1',
+            itemNumber: job.jobCode,
+            salaryGrade: String(job.salaryGrade ?? ''),
+            monthlySalary: String(job.monthlySalary ?? ''),
+          })],
+      department: job.department,
+      division: job.division ?? '',
+      positionLevel: '',
+      positionType: job.positionType,
+      numberOfPositions: job.numberOfPositions,
+      employmentType: job.employmentStatus === 'Contractual' ? 'Contractual' : job.employmentStatus === 'Permanent' ? 'Full-time' : 'Part-time',
+      employmentStatus: job.employmentStatus,
+      statusLabel: job.status === 'Active' ? 'Open' : job.status === 'Draft' ? 'Reviewing' : 'Closed',
+      summary: job.summary,
+      qualifications: job.qualifications.preferred ?? '',
+      responsibilities: job.responsibilities.length ? job.responsibilities : [''],
+      education: job.qualifications.education,
+      yearsOfExperience: job.qualifications.experience.years,
+      experienceField: job.qualifications.experience.field,
+      skills: job.qualifications.skills.join(', '),
+      certifications: job.qualifications.certifications.join(', '),
+      preferred: job.qualifications.preferred ?? '',
+      requiredDocuments: job.requiredDocuments.filter((item) => item !== 'Other' && !isCurriculumVitae(item)),
+      otherDocument: job.requiredDocuments.find((item) => item !== 'Resume/CV' && item !== 'Application Letter' && item !== 'Transcript of Records' && item !== 'NBI Clearance' && item !== 'Birth Certificate' && item !== 'SALN') ?? '',
+      applicationDeadline: job.applicationDeadline.slice(0, 10),
+      interviewStart: job.interviewPeriod?.start.slice(0, 10) ?? '',
+      interviewEnd: job.interviewPeriod?.end.slice(0, 10) ?? '',
+      expectedStartDate: job.expectedStartDate?.slice(0, 10) ?? '',
+      salaryGrade: job.salaryGrade != null ? String(job.salaryGrade) : '',
+      monthlySalary: job.monthlySalary != null ? String(job.monthlySalary) : '',
+      qualEligibility: job.eligibility ?? job.qualifications.certifications[0] ?? '',
+      qualEducation: job.qualifications.education ?? '',
+      qualDegreeCourse: job.qualifications.experience.field ?? '',
+      qualTraining: job.training ?? job.qualifications.preferred ?? '',
+      qualExperienceYears: (() => {
+        const totalYears = job.qualifications.experience.years || 0;
+        return totalYears > 0 ? String(Math.floor(totalYears)) : '';
+      })(),
+      qualExperienceMonths: (() => {
+        const totalYears = job.qualifications.experience.years || 0;
+        const months = Math.round((totalYears - Math.floor(totalYears)) * 12);
+        return months > 0 ? String(months) : '';
+      })(),
+      qualCompetency: job.competency ?? job.qualifications.skills[0] ?? '',
+    });
+    setShowModal(true);
+    requestAnimationFrame(() => {
+      modalBodyRef.current?.scrollTo({ top: 0, behavior: 'auto' });
+    });
+  };
+
+  // "Edit Posting" on a job's Details page (docs/mockups/2026-10-18-job-edit-entry.html)
+  // arrives here with state.editJobId; closing the form then returns to Details.
+  const editRequestHandled = useRef(false);
+  useEffect(() => {
+    const editJobId = (location.state as { editJobId?: string } | null)?.editJobId;
+    if (!editJobId || editRequestHandled.current) return;
+    const job = jobs.find((item) => item.id === editJobId);
+    if (!job) return;
+    editRequestHandled.current = true;
+    // Drop the request from history so a refresh doesn't reopen the form.
+    navigate(location.pathname, { replace: true, state: null });
+    setEditOpenedFromDetails(true);
+    openEditModal(job);
+  }, [location.state, jobs]);
+
+  const closeModal = () => {
+    setShowModal(false);
+    if (editOpenedFromDetails) {
+      setEditOpenedFromDetails(false);
+      navigate(-1);
+    }
+  };
+
   // ─── Plantilla slot rows ──────────────────────────────────────────────────
 
   const updateSlot = (key: string, patch: Partial<PlantillaSlotFormRow>) => {
@@ -1087,7 +1186,7 @@ export const JobPostingsPage = () => {
       setJobs((prev) => prev.map((job) => (job.id === jobId ? { ...job, plantillaSlots: saved, jobCode: saved[0].itemNumber } : job)));
     }
 
-    setShowModal(false);
+    closeModal();
     const slotCount = slotDrafts.length;
     const slotNote = slotCount > 1 ? ` with ${slotCount} plantillas` : '';
     setToast(editingId ? `Job post updated successfully${slotNote}.` : `Job post created successfully${slotNote}.`);
@@ -1696,7 +1795,7 @@ export const JobPostingsPage = () => {
       <RecruitmentNavigationGuide open={showGuide} onClose={() => setShowGuide(false)} />
 
       {showModal && (
-        <div className="fixed inset-0 z-[110] flex items-center justify-center bg-slate-900/60 p-4" onClick={() => setShowModal(false)}>
+        <div className="fixed inset-0 z-[110] flex items-center justify-center bg-slate-900/60 p-4" onClick={closeModal}>
           <div className="flex w-full max-w-2xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl" style={{ maxHeight: '88vh', fontFamily: 'Poppins, sans-serif' }} onClick={(event) => event.stopPropagation()}>
             <div className="flex items-center justify-between px-6 py-4" style={{ background: 'linear-gradient(135deg, #363EE8 0%, #040E6B 100%)' }}>
               <div>
@@ -1709,7 +1808,7 @@ export const JobPostingsPage = () => {
               </div>
               <button
                 type="button"
-                onClick={() => setShowModal(false)}
+                onClick={closeModal}
                 className="rounded-lg p-1.5 text-white/80 transition hover:bg-white/10"
                 aria-label="Close"
               >
@@ -1718,6 +1817,19 @@ export const JobPostingsPage = () => {
             </div>
 
             <div ref={modalBodyRef} className="flex-1 space-y-5 overflow-y-auto px-6 py-5">
+              {(() => {
+                const applied = editingId ? applicantCountsByJob.get(editingId)?.applicants ?? 0 : 0;
+                if (applied === 0) return null;
+                return (
+                  <div role="note" className="flex gap-3 rounded-xl border-l-4 p-4" style={{ background: '#FCE8C8', borderLeftColor: '#E8821A', color: '#A8590A' }}>
+                    <AlertTriangle size={18} className="mt-0.5 shrink-0" aria-hidden="true" />
+                    <p className="!mb-0 text-sm" style={{ color: '#A8590A' }}>
+                      <strong>{applied} {applied === 1 ? 'person has' : 'people have'} applied.</strong> Changes apply to their applications too.
+                      Requirements they were screened against may no longer match.
+                    </p>
+                  </div>
+                );
+              })()}
               <section>
                 <h3 className="!mb-3 flex items-center gap-2 text-base font-bold" style={{ color: '#040E6B' }}>
                   <FileText size={16} style={{ color: '#363EE8' }} /> Job Information
@@ -1981,7 +2093,7 @@ export const JobPostingsPage = () => {
             <div className="abyan-ds flex justify-end gap-3 border-t px-6 py-4" style={{ borderColor: 'var(--color-primary-200)' }}>
               <button
                 type="button"
-                onClick={() => setShowModal(false)}
+                onClick={closeModal}
                 className="btn btn-md btn-secondary"
               >
                 Cancel
