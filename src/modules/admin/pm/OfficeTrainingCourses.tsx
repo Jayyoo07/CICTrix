@@ -26,6 +26,7 @@ import {
 import { supabase as supabaseClient } from '../../../lib/supabase';
 import { CATEGORY_COLORS } from '../trainingCategories';
 import type { LifecycleStatus } from '../../../lib/api/trainingLifecycle';
+import { TableSkeletonRows, tableBodyClass, useTableLoading } from '../../../components/table-loading';
 
 const supabase = supabaseClient as any;
 const POLL_MS = 12000;
@@ -107,6 +108,7 @@ export const OfficeTrainingCourses = ({ officeName = null, initialSubtab = 'all'
   const [subtab, setSubtab] = useState<Subtab>(initialSubtab);
   const [trainings, setTrainings] = useState<OfficeTraining[]>([]);
   const [loading, setLoading] = useState(true);
+  const trainingsLoad = useTableLoading(loading, trainings.length > 0);
 
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | LifecycleStatus>('all');
@@ -533,9 +535,10 @@ export const OfficeTrainingCourses = ({ officeName = null, initialSubtab = 'all'
                   <th className="px-4 py-3 font-semibold text-right">Details</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100">
-                {loading ? (
-                  <tr><td colSpan={6} className="px-4 py-10 text-center text-sm text-slate-400">Loading trainings…</td></tr>
+              <tbody className={`divide-y divide-slate-100 ${tableBodyClass(false)}`}>
+                {trainingsLoad.initialLoading ? (
+                  <TableSkeletonRows show={trainingsLoad.showSkeleton} rows={perPage}
+                    columns={['two-line', 'badge', 'text', 'badge', 'text', 'button']} label="Loading trainings…" />
                 ) : pageRows.length === 0 ? (
                   <tr><td colSpan={6} className="px-4 py-10 text-center text-sm text-slate-400">No published trainings match your filters.</td></tr>
                 ) : (

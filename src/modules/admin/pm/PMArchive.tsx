@@ -18,16 +18,19 @@ import {
 } from '../../../lib/api/ipcrArchive';
 import { getAdjectival } from './SummaryOfRatings';
 import { IpcrArchiveSemester } from './IpcrArchiveSemester';
+import { SkeletonList, useDelayedLoading } from '../../../components/table-loading';
 
 export const PMArchive = () => {
   const [employees, setEmployees] = useState<ArchiveEmployee[]>([]);
   const [loading, setLoading] = useState(true);
+  const showLoader = useDelayedLoading(loading);
   const [search, setSearch] = useState('');
 
   const [selected, setSelected] = useState<ArchiveEmployee | null>(null);
   useBackClosesView(selected !== null, () => setSelected(null), 'pm-archive-employee');
   const [semesters, setSemesters] = useState<ArchiveSemester[]>([]);
   const [semLoading, setSemLoading] = useState(false);
+  const showSemLoader = useDelayedLoading(semLoading);
 
   useEffect(() => {
     let cancelled = false;
@@ -80,8 +83,10 @@ export const PMArchive = () => {
           </div>
         </div>
 
-        {semLoading ? (
-          <p className="text-sm text-slate-400">Loading archived semesters…</p>
+        {semLoading || showSemLoader ? (
+          <div className="overflow-hidden rounded-xl border border-slate-200 bg-white" aria-busy="true">
+            <SkeletonList show={showSemLoader} rows={3} label="Loading archived semesters…" />
+          </div>
         ) : semesters.length === 0 ? (
           <EmptyState title="No archived semesters" description="This employee has no closed, rated IPCR records yet." />
         ) : (
@@ -116,8 +121,10 @@ export const PMArchive = () => {
         />
       </div>
 
-      {loading ? (
-        <p className="text-sm text-slate-400">Loading archive…</p>
+      {loading || showLoader ? (
+        <div className="overflow-hidden rounded-xl border border-slate-200 bg-white" aria-busy="true">
+          <SkeletonList show={showLoader} label="Loading archive…" />
+        </div>
       ) : filtered.length === 0 ? (
         <EmptyState
           title={employees.length === 0 ? 'No archived IPCR records' : 'No employees match your search'}

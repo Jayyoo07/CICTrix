@@ -14,6 +14,7 @@ import {
   type Phase2Status,
 } from '../../../lib/api/ipcrRatings';
 import { createNotifications } from '../../../lib/api/employeeNotifications';
+import { SkeletonList, useTableLoading } from '../../../components/table-loading';
 
 const FUNCTION_LABEL: Record<string, string> = {
   core: 'Core Functions',
@@ -38,6 +39,7 @@ export const Phase2RatingPanel: React.FC<{
   const [selectedSheetId, setSelectedSheetId] = useState<string | null>(null);
   useBackClosesView(selectedSheetId !== null, () => setSelectedSheetId(null), 'pm-phase2-sheet');
   const [loadingList, setLoadingList] = useState(false);
+  const listLoad = useTableLoading(loadingList, submissions.length > 0);
   
   // Rating inputs state
   const [scores, setScores] = useState<Record<string, LocalScore>>({});
@@ -314,8 +316,10 @@ export const Phase2RatingPanel: React.FC<{
         </div>
       )}
 
-      {loadingList ? (
-        <p className="text-xs text-slate-500">Loading submissions…</p>
+      {listLoad.initialLoading ? (
+        <div className="overflow-hidden rounded-lg border border-slate-200 bg-white" aria-busy="true">
+          <SkeletonList show={listLoad.showSkeleton} rows={3} label="Loading submissions…" />
+        </div>
       ) : submissions.length === 0 ? (
         <div className="rounded-lg border border-dashed border-slate-200 bg-slate-50/50 px-4 py-8 text-center">
           <p className="text-sm font-semibold text-slate-600">No Phase 2 submissions are awaiting approval.</p>

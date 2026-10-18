@@ -90,6 +90,7 @@ import '../../styles/admin.css';
 import type { EmployeeRecord, JobPosting, NewlyHired } from '../../types/recruitment.types';
 import { usePlantillaNames } from '../../hooks/usePlantillaNames';
 import { internalPlantillaKey } from '../../lib/plantillaRules';
+import { SkeletonList, TableSkeletonRows, tableBodyClass, useDelayedLoading } from '../../components/table-loading';
 
 type JobStatus = 'Open' | 'Reviewing' | 'Closed';
 type Section = 'dashboard' | 'jobs' | 'qualified' | 'applicant-score' | 'new-hired' | 'raters' | 'accounts' | 'succession' | 'reports' | 'settings';
@@ -889,6 +890,7 @@ export const RSPDashboard = () => {
   const [employeeDirectoryPage, setEmployeeDirectoryPage] = useState(0);
   const [officeDirectoryRows, setOfficeDirectoryRows] = useState<OfficeDirectoryRow[]>([]);
   const [officeDirectoryLoading, setOfficeDirectoryLoading] = useState(false);
+  const showOfficeDirectoryLoader = useDelayedLoading(officeDirectoryLoading);
   const [officeDirectoryError, setOfficeDirectoryError] = useState('');
   const [selectedDirectoryCard, setSelectedDirectoryCard] = useState<{ office: string } | null>(null);
   const [selectedEmployeeId, setSelectedEmployeeId] = useState<string | null>(null);
@@ -1949,6 +1951,7 @@ export const RSPDashboard = () => {
   // active card changes or an upload event fires from the Employee Portal.
   const [activeDocumentSubmissions, setActiveDocumentSubmissions] = useState<EmployeeDocumentSubmission[]>([]);
   const [documentsLoading, setDocumentsLoading] = useState(false);
+  const showDocumentsLoader = useDelayedLoading(documentsLoading);
   const [documentsError, setDocumentsError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -3838,11 +3841,9 @@ export const RSPDashboard = () => {
                               <th className="px-5 py-3 text-center text-xs font-semibold uppercase tracking-wider text-slate-500">Employees</th>
                             </tr>
                           </thead>
-                          <tbody>
-                            {officeDirectoryLoading ? (
-                              <tr>
-                                <td colSpan={3} className="px-5 py-12 text-center text-slate-500">Loading offices…</td>
-                              </tr>
+                          <tbody className={tableBodyClass(false)}>
+                            {officeDirectoryLoading || showOfficeDirectoryLoader ? (
+                              <TableSkeletonRows show={showOfficeDirectoryLoader} columns={3} label="Loading offices…" />
                             ) : (
                               <>
                                 {paginatedOfficeDirectoryRows.map((row) => (
@@ -4813,6 +4814,12 @@ export const RSPDashboard = () => {
                           Employees can upload from the Employee Portal → Document Requirements.
                           Submissions appear here as soon as they're uploaded.
                         </p>
+                      </div>
+                    )}
+
+                    {!documentsError && documentsLoading && documentSubmissionsByOffice.length === 0 && (
+                      <div className="overflow-hidden rounded-2xl border border-[var(--border-color)] bg-white" aria-busy="true">
+                        <SkeletonList show={showDocumentsLoader} rows={4} label="Loading submissions…" />
                       </div>
                     )}
 

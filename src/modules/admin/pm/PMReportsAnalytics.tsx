@@ -14,6 +14,7 @@ import {
 import { getEvaluationsWithEmployee, type PerformanceEvaluation } from '../../../lib/api/performanceEvaluations';
 import { listCloseouts, type Closeout } from '../../../lib/api/closeout';
 import { supabase as supabaseClient } from '../../../lib/supabase';
+import { SkeletonList, useTableLoading } from '../../../components/table-loading';
 
 const supabase = supabaseClient as any;
 
@@ -240,6 +241,8 @@ export function PMReportsAnalytics() {
   const [closeouts, setCloseouts] = useState<Closeout[]>([]);
   const [cycles, setCycles] = useState<EvalCycle[]>([]);
   const [loading, setLoading] = useState(true);
+  // A cycle switch keeps the current report on screen; only the first load shows placeholders.
+  const reportLoad = useTableLoading(loading, closeouts.length > 0);
   const [selectedCycle, setSelectedCycle] = useState<string>('all');
 
   // Records Search state
@@ -397,8 +400,10 @@ export function PMReportsAnalytics() {
         ))}
       </div>
 
-      {loading ? (
-        <div className="flex items-center justify-center py-20 text-sm text-slate-400">Loading analytics…</div>
+      {reportLoad.initialLoading ? (
+        <div className="overflow-hidden rounded-xl border border-slate-200 bg-white" aria-busy="true">
+          <SkeletonList show={reportLoad.showSkeleton} label="Loading analytics…" />
+        </div>
       ) : (
         <>
           {/* ── Subtab: Office Comparison ──────────────────────────────────────── */}

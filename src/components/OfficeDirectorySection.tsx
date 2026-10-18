@@ -14,6 +14,7 @@ import {
   filterOfficeDirectory,
   type OfficeDirectoryRow
 } from '../lib/api/officeDirectory';
+import { TableRefreshBar, TableSkeletonRows, tableBodyClass, useTableLoading } from './table-loading';
 import { supabase } from '../lib/supabase';
 
 interface OfficeDirectorySectionProps {
@@ -26,13 +27,16 @@ export const OfficeDirectorySection: React.FC<OfficeDirectorySectionProps> = ({
   showBulkRequest = false,
 }) => {
   const [officeDirectoryRows, setOfficeDirectoryRows] = useState<OfficeDirectoryRow[]>([]);
-  const [officeDirectoryLoading, setOfficeDirectoryLoading] = useState(false);
+  // Starts true: the directory loads on mount, so the first paint is the skeleton, not "No offices found."
+  const [officeDirectoryLoading, setOfficeDirectoryLoading] = useState(true);
   const [officeDirectoryError, setOfficeDirectoryError] = useState('');
   const [officeDirectorySearch, setOfficeDirectorySearch] = useState('');
   const [officeDirectoryPage, setOfficeDirectoryPage] = useState(0);
   const [selectedOfficeRow, setSelectedOfficeRow] = useState<OfficeDirectoryRow | null>(null);
   const [officeEmployees, setOfficeEmployees] = useState<any[]>([]);
   const [officeEmployeesLoading, setOfficeEmployeesLoading] = useState(false);
+  const directoryLoad = useTableLoading(officeDirectoryLoading, officeDirectoryRows.length > 0);
+  const employeesLoad = useTableLoading(officeEmployeesLoading, officeEmployees.length > 0);
   useBackClosesView(selectedOfficeRow !== null, () => setSelectedOfficeRow(null), 'office-directory');
 
   // Declared outside the effect so the error banner's Retry can re-run it.
@@ -187,11 +191,9 @@ export const OfficeDirectorySection: React.FC<OfficeDirectorySectionProps> = ({
                   <th className="px-5 py-3 text-xs font-semibold uppercase tracking-wider text-slate-500">Position</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100">
-                {officeEmployeesLoading ? (
-                  <tr>
-                    <td colSpan={4} className="px-5 py-8 text-center text-sm text-slate-400">Loading employees...</td>
-                  </tr>
+              <tbody className={`divide-y divide-slate-100 ${tableBodyClass(false)}`}>
+                {employeesLoad.initialLoading ? (
+                  <TableSkeletonRows show={employeesLoad.showSkeleton} columns={4} label="Loading employees…" />
                 ) : officeEmployees.length === 0 ? (
                   <tr>
                     <td colSpan={4} className="px-5 py-8 text-center text-sm text-slate-400">No employees found for this office.</td>
@@ -262,12 +264,11 @@ export const OfficeDirectorySection: React.FC<OfficeDirectorySectionProps> = ({
                     <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">Department Head</th>
                     <th className="px-5 py-3 text-center text-xs font-semibold uppercase tracking-wider text-slate-500">Employees</th>
                   </tr>
+                  <TableRefreshBar active={directoryLoad.refreshing} colSpan={3} />
                 </thead>
-                <tbody>
-                  {officeDirectoryLoading ? (
-                    <tr>
-                      <td colSpan={3} className="px-5 py-12 text-center text-slate-500">Loading offices...</td>
-                    </tr>
+                <tbody className={tableBodyClass(directoryLoad.refreshing)}>
+                  {directoryLoad.initialLoading ? (
+                    <TableSkeletonRows show={directoryLoad.showSkeleton} columns={['text', 'text', 'text']} label="Loading offices…" />
                   ) : (
                     <>
                       {paginatedOfficeDirectoryRows.map((row) => (

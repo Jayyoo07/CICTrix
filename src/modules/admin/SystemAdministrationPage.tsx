@@ -58,6 +58,7 @@ import {
   revokeOrTransfer,
 } from '../../lib/api/officeRoles';
 import '../../styles/admin.css';
+import { SkeletonList, useTableLoading } from '../../components/table-loading';
 
 // Session lives in the shared per-tab module so every screen reads one identity.
 const getCurrentAdminEmail = (): string => getAdminEmail();
@@ -164,6 +165,7 @@ export const SystemAdministrationPage = () => {
 const OfficeDirectory = () => {
   const [rows, setRows] = useState<OfficeDirectoryRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const officesLoad = useTableLoading(loading, rows.length > 0);
   const [error, setError] = useState('');
   const [search, setSearch] = useState('');
   const [drillOfficeRow, setDrillOfficeRow] = useState<OfficeDirectoryRow | null>(null);
@@ -341,12 +343,12 @@ const OfficeDirectory = () => {
           <Building2 size={18} />
           Office Directory
           <span style={{ marginLeft: 'auto', fontSize: '13px', fontWeight: 500, color: '#6b7280' }}>
-            {loading ? '' : `${filtered.length} office${filtered.length === 1 ? '' : 's'}`}
+            {officesLoad.initialLoading ? '' : `${filtered.length} office${filtered.length === 1 ? '' : 's'}`}
           </span>
         </div>
 
-        {loading ? (
-          <div style={{ padding: '40px', textAlign: 'center', color: '#6b7280' }}>Loading offices…</div>
+        {officesLoad.initialLoading ? (
+          <SkeletonList show={officesLoad.showSkeleton} label="Loading offices…" />
         ) : filtered.length === 0 && !error ? (
           <div style={{ padding: '40px', textAlign: 'center', color: '#6b7280' }}>
             {rows.length === 0
@@ -452,6 +454,7 @@ const AccessRoleManagement = () => {
   const [employees, setEmployees] = useState<EmployeeOption[]>([]);
   const [audit, setAudit] = useState<Awaited<ReturnType<typeof listAuditTrail>>>([]);
   const [loading, setLoading] = useState(true);
+  const assignmentsLoad = useTableLoading(loading, assignments.length > 0);
   const [error, setError] = useState('');
   const [banner, setBanner] = useState('');
   const [showAdd, setShowAdd] = useState(false);
@@ -515,11 +518,11 @@ const AccessRoleManagement = () => {
           <Users size={18} />
           Active Role Assignments
           <span style={{ marginLeft: 'auto', fontSize: '13px', fontWeight: 500, color: '#6b7280' }}>
-            {loading ? '' : `${assignments.length}`}
+            {assignmentsLoad.initialLoading ? '' : `${assignments.length}`}
           </span>
         </div>
-        {loading ? (
-          <div style={emptyBox}>Loading assignments…</div>
+        {assignmentsLoad.initialLoading ? (
+          <SkeletonList show={assignmentsLoad.showSkeleton} label="Loading assignments…" />
         ) : assignments.length === 0 ? (
           <div style={emptyBox}>
             No active assignments yet. Use “Add Personnel” to assign a Supervisor or Department Head. (If this
@@ -1069,6 +1072,7 @@ const PhaseScheduler = () => {
   const [schedules, setSchedules] = useState<PhaseSchedule[]>([]);
   const [departments, setDepartments] = useState<Department[]>([]);
   const [loading, setLoading] = useState(true);
+  const schedulesLoad = useTableLoading(loading, schedules.length > 0);
   const [error, setError] = useState('');
   const [banner, setBanner] = useState('');
 
@@ -1125,8 +1129,8 @@ const PhaseScheduler = () => {
         </div>
       )}
 
-      {loading ? (
-        <div style={emptyBox}>Loading phase schedules…</div>
+      {schedulesLoad.initialLoading ? (
+        <SkeletonList show={schedulesLoad.showSkeleton} label="Loading phase schedules…" />
       ) : (
         <>
           <h3 style={sectionTitle}>System-wide</h3>
@@ -1251,6 +1255,7 @@ const LockedTargetsVault = () => {
   const [employees, setEmployees] = useState<EmployeeOption[]>([]);
   const [departments, setDepartments] = useState<Department[]>([]);
   const [loading, setLoading] = useState(true);
+  const vaultLoad = useTableLoading(loading, sets.length > 0);
   const [error, setError] = useState('');
   const [banner, setBanner] = useState('');
   const [search, setSearch] = useState('');
@@ -1335,12 +1340,12 @@ const LockedTargetsVault = () => {
           <Lock size={18} />
           Locked Targets Vault
           <span style={{ marginLeft: 'auto', fontSize: '13px', fontWeight: 500, color: '#6b7280' }}>
-            {loading ? '' : `${filtered.length} frozen set${filtered.length === 1 ? '' : 's'}`}
+            {vaultLoad.initialLoading ? '' : `${filtered.length} frozen set${filtered.length === 1 ? '' : 's'}`}
           </span>
         </div>
 
-        {loading ? (
-          <div style={emptyBox}>Loading the vault…</div>
+        {vaultLoad.initialLoading ? (
+          <SkeletonList show={vaultLoad.showSkeleton} label="Loading the vault…" />
         ) : filtered.length === 0 ? (
           <div style={emptyBox}>
             {sets.length === 0
@@ -1602,6 +1607,7 @@ const ComplianceTracker = () => {
   const [period, setPeriod] = useState('');
   const [data, setData] = useState<OfficeCompliance[]>([]);
   const [loading, setLoading] = useState(true);
+  const complianceLoad = useTableLoading(loading, data.length > 0);
   const [error, setError] = useState('');
   const [officeFilter, setOfficeFilter] = useState('');
   const [sortBy, setSortBy] = useState<'behind' | 'name' | 'verified'>('behind');
@@ -1679,11 +1685,11 @@ const ComplianceTracker = () => {
           <ClipboardList size={18} />
           Compliance by Office
           <span style={{ marginLeft: 'auto', fontSize: '13px', fontWeight: 500, color: '#6b7280' }}>
-            {loading ? '' : `${view.length} office${view.length === 1 ? '' : 's'}`}
+            {complianceLoad.initialLoading ? '' : `${view.length} office${view.length === 1 ? '' : 's'}`}
           </span>
         </div>
-        {loading ? (
-          <div style={emptyBox}>Loading compliance…</div>
+        {complianceLoad.initialLoading ? (
+          <SkeletonList show={complianceLoad.showSkeleton} label="Loading compliance…" />
         ) : view.length === 0 ? (
           <div style={emptyBox}>No office data. Ensure employees and evaluations exist for the current cycle.</div>
         ) : (
@@ -1780,6 +1786,7 @@ const FinalReviewCloseout = () => {
   const [period, setPeriod] = useState('');
   const [rows, setRows] = useState<CloseoutReadiness[]>([]);
   const [loading, setLoading] = useState(true);
+  const closeoutLoad = useTableLoading(loading, rows.length > 0);
   const [error, setError] = useState('');
   const [banner, setBanner] = useState('');
   const [recordTarget, setRecordTarget] = useState<{ row: CloseoutReadiness; kind: CompilationKind } | null>(null);
@@ -1849,11 +1856,11 @@ const FinalReviewCloseout = () => {
           <Archive size={18} />
           Final Review &amp; Closeout
           <span style={{ marginLeft: 'auto', fontSize: '13px', fontWeight: 500, color: '#6b7280' }}>
-            {loading ? '' : `${rows.length} office${rows.length === 1 ? '' : 's'}`}
+            {closeoutLoad.initialLoading ? '' : `${rows.length} office${rows.length === 1 ? '' : 's'}`}
           </span>
         </div>
-        {loading ? (
-          <div style={emptyBox}>Loading closeout status…</div>
+        {closeoutLoad.initialLoading ? (
+          <SkeletonList show={closeoutLoad.showSkeleton} label="Loading closeout status…" />
         ) : rows.length === 0 ? (
           <div style={emptyBox}>No offices with employees to review for this cycle.</div>
         ) : (

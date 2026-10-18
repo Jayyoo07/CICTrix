@@ -18,6 +18,7 @@ import {
   type ProficiencyLevel,
 } from '../../../lib/api/pmCompetency';
 import { getCurrentAdminEmail } from '../moduleUi';
+import { SkeletonList, TableRefreshBar, TableSkeletonRows, tableBodyClass, useTableLoading } from '../../../components/table-loading';
 
 type Subtab = 'requirements' | 'map';
 
@@ -196,6 +197,9 @@ const PositionRequirementsPanel = ({
   const [position, setPosition] = useState('');
   const [requirements, setRequirements] = useState<PositionRequirement[]>([]);
   const [loading, setLoading] = useState(false);
+  // The standards list is always on screen, so a position change dims it with
+  // a refresh bar instead of swapping in a skeleton.
+  const requirementsLoad = useTableLoading(loading, true);
   const [error, setError] = useState('');
 
   // Per-row working state, so an unsaved level change never looks saved.
@@ -314,12 +318,11 @@ const PositionRequirementsPanel = ({
                   <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-500">Proficiency Level</th>
                   <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-slate-500">Action</th>
                 </tr>
+                <TableRefreshBar active={requirementsLoad.refreshing} colSpan={6} />
               </thead>
-              <tbody className="divide-y divide-slate-100">
-                {loading ? (
-                  <tr>
-                    <td colSpan={6} className="px-4 py-12 text-center text-slate-400">Loading requirements…</td>
-                  </tr>
+              <tbody className={`divide-y divide-slate-100 ${tableBodyClass(requirementsLoad.refreshing)}`}>
+                {standards.length === 0 && requirementsLoad.refreshing ? (
+                  <TableSkeletonRows show columns={['text', 'text', 'text', 'text', 'text', 'button']} label="Loading requirements…" />
                 ) : (
                   standards.map((standard) => {
                     const existing = requirementByCompetency.get(standard.id);
@@ -447,6 +450,7 @@ const CompetencyMapPanel = ({
   loading: boolean;
   onChanged: () => void;
 }) => {
+  const mapLoad = useTableLoading(loading, requirements.length > 0);
   const [search, setSearch] = useState('');
   const [departmentFilter, setDepartmentFilter] = useState('');
   const [positionFilter, setPositionFilter] = useState('');
@@ -630,9 +634,9 @@ const CompetencyMapPanel = ({
         <span className="text-slate-400">({rows.length} competency record{rows.length === 1 ? '' : 's'})</span>
       </p>
 
-      {loading ? (
-        <div className="flex items-center justify-center rounded-xl border border-slate-200 bg-white py-16 text-sm text-slate-400">
-          Loading competency map…
+      {mapLoad.initialLoading ? (
+        <div className="overflow-hidden rounded-xl border border-slate-200 bg-white" aria-busy="true">
+          <SkeletonList show={mapLoad.showSkeleton} label="Loading the competency map…" />
         </div>
       ) : allRows.length === 0 ? (
         <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-slate-200 bg-white py-16 text-slate-400">

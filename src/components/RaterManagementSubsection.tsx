@@ -4,6 +4,7 @@
 // "Revoke Access" (active → inactive).
 
 import { useCallback, useEffect, useState } from 'react';
+import { TableRefreshBar, TableSkeletonRows, tableBodyClass, useTableLoading } from './table-loading';
 import { Plus, ShieldCheck, ShieldOff, UserPlus, X } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 
@@ -21,6 +22,7 @@ interface RaterManagementSubsectionProps {
 export const RaterManagementSubsection = ({ onAccessChange }: RaterManagementSubsectionProps) => {
   const [raters, setRaters] = useState<RaterRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const ratersLoad = useTableLoading(loading, raters.length > 0);
   const [pendingId, setPendingId] = useState<string | null>(null);
   const [showAddForm, setShowAddForm] = useState(false);
   const [newName, setNewName] = useState('');
@@ -255,14 +257,12 @@ export const RaterManagementSubsection = ({ onAccessChange }: RaterManagementSub
               <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">Status</th>
               <th className="px-5 py-3 text-right text-xs font-semibold uppercase tracking-wider text-slate-500">Action</th>
             </tr>
+            <TableRefreshBar active={ratersLoad.refreshing} colSpan={3} />
           </thead>
-          <tbody>
-            {loading ? (
-              <tr>
-                <td colSpan={3} className="px-5 py-10 text-center text-sm text-slate-400">
-                  Loading raters…
-                </td>
-              </tr>
+          <tbody className={tableBodyClass(ratersLoad.refreshing)}>
+            {ratersLoad.initialLoading ? (
+              <TableSkeletonRows show={ratersLoad.showSkeleton} rows={3}
+                columns={['two-line', 'badge', 'button']} label="Loading raters…" />
             ) : raters.length === 0 ? (
               <tr>
                 <td colSpan={3} className="px-5 py-10 text-center text-sm text-slate-400">

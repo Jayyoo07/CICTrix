@@ -18,6 +18,7 @@ import '../styles/landing-hero.css';
 import { getAuthoritativeJobPostings, getJobPostingsLoadError, loadJobPostings } from '../lib/recruitmentData';
 import type { JobPosting } from '../types/recruitment.types';
 import { vacancySalaryLabel } from '../lib/vacancySalary';
+import { TableSkeletonRows, tableBodyClass, useTableLoading } from './table-loading';
 
 /* ── trish UI theme tokens ──────────────────────────────────────────
    Brand: Indigo #363EE8 · Hover #2E35D4 · Soft #EEF2FF
@@ -84,6 +85,7 @@ export const LandingPage = () => {
   const [vacancyJobs, setVacancyJobs] = useState<VacancyRow[]>([]);
   const [vacanciesLoading, setVacanciesLoading] = useState(true);
   const [vacanciesError, setVacanciesError] = useState<string | null>(null);
+  const vacanciesLoad = useTableLoading(vacanciesLoading, vacancyJobs.length > 0);
   const [reloadKey, setReloadKey] = useState(0);
   const [searchQuery, setSearchQuery] = useState('');
   const [sortBy, setSortBy] = useState('newest');
@@ -412,13 +414,10 @@ export const LandingPage = () => {
                   <th className="px-4 py-3 text-center font-semibold text-[#050D65]">Apply</th>
                 </tr>
               </thead>
-              <tbody>
-                {vacanciesLoading ? (
-                  <tr>
-                    <td colSpan={6} className="px-4 py-10 text-center text-slate-500" role="status">
-                      Loading vacancies…
-                    </td>
-                  </tr>
+              <tbody className={tableBodyClass(false)}>
+                {vacanciesLoad.initialLoading ? (
+                  <TableSkeletonRows show={vacanciesLoad.showSkeleton}
+                    columns={['two-line', 'text', 'text', 'text', 'text', 'button']} label="Loading vacancies…" />
                 ) : vacanciesError ? (
                   <tr>
                     <td colSpan={6} className="px-4 py-10 text-center" role="alert">

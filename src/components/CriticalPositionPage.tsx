@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { Button } from './Button';
 import { getDepartmentById } from '../lib/api/departments';
+import { TableRefreshBar, TableSkeletonRows, tableBodyClass, useTableLoading } from './table-loading';
 import { getCompetencyLibrary, type Competency } from '../lib/api/pmCompetencyFramework';
 import {
   listCriticalPositions,
@@ -104,6 +105,7 @@ export const CriticalPositionPage = ({ officeId, officeName, currentUserName }: 
   const [positions, setPositions] = useState<CriticalPosition[]>([]);
   const [incumbentStatuses, setIncumbentStatuses] = useState<Map<string, string>>(new Map());
   const [loading, setLoading] = useState(true);
+  const positionsLoad = useTableLoading(loading, positions.length > 0);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState('');
 
@@ -462,12 +464,14 @@ export const CriticalPositionPage = ({ officeId, officeName, currentUserName }: 
               <th className="px-4 py-3">Last Updated</th>
               <th className="px-4 py-3 text-right">Actions</th>
             </tr>
+            <TableRefreshBar active={positionsLoad.refreshing} colSpan={7} />
           </thead>
-          <tbody>
-            {loading && (
-              <tr><td colSpan={7} className="px-4 py-8 text-center text-[var(--text-secondary)]">Loading critical positions…</td></tr>
+          <tbody className={tableBodyClass(positionsLoad.refreshing)}>
+            {positionsLoad.initialLoading && (
+              <TableSkeletonRows show={positionsLoad.showSkeleton}
+                columns={['two-line', 'text', 'badge', 'text', 'text', 'text', 'button']} label="Loading critical positions…" />
             )}
-            {!loading && filtered.length === 0 && (
+            {!positionsLoad.initialLoading && filtered.length === 0 && (
               <tr>
                 <td colSpan={7} className="px-4 py-10 text-center">
                   <ShieldAlert size={22} className="mx-auto mb-2 text-[var(--text-muted)]" />
@@ -476,7 +480,7 @@ export const CriticalPositionPage = ({ officeId, officeName, currentUserName }: 
                 </td>
               </tr>
             )}
-            {!loading && filtered.map((p) => (
+            {!positionsLoad.initialLoading && filtered.map((p) => (
               <tr key={p.id} className="border-b border-slate-100 last:border-0 hover:bg-slate-50/60">
                 <td className="px-4 py-3 font-medium text-[var(--text-primary)]">
                   <span className="flex items-center gap-1.5">

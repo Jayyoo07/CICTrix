@@ -63,6 +63,7 @@ import { Phase2RatingPanel } from './Phase2RatingPanel';
 import { OfficeTrainingCourses } from './OfficeTrainingCourses';
 import { CriticalPositionPage } from '../../../components/CriticalPositionPage';
 import { CriticalPositionGapAnalysisPage } from '../../../components/CriticalPositionGapAnalysisPage';
+import { SkeletonList, useDelayedLoading, useTableLoading } from '../../../components/table-loading';
 
 type Pillar = 'Cultural Transformation' | 'Employee Development' | 'Leadership' | 'Technical';
 
@@ -290,6 +291,7 @@ export const OfficeAccountConsole: React.FC = () => {
   }, [pendingApprovals]);
 
   const [approvalsLoading, setApprovalsLoading] = useState(false);
+  const approvalsLoad = useTableLoading(approvalsLoading, pendingApprovals.length > 0);
   const [approvalBusyId, setApprovalBusyId] = useState<string | null>(null);
   const [approvalNotice, setApprovalNotice] = useState<{ tone: 'ok' | 'err'; text: string } | null>(null);
   const [returnDraftId, setReturnDraftId] = useState<string | null>(null);
@@ -389,6 +391,7 @@ export const OfficeAccountConsole: React.FC = () => {
   // Starts true: the office-scoped fetch waits for the office role to resolve,
   // and a false start would flash "no requests sent yet" before it runs.
   const [loadingRequests, setLoadingRequests] = useState(true);
+  const showRequestsLoader = useDelayedLoading(loadingRequests);
 
   // L&D's recommendations for this office, mirrored from the shared pipeline.
   const [officeRecs, setOfficeRecs] = useState<PipelineRec[]>([]);
@@ -1117,8 +1120,10 @@ export const OfficeAccountConsole: React.FC = () => {
                         </div>
                       )}
 
-                      {approvalsLoading ? (
-                        <p className="text-xs text-slate-500">Loading submissions…</p>
+                      {approvalsLoad.initialLoading ? (
+                        <div className="overflow-hidden rounded-lg border border-slate-200 bg-white" aria-busy="true">
+                          <SkeletonList show={approvalsLoad.showSkeleton} rows={3} label="Loading submissions…" />
+                        </div>
                       ) : pendingApprovals.length === 0 ? (
                         <div className="rounded-lg border border-dashed border-slate-200 bg-slate-50/50 px-4 py-8 text-center">
                           <p className="text-sm font-semibold text-slate-600">No IPCRs are awaiting approval.</p>
@@ -1761,9 +1766,9 @@ export const OfficeAccountConsole: React.FC = () => {
                     </div>
                   )}
 
-                  {loadingRequests ? (
-                    <div className="border border-slate-150 rounded-xl p-12 text-center text-slate-500 text-xs">
-                      Loading your recommendations...
+                  {loadingRequests || showRequestsLoader ? (
+                    <div className="overflow-hidden rounded-xl border border-slate-200 bg-white" aria-busy="true">
+                      <SkeletonList show={showRequestsLoader} rows={3} label="Loading your recommendations…" />
                     </div>
                   ) : sortedRequests.length === 0 ? (
                     <div className="border border-dashed border-slate-300 rounded-xl p-12 text-center text-slate-500 text-xs">

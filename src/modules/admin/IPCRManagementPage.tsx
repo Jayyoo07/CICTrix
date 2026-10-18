@@ -31,6 +31,7 @@ import {
 } from '../../lib/api/newEntrants';
 import { Field, getCurrentAdminEmail, ui } from './moduleUi';
 import '../../styles/admin.css';
+import { SkeletonList, useDelayedLoading, useTableLoading } from '../../components/table-loading';
 
 interface SubtabDef {
   key: string;
@@ -145,6 +146,7 @@ const NewEntrantOnboarding = () => {
   const [employees, setEmployees] = useState<EmployeeOption[]>([]);
   const [departments, setDepartments] = useState<Department[]>([]);
   const [loading, setLoading] = useState(true);
+  const entrantsLoad = useTableLoading(loading, entrants.length > 0);
   const [error, setError] = useState('');
   const [banner, setBanner] = useState('');
   const [search, setSearch] = useState('');
@@ -260,11 +262,11 @@ const NewEntrantOnboarding = () => {
           <UserPlus size={18} />
           New Entrants
           <span style={{ marginLeft: 'auto', fontSize: '13px', fontWeight: 500, color: '#6b7280' }}>
-            {loading ? '' : `${filtered.length}`}
+            {entrantsLoad.initialLoading ? '' : `${filtered.length}`}
           </span>
         </div>
-        {loading ? (
-          <div style={ui.emptyBox}>Loading new entrants…</div>
+        {entrantsLoad.initialLoading ? (
+          <SkeletonList show={entrantsLoad.showSkeleton} label="Loading new entrants…" />
         ) : filtered.length === 0 ? (
           <div style={ui.emptyBox}>
             {entrants.length === 0
@@ -525,6 +527,7 @@ const SubmissionPhasePanel = ({
   const [lockedMap, setLockedMap] = useState<Map<string, LockedTargetRow[]>>(new Map());
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
+  const trackerLoad = useTableLoading(loading, rows.length > 0);
   const [error, setError] = useState('');
   const [banner, setBanner] = useState('');
   const [officeFilter, setOfficeFilter] = useState('');
@@ -817,8 +820,8 @@ const SubmissionPhasePanel = ({
             </select>
           </div>
         </div>
-        {loading ? (
-          <div style={ui.emptyBox}>Loading tracker…</div>
+        {trackerLoad.initialLoading ? (
+          <SkeletonList show={trackerLoad.showSkeleton} label="Loading tracker…" />
         ) : visible.length === 0 ? (
           <div style={ui.emptyBox}>
             {rows.length === 0
@@ -959,6 +962,7 @@ const PerformanceHistory = () => {
   const [history, setHistory] = useState<EmployeeHistory | null>(null);
   const [loadingEmployees, setLoadingEmployees] = useState(true);
   const [loading, setLoading] = useState(false);
+  const showHistoryLoader = useDelayedLoading(loading);
   const [error, setError] = useState('');
 
   useEffect(() => {
@@ -1023,8 +1027,10 @@ const PerformanceHistory = () => {
 
       {!employeeId ? (
         <div style={{ ...ui.card, ...ui.emptyBox }}>Select an employee to view their IPCR track record.</div>
-      ) : loading ? (
-        <div style={{ ...ui.card, ...ui.emptyBox }}>Loading history…</div>
+      ) : loading || showHistoryLoader ? (
+        <div style={ui.card} aria-busy="true">
+          <SkeletonList show={showHistoryLoader} rows={3} label="Loading history…" />
+        </div>
       ) : !history || history.cycles.length === 0 ? (
         <div style={{ ...ui.card, ...ui.emptyBox }}>No completed IPCR cycles found for {selectedName || 'this employee'}.</div>
       ) : (

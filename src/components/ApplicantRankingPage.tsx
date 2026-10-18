@@ -6,6 +6,7 @@ import { ApplicantsTabBar } from './ApplicantsTabBar';
 import { Sidebar } from './Sidebar';
 import { supabase } from '../lib/supabase';
 import { getApplicants, saveApplicants } from '../lib/recruitmentData';
+import { LoadingStatus, Skeleton, useDelayedLoading } from './table-loading';
 
 interface Applicant {
   id: string;
@@ -26,6 +27,9 @@ interface PositionGroup {
   avgScore: number | null;
 }
 
+/** Placeholder department cards while the ranking data loads. */
+const DEPARTMENT_PLACEHOLDERS = 6;
+
 const fmtScore = (s: number | null) =>
   s !== null ? s.toFixed(2) : '—';
 
@@ -39,6 +43,8 @@ const medalStyle = (rank: number) => {
 export const ApplicantRankingPage = () => {
   const [applicants, setApplicants]   = useState<Applicant[]>([]);
   const [loading, setLoading]         = useState(true);
+  const showLoader = useDelayedLoading(loading);
+  const pending = loading || showLoader;
   const [activeDepartment, setActiveDepartment] = useState<string | null>(null);
   const [activePosition, setActivePosition] = useState<string | null>(null);
   const [selected, setSelected]       = useState<Set<string>>(new Set());
@@ -299,12 +305,6 @@ export const ApplicantRankingPage = () => {
     </>
   );
 
-  if (loading) return (
-    <Shell>
-      <div className="flex items-center justify-center p-12 text-slate-500">Loading ranking data…</div>
-    </Shell>
-  );
-
   // ── VIEW 0 — Department folder grid ─────────────────────────────────────────
   if (!activePosition && !activeDepartment) return (
     <Shell>
@@ -323,8 +323,22 @@ export const ApplicantRankingPage = () => {
           </button>
         </div>
 
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 no-print">
-          {departmentGroups.map((d) => (
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 no-print" aria-busy={loading}>
+          {showLoader && (
+            <>
+              <LoadingStatus label="Loading ranking data…" />
+              {Array.from({ length: DEPARTMENT_PLACEHOLDERS }, (_, i) => (
+                <div key={i} className="flex items-start gap-3 rounded-2xl border border-slate-200 bg-white p-5" aria-hidden="true">
+                  <Skeleton className="shrink-0" style={{ width: 40, height: 40, borderRadius: 12 }} />
+                  <div className="flex-1">
+                    <Skeleton style={{ width: '70%', height: 14 }} />
+                    <Skeleton style={{ width: '45%', height: 10, marginTop: 8 }} />
+                  </div>
+                </div>
+              ))}
+            </>
+          )}
+          {!pending && departmentGroups.map((d) => (
             <button
               key={d.office}
               type="button"
@@ -345,7 +359,7 @@ export const ApplicantRankingPage = () => {
               <ChevronRight className="h-4 w-4 text-slate-400 group-hover:text-blue-600" />
             </button>
           ))}
-          {departmentGroups.length === 0 && (
+          {!pending && departmentGroups.length === 0 && (
             <div className="col-span-full rounded-2xl border border-dashed border-slate-300 bg-white py-12 text-center text-slate-400">
               <Trophy className="mx-auto mb-2 h-9 w-9 text-slate-300" />
               <p className="font-medium">No applicant data yet.</p>

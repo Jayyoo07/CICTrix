@@ -20,6 +20,7 @@ import abyanLogo from '../assets/abyan-logo.png';
 import { SharedFooter } from './SharedFooter';
 import { getAuthoritativeJobPostings, loadJobPostings } from '../lib/recruitmentData';
 import { vacancySalaryLabel } from '../lib/vacancySalary';
+import { LoadingStatus, Skeleton, TableSkeletonRows, tableBodyClass, useTableLoading } from './table-loading';
 
 export function JobPortalPage() {
   const navigate = useNavigate();
@@ -27,6 +28,7 @@ export function JobPortalPage() {
   
   const [jobs, setJobs] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const vacanciesLoad = useTableLoading(loading, jobs.length > 0);
   const [viewMode, setViewMode] = useState<'card' | 'table'>('card');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedDept, setSelectedDept] = useState('All');
@@ -363,12 +365,23 @@ export function JobPortalPage() {
         </div>
 
         {/* Vacancies Display */}
-        {loading ? (
-          <div className="flex flex-col items-center justify-center py-20 text-slate-500">
-            <div className="h-10 w-10 animate-spin rounded-full border-4 border-t-[#363EE8] border-slate-200 mb-4" />
-            <p className="font-medium">Loading vacant positions...</p>
+        {vacanciesLoad.initialLoading && viewMode === 'card' ? (
+          <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3" aria-busy="true">
+            {vacanciesLoad.showSkeleton && (
+              <>
+                <LoadingStatus label="Loading vacant positions…" />
+                {Array.from({ length: itemsPerPage }, (_, i) => (
+                  <div key={i} className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm" aria-hidden="true">
+                    <Skeleton style={{ width: 80, height: 22, borderRadius: 999 }} />
+                    <Skeleton style={{ width: '75%', height: 16, marginTop: 20 }} />
+                    <Skeleton style={{ width: '50%', height: 12, marginTop: 10 }} />
+                    <Skeleton style={{ width: '100%', height: 36, marginTop: 28, borderRadius: 999 }} />
+                  </div>
+                ))}
+              </>
+            )}
           </div>
-        ) : activeVacancies.length === 0 ? (
+        ) : !vacanciesLoad.initialLoading && activeVacancies.length === 0 ? (
           <div className="text-center py-20 bg-white rounded-2xl border border-slate-200 shadow-sm px-6">
             <Briefcase className="mx-auto text-slate-300 mb-4" size={48} />
             <h3 className="text-lg font-bold text-[#050D65]">No Vacancies Found</h3>
@@ -458,8 +471,11 @@ export function JobPortalPage() {
                   <th className="px-6 py-4 text-center font-semibold text-[#050D65]">Actions</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100">
-                {paginatedVacancies.map((job) => (
+              <tbody className={`divide-y divide-slate-100 ${tableBodyClass(false)}`}>
+                {vacanciesLoad.initialLoading ? (
+                  <TableSkeletonRows show={vacanciesLoad.showSkeleton} rows={itemsPerPage}
+                    columns={['text', 'text', 'text', 'text', 'text', 'badge', 'button']} label="Loading vacant positions…" />
+                ) : paginatedVacancies.map((job) => (
                   <tr key={job.id} className="transition hover:bg-slate-50/50">
                     <td className="px-6 py-4 font-bold text-[#050D65]">{job.title}</td>
                     <td className="px-6 py-4 text-slate-600">{job.department}</td>
@@ -503,7 +519,7 @@ export function JobPortalPage() {
         )}
 
         {/* Pagination controls */}
-        {!loading && totalPages > 1 && (
+        {!vacanciesLoad.initialLoading && totalPages > 1 && (
           <div className="mt-8 flex items-center justify-between">
             <div className="text-sm text-slate-500">
               Showing <span className="font-semibold text-slate-700">{(currentPage - 1) * itemsPerPage + 1}</span> to{' '}

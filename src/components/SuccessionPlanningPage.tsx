@@ -12,6 +12,7 @@ import {
   type ExperiencePart,
 } from '../lib/api/succession';
 import { RANKING_WEIGHTS, type EligibilityScore } from '../lib/api/successionCriteria';
+import { SkeletonList, TableSkeletonRows, tableBodyClass, useTableLoading } from './table-loading';
 
 // The Succession Planning view lives inside the RSP Portal, which is already
 // access-gated to the RSP admin. Management actions therefore key off "am I in
@@ -158,6 +159,7 @@ const departmentStatus = (dept: DepartmentSummary): { label: string; tone: strin
 const OcboTableView = ({ admin }: { admin: string }) => {
   const [departments, setDepartments] = useState<DepartmentSummary[]>([]);
   const [loading, setLoading] = useState(true);
+  const departmentsLoad = useTableLoading(loading, departments.length > 0);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [posByDept, setPosByDept] = useState<Record<string, CriticalPosition[]>>({});
   const [candByPos, setCandByPos] = useState<Record<string, AutoSuccessorsResult>>({});
@@ -236,8 +238,6 @@ const OcboTableView = ({ admin }: { admin: string }) => {
   const fmtLeaving = (iso: string | null) =>
     iso ? new Date(iso).toLocaleDateString('en-US', { month: 'short', year: 'numeric' }) : null;
 
-  if (loading) return <p className="text-sm text-[var(--text-secondary)]">Loading succession plan…</p>;
-
   return (
     <div className="space-y-3">
       <p className="!mb-0 text-xs text-[var(--text-secondary)]">
@@ -264,13 +264,16 @@ const OcboTableView = ({ admin }: { admin: string }) => {
               <th className={TH}>Status</th>
             </tr>
           </thead>
-          <tbody>
-      {departments.length === 0 && (
+          <tbody className={tableBodyClass(false)}>
+      {departmentsLoad.initialLoading && (
+        <TableSkeletonRows show={departmentsLoad.showSkeleton} columns={['text', 'text', 'text', 'badge']} label="Loading succession plan…" />
+      )}
+      {!departmentsLoad.initialLoading && departments.length === 0 && (
         <tr>
           <td colSpan={4} className="px-5 py-12 text-center text-sm text-slate-500">No departments to show yet.</td>
         </tr>
       )}
-      {departments.map((dept) => {
+      {!departmentsLoad.initialLoading && departments.map((dept) => {
         const open = expanded.has(dept.departmentId);
         const positions = posByDept[dept.departmentId] ?? [];
         const status = departmentStatus(dept);
@@ -309,7 +312,7 @@ const OcboTableView = ({ admin }: { admin: string }) => {
             {open && (
               <tr className="border-b border-slate-100 last:border-0">
               <td colSpan={4} className="bg-slate-50/60 px-5 py-4">
-                {loadingDept[dept.departmentId] && <p className="text-sm text-[var(--text-secondary)]">Loading positions…</p>}
+                {loadingDept[dept.departmentId] && <SkeletonList show rows={3} label="Loading positions…" />}
                 {!loadingDept[dept.departmentId] && positions.length === 0 && (
                   <p className="text-sm text-[var(--text-secondary)]">No critical positions flagged for this office.</p>
                 )}
