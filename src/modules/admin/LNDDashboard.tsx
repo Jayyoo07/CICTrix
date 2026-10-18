@@ -948,7 +948,7 @@ export const LNDDashboard = ({
             tables push the whole page (and the sticky header) sideways. */}
         <main className="min-w-0 flex-1">
           {effectiveModule === 'dashboard' ? (
-            <div className="dash-25">
+            <div className="dash-lg">
               <LndDashboardContent />
             </div>
           ) : effectiveModule === 'summary-of-ratings' ? (

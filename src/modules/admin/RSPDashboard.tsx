@@ -3330,7 +3330,11 @@ export const RSPDashboard = () => {
 
         <main className="admin-content !p-0">
           {/* The dashboard draws its own gradient header strip with filters. */}
+          {/* dash-lg: dashboard text enlarged (src/styles/dashboard-scale.css).
+              Must be an ANCESTOR of .rspdash so the generated rules outrank
+              rsp-dashboard.css by one class. */}
           {section === 'dashboard' && (
+            <div className="dash-lg">
             <RspDashboardOverview
               jobs={jobsWithCounts.map((job) => ({ ...job, applicationDeadline: job.posting?.applicationDeadline }))}
               applicants={applicants}
@@ -3341,6 +3345,7 @@ export const RSPDashboard = () => {
               onOpenQualified={() => goToSection('qualified')}
               onOpenSuccession={() => goToSection('succession')}
             />
+            </div>
           )}
           {section !== 'dashboard' && (
           <div className="border-b border-[var(--border-color)] bg-white px-4 py-5 sm:px-6 lg:px-8 lg:py-6">

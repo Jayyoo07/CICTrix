@@ -348,7 +348,7 @@ export function RspDashboardOverview({
     setCalendarMonth((m) => new Date(m.getFullYear(), m.getMonth() + delta, 1));
 
   return (
-    <div className="rspdash dash-25">
+    <div className="rspdash">
       <section className="rd-hero">
         <div>
           {/* Not an <h1>: admin.css forces .admin-content h1 to brand blue with !important. */}

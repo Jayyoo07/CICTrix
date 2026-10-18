@@ -1,46 +1,102 @@
 /*
- * Dashboard text scale (+25%).
+ * Dashboard text scale (x1.4).
  *
  * The admin dashboards were hard to read at the compact scale DESIGN_IDENTITY
  * §4 adopted on 2026-10-07. That scale exists so a full table and its controls
- * fit at 1366x768, which still matters for the list and form screens — so this
- * raises the DASHBOARDS only, and leaves the shared tokens in
- * abyan-tokens.css and the guide untouched.
+ * fit at 1366x768, which still matters on the list and form screens — so this
+ * raises the DASHBOARDS only. abyan-tokens.css and the guide are untouched.
  *
  * Applied to the dashboard content, never to the top bar or the side rail:
  * §4 keeps those on their own sizes so the chrome reads the same in every
- * portal, and growing them would push the rail's 48px items out of alignment.
+ * portal, and growing the rail would push its 48px items out of alignment.
  *
- * Every size the four dashboards actually use is listed, Tailwind utilities
- * and arbitrary px values alike, because a partial list would scale some text
- * and not its neighbour — worse than leaving it alone. Line heights scale with
- * the sizes; keeping Tailwind's originals would crowd the larger text.
+ * TWO kinds of rule below, because the dashboards size text two different ways
+ * and the first attempt only covered one of them:
  *
- * Add a new size here if a dashboard starts using one.
+ *   1. Tailwind utilities (text-sm, text-[11px]) — Super Admin uses these.
+ *   2. The RSP and PM dashboards' own stylesheets, which set font-size in px
+ *      on their own classes and ignore Tailwind entirely. Overriding the
+ *      utilities did nothing for them, which is why the first pass looked
+ *      unchanged.
+ *
+ * `.dash-lg` must sit on an ANCESTOR of the dashboard root, so these selectors
+ * carry one more class than the originals and win on specificity.
+ *
+ * The px rules are GENERATED from rsp-dashboard.css and pm-dashboard.css by the
+ * snippet in docs/plans — regenerate them if either stylesheet changes size.
  */
 
-.dash-25 {
-  /* Tailwind's named sizes, 25% up, with their line heights scaled to match. */
-}
+/* ---- Tailwind utilities ---- */
+.dash-lg .text-xs    { font-size: 16.8px; line-height: 22.4px; }
+.dash-lg .text-sm    { font-size: 19.6px; line-height: 28.0px; }
+.dash-lg .text-base  { font-size: 22.4px; line-height: 33.6px; }
+.dash-lg .text-lg    { font-size: 25.2px; line-height: 39.2px; }
+.dash-lg .text-xl    { font-size: 28.0px; line-height: 39.2px; }
+.dash-lg .text-2xl   { font-size: 33.6px; line-height: 44.8px; }
+.dash-lg .text-3xl   { font-size: 42.0px; line-height: 50.4px; }
+.dash-lg .text-\[10px\] { font-size: 14.0px; }
+.dash-lg .text-\[11px\] { font-size: 15.4px; }
+.dash-lg .text-\[13px\] { font-size: 18.2px; }
+.dash-lg .text-\[15px\] { font-size: 21.0px; }
+.dash-lg .text-\[28px\] { font-size: 39.2px; }
+/* Overlines stay small on purpose: a 40% jump turns a 9px label into body
+   text and the KPI cards lose their hierarchy. */
+.dash-lg .text-\[9px\]  { font-size: 11px; }
 
-.dash-25 .text-xs    { font-size: 0.9375rem; line-height: 1.25rem; }   /* 12 -> 15 */
-.dash-25 .text-sm    { font-size: 1.09375rem; line-height: 1.5625rem; } /* 14 -> 17.5 */
-.dash-25 .text-base  { font-size: 1.25rem; line-height: 1.875rem; }     /* 16 -> 20 */
-.dash-25 .text-lg    { font-size: 1.40625rem; line-height: 2.1875rem; } /* 18 -> 22.5 */
-.dash-25 .text-xl    { font-size: 1.5625rem; line-height: 2.1875rem; }  /* 20 -> 25 */
-.dash-25 .text-2xl   { font-size: 1.875rem; line-height: 2.5rem; }      /* 24 -> 30 */
-.dash-25 .text-3xl   { font-size: 2.34375rem; line-height: 2.8125rem; } /* 30 -> 37.5 */
 
-/* Arbitrary sizes the dashboards set directly. */
-.dash-25 .text-\[10px\] { font-size: 12.5px; line-height: 1.4; }
-.dash-25 .text-\[11px\] { font-size: 13.75px; line-height: 1.4; }
-.dash-25 .text-\[13px\] { font-size: 16.25px; line-height: 1.4; }
-.dash-25 .text-\[15px\] { font-size: 18.75px; line-height: 1.4; }
-.dash-25 .text-\[28px\] { font-size: 35px; line-height: 1.2; }
-
-/*
- * The 9px and 10px labels inside KPI chips and badges. Left at their own
- * ratio rather than 25%: at this size a quarter more turns an overline into
- * body text and the card loses its hierarchy.
- */
-.dash-25 .text-\[9px\]  { font-size: 11px; line-height: 1.4; }
+/* ---- RSP dashboard (29 rules, generated) ---- */
+.dash-lg .rspdash { font-size: 18.2px; }
+.dash-lg .rspdash .rd-hero-title { font-size: 30.8px; }
+.dash-lg .rspdash .rd-hero-sub { font-size: 18.2px; }
+.dash-lg .rspdash .rd-seg button { font-size: 16.8px; }
+.dash-lg .rspdash .rd-asof { font-size: 16.8px; }
+.dash-lg .rspdash .rd-sec-h h2 { font-size: 22.4px; }
+.dash-lg .rspdash .rd-desc { font-size: 16.8px; }
+.dash-lg .rspdash .rd-link { font-size: 16.8px; }
+.dash-lg .rspdash .rd-h h3, .dash-lg .rspdash .rd-evh h3 { font-size: 19.6px; }
+.dash-lg .rspdash .rd-subtitle { font-size: 16.8px; }
+.dash-lg .rspdash .rd-empty { font-size: 16.8px; }
+.dash-lg .rspdash .rd-asof-dark { font-size: 15.4px; }
+.dash-lg .rspdash .rd-stat .l { font-size: 15.4px; }
+.dash-lg .rspdash .rd-stat .v { font-size: 28.0px; }
+.dash-lg .rspdash .rd-stat .v small { font-size: 15.4px; }
+.dash-lg .rspdash .rd-fun { font-size: 16.8px; }
+.dash-lg .rspdash .rd-conv { font-size: 15.4px; }
+.dash-lg .rspdash .rd-legend { font-size: 15.4px; }
+.dash-lg .rspdash .rd-table { font-size: 16.8px; }
+.dash-lg .rspdash .rd-table th { font-size: 15.4px; }
+.dash-lg .rspdash .rd-meta { font-size: 15.4px; }
+.dash-lg .rspdash .rd-pill { font-size: 15.4px; }
+.dash-lg .rspdash .rd-cal-h b { font-size: 19.6px; }
+.dash-lg .rspdash .rd-dow { font-size: 14.0px; }
+.dash-lg .rspdash .rd-day { font-size: 15.4px; }
+.dash-lg .rspdash .rd-seg-light button { font-size: 16.8px; }
+.dash-lg .rspdash .rd-dlabel { font-size: 15.4px; }
+.dash-lg .rspdash .rd-ev { font-size: 16.8px; }
+.dash-lg .rspdash .rd-ev .meta { font-size: 15.4px; }
+/* ---- PM dashboard (25 rules, generated) ---- */
+.dash-lg .pmdash { font-size: 18.2px; }
+.dash-lg .pmdash .pd-crumbs { font-size: 16.8px; }
+.dash-lg .pmdash .pd-hero-title { font-size: 30.8px; line-height: 39.2px; }
+.dash-lg .pmdash .pd-hero-sub { font-size: 18.2px; }
+.dash-lg .pmdash .pd-asof { font-size: 16.8px; }
+.dash-lg .pmdash .pd-card-h h2 { font-size: 22.4px; line-height: 30.8px; }
+.dash-lg .pmdash .pd-desc { font-size: 16.8px; }
+.dash-lg .pmdash .pd-link { font-size: 16.8px; }
+.dash-lg .pmdash .pd-empty { font-size: 18.2px; }
+.dash-lg .pmdash .pd-kpi-h { font-size: 19.6px; line-height: 22.4px; }
+.dash-lg .pmdash .pd-kpi-v { font-size: 50.4px; line-height: 56.0px; }
+.dash-lg .pmdash .pd-kpi-v small { font-size: 18.2px; }
+.dash-lg .pmdash .pd-kpi-sub { font-size: 16.8px; line-height: 22.4px; }
+.dash-lg .pmdash .pd-pill { font-size: 16.8px; }
+.dash-lg .pmdash .pd-tbl th { font-size: 16.8px; }
+.dash-lg .pmdash .pd-tbl td { font-size: 18.2px; }
+.dash-lg .pmdash .pd-meta { font-size: 16.8px; }
+.dash-lg .pmdash .pd-m .l { font-size: 16.8px; }
+.dash-lg .pmdash .pd-m .v { font-size: 33.6px; line-height: 42.0px; }
+.dash-lg .pmdash .pd-m .v small { font-size: 16.8px; }
+.dash-lg .pmdash .pd-m .f { font-size: 16.8px; }
+.dash-lg .pmdash .pd-overline { font-size: 16.8px; }
+.dash-lg .pmdash .pd-legend { font-size: 16.8px; }
+.dash-lg .pmdash .pd-callout { font-size: 16.8px; }
+.dash-lg .pmdash .pd-avatar { font-size: 16.8px; }

@@ -1016,7 +1016,7 @@ export const PMDashboard = ({
             )}
 
             {activeSection === 'dashboard' && (
-              <div className="dash-25">
+              <div className="dash-lg">
                 <PmDashboardOverview
                   pending={pendingSubmissions}
                   onOpenSummary={() => setActiveSection('summary-of-ratings')}
