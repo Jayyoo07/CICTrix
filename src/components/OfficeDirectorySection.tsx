@@ -5,13 +5,11 @@ import {
   Building2,
   ChevronLeft,
   ChevronRight,
-  Search,
   MapPin,
   Briefcase
 } from 'lucide-react';
 import {
   getOfficeDirectory,
-  filterOfficeDirectory,
   type OfficeDirectoryRow
 } from '../lib/api/officeDirectory';
 import { TableRefreshBar, TableSkeletonRows, tableBodyClass, useTableLoading } from './table-loading';
@@ -30,7 +28,6 @@ export const OfficeDirectorySection: React.FC<OfficeDirectorySectionProps> = ({
   // Starts true: the directory loads on mount, so the first paint is the skeleton, not "No offices found."
   const [officeDirectoryLoading, setOfficeDirectoryLoading] = useState(true);
   const [officeDirectoryError, setOfficeDirectoryError] = useState('');
-  const [officeDirectorySearch, setOfficeDirectorySearch] = useState('');
   const [officeDirectoryPage, setOfficeDirectoryPage] = useState(0);
   const [selectedOfficeRow, setSelectedOfficeRow] = useState<OfficeDirectoryRow | null>(null);
   const [officeEmployees, setOfficeEmployees] = useState<any[]>([]);
@@ -145,8 +142,8 @@ export const OfficeDirectorySection: React.FC<OfficeDirectorySectionProps> = ({
 
   const filteredOfficeDirectoryRows = useMemo(
     // Show active offices only — the directory reflects the current org.
-    () => filterOfficeDirectory(officeDirectoryRows.filter((r) => r.isActive), officeDirectorySearch),
-    [officeDirectoryRows, officeDirectorySearch]
+    () => officeDirectoryRows.filter((r) => r.isActive),
+    [officeDirectoryRows]
   );
 
   const officeDirectoryPageCount = Math.max(1, Math.ceil(filteredOfficeDirectoryRows.length / OFFICE_DIRECTORY_PER_PAGE));
@@ -165,11 +162,6 @@ export const OfficeDirectorySection: React.FC<OfficeDirectorySectionProps> = ({
       setOfficeDirectoryPage(Math.max(0, officeDirectoryPageCount - 1));
     }
   }, [officeDirectoryPage, officeDirectoryPageCount]);
-
-  const clearOfficeDirectoryFilters = () => {
-    setOfficeDirectorySearch('');
-    setOfficeDirectoryPage(0);
-  };
 
   return (
     <div className="space-y-4">
@@ -225,28 +217,6 @@ export const OfficeDirectorySection: React.FC<OfficeDirectorySectionProps> = ({
             </div>
           </div>
 
-          <section className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
-            <div className="relative">
-              <Search size={20} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-              <input
-                type="text"
-                value={officeDirectorySearch}
-                onChange={(e) => {
-                  setOfficeDirectorySearch(e.target.value);
-                  setOfficeDirectoryPage(0);
-                }}
-                placeholder="Search by office or department head..."
-                className="h-12 w-full rounded-lg border border-slate-300 pl-10 pr-3 text-base"
-              />
-            </div>
-            <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-slate-200 pt-3 text-base text-slate-600">
-              <p className="!mb-0">Showing {filteredOfficeDirectoryRows.length} office{filteredOfficeDirectoryRows.length === 1 ? '' : 's'}</p>
-              <button type="button" className="text-sm font-medium text-blue-700" onClick={clearOfficeDirectoryFilters}>
-                Clear Filters
-              </button>
-            </div>
-          </section>
-
           <ErrorBanner error={officeDirectoryError} context="server" onRetry={loadDirectory} />
 
           <div className="flex items-center justify-center text-lg font-semibold text-slate-700">
@@ -300,7 +270,7 @@ export const OfficeDirectorySection: React.FC<OfficeDirectorySectionProps> = ({
                         <tr>
                           <td colSpan={3} className="px-5 py-12 text-center text-slate-500">
                             <Briefcase className="mx-auto mb-2 h-9 w-9 text-slate-300" />
-                            <p className="font-medium">{officeDirectoryRows.length === 0 ? 'No offices found.' : 'No offices match your search.'}</p>
+                            <p className="font-medium">No offices found.</p>
                           </td>
                         </tr>
                       )}

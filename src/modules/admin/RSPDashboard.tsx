@@ -78,7 +78,7 @@ import { runSingleFlight, invalidateCacheKey } from '../../lib/singleFlight';
 import { mergeLocalSchedules } from '../../lib/applicantSchedule';
 import { isMockModeEnabled, supabase } from '../../lib/supabase';
 import { hireApplicant } from '../../lib/api/employeesApi';
-import { getOfficeDirectory, filterOfficeDirectory, type OfficeDirectoryRow } from '../../lib/api/officeDirectory';
+import { getOfficeDirectory, type OfficeDirectoryRow } from '../../lib/api/officeDirectory';
 import {
   EMPLOYEE_DOCUMENTS_UPDATED_EVENT,
   downloadEmployeeDocument,
@@ -900,7 +900,6 @@ export const RSPDashboard = () => {
   const [raterStatus, setRaterStatus] = useState('all');
   const [raterAssignedPositionsByEmail, setRaterAssignedPositionsByEmail] = useState<Record<string, string[]>>({});
   const [accountsView, setAccountsView] = useState<'directory' | 'office' | 'details'>('directory');
-  const [employeeDirectorySearch, setEmployeeDirectorySearch] = useState('');
   const [employeeDirectoryPage, setEmployeeDirectoryPage] = useState(0);
   const [officeDirectoryRows, setOfficeDirectoryRows] = useState<OfficeDirectoryRow[]>([]);
   const [officeDirectoryLoading, setOfficeDirectoryLoading] = useState(false);
@@ -2368,8 +2367,8 @@ export const RSPDashboard = () => {
   );
 
   const filteredOfficeDirectoryRows = useMemo(
-    () => filterOfficeDirectory(activeOfficeDirectoryRows, employeeDirectorySearch),
-    [activeOfficeDirectoryRows, employeeDirectorySearch]
+    () => activeOfficeDirectoryRows,
+    [activeOfficeDirectoryRows]
   );
 
   const officeDirectoryTotalEmployees = useMemo(
@@ -3243,10 +3242,6 @@ export const RSPDashboard = () => {
     setAccountsView('office');
   };
 
-  const clearEmployeeDirectoryFilters = () => {
-    setEmployeeDirectorySearch('');
-    setEmployeeDirectoryPage(0);
-  };
 
   const openEmployeeDetails = (employeeId: string) => {
     setSelectedEmployeeId(employeeId);
@@ -3695,29 +3690,6 @@ export const RSPDashboard = () => {
                       </Button>
                     </div>
 
-                    <section className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
-                      <div className="grid grid-cols-1 gap-3 xl:grid-cols-[minmax(0,1.3fr)]">
-                        <div className="relative">
-                          <Search size={20} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                          <input
-                            value={employeeDirectorySearch}
-                            onChange={(e) => {
-                              setEmployeeDirectorySearch(e.target.value);
-                              setEmployeeDirectoryPage(0);
-                            }}
-                            placeholder="Search by office or department head..."
-                            className="h-12 w-full rounded-lg border border-slate-300 pl-10 pr-3 text-base"
-                          />
-                        </div>
-                      </div>
-
-                      <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-slate-200 pt-3 text-base text-slate-600">
-                        <p className="!mb-0">Showing {filteredOfficeDirectoryRows.length} office{filteredOfficeDirectoryRows.length === 1 ? '' : 's'}</p>
-                        <button type="button" className="text-sm font-medium text-blue-700" onClick={clearEmployeeDirectoryFilters}>
-                          Clear Filters
-                        </button>
-                      </div>
-                    </section>
 
                     <ErrorBanner error={officeDirectoryError} context="server" />
 
@@ -3893,7 +3865,7 @@ export const RSPDashboard = () => {
                                   <tr>
                                     <td colSpan={3} className="px-5 py-12 text-center text-slate-500">
                                       <Briefcase className="mx-auto mb-2 h-9 w-9 text-slate-300" />
-                                      <p className="font-medium">No offices found for the selected filters.</p>
+                                      <p className="font-medium">No offices found.</p>
                                     </td>
                                   </tr>
                                 )}

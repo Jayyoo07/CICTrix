@@ -64,3 +64,8 @@ scratch/
 .agents/skills/
 skills-lock.json
 
+# Implementation plans
+implementation_plan*.md
+implementation-plan*.md
+
+
