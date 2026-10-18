@@ -38,6 +38,7 @@ import { supabase as supabaseClient } from '../../../lib/supabase';
 import { getSystemPhaseStates, openPhase, closePhase } from '../../../lib/api/ipcrPhaseControl';
 import { getActiveCyclePeriod } from '../../../lib/api/compliance';
 import type { EffectiveState } from '../../../lib/api/phaseSchedules';
+import { SkeletonList, useDelayedLoading, useTableLoading } from '../../../components/table-loading';
 
 const supabase = supabaseClient as any;
 
@@ -276,6 +277,7 @@ const IPCRDetailPage = ({
 
   const [ipcrRows, setIpcrRows] = useState<IPCRRowDraft[]>([]);
   const [ipcrLoading, setIpcrLoading] = useState(true);
+  const showIpcrLoader = useDelayedLoading(ipcrLoading);
   const [ipcrError, setIpcrError] = useState('');
   const [relationalStatus, setRelationalStatus] = useState<string | null>(null);
   const [relationalPhase2Status, setRelationalPhase2Status] = useState<string | null>(null);
@@ -613,10 +615,8 @@ const IPCRDetailPage = ({
             )}
           </div>
 
-          {ipcrLoading ? (
-            <div className="p-12 text-center text-sm text-slate-400">
-              Loading IPCR details…
-            </div>
+          {ipcrLoading || showIpcrLoader ? (
+            <SkeletonList show={showIpcrLoader} label="Loading IPCR details…" />
           ) : ipcrError ? (
             <div className="bg-red-50 border border-red-100 rounded-xl p-4 text-center text-sm text-red-700">
               {ipcrError}
@@ -1100,6 +1100,7 @@ const ProbationaryPanel = ({
   onRefresh: () => void;
   onSelectEmployee: (emp: EnrichedEmployee) => void;
 }) => {
+  const employeesLoad = useTableLoading(loading, employees.length > 0);
   const [search, setSearch] = useState('');
   const [officeFilter, setOfficeFilter] = useState('');
   const [showSchedule, setShowSchedule] = useState(false);
@@ -1294,10 +1295,8 @@ const ProbationaryPanel = ({
 
       {/* Table */}
       <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm">
-        {loading ? (
-          <div className="flex items-center justify-center h-40 text-slate-400 text-sm">
-            Loading…
-          </div>
+        {employeesLoad.initialLoading ? (
+          <SkeletonList show={employeesLoad.showSkeleton} label="Loading probationary employees…" />
         ) : filtered.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-40 text-slate-400">
             <Users size={28} className="mb-2 text-slate-300" />
@@ -1624,6 +1623,7 @@ const RegularPanel = ({
   drillOffice: string | null;
   setDrillOffice: (office: string | null) => void;
 }) => {
+  const employeesLoad = useTableLoading(loading, employees.length > 0);
   const [showSchedule, setShowSchedule] = useState(false);
   // The evaluation period this screen is acting on. It used to be set only by
   // the Schedule dialog, so the panel read "No active period" on every load
@@ -1768,9 +1768,9 @@ const RegularPanel = ({
         </div>
       </div>
 
-      {loading ? (
-        <div className="flex items-center justify-center h-40 text-slate-400 text-sm">
-          Loading…
+      {employeesLoad.initialLoading ? (
+        <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm" aria-busy="true">
+          <SkeletonList show={employeesLoad.showSkeleton} label="Loading offices…" />
         </div>
       ) : activeDrill ? (
         /* ── Employee drill-down ── */

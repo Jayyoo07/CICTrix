@@ -29,6 +29,7 @@ import {
 } from '../../../lib/api/promotionalApplications';
 import { listPositions } from '../../../lib/api/pmCompetency';
 import { getCurrentAdminEmail } from '../moduleUi';
+import { TableRefreshBar, TableSkeletonRows, tableBodyClass, useTableLoading } from '../../../components/table-loading';
 
 type Subtab = 'applications' | 'eligibility';
 
@@ -188,6 +189,7 @@ const ApplicationDetail = ({
 }) => {
   const [documents, setDocuments] = useState<ApplicationDocument[]>([]);
   const [loading, setLoading] = useState(true);
+  const docsLoad = useTableLoading(loading, documents.length > 0);
   const [remarks, setRemarks] = useState(application.remarks ?? '');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -287,10 +289,8 @@ const ApplicationDetail = ({
                 )}
               </td>
             </tr>
-            {loading ? (
-              <tr>
-                <td colSpan={2} className="px-4 py-8 text-center text-slate-400">Loading documents…</td>
-              </tr>
+            {docsLoad.initialLoading ? (
+              <TableSkeletonRows show={docsLoad.showSkeleton} rows={3} columns={['text', 'button']} label="Loading documents…" />
             ) : (
               documents.map((doc) => (
                 <tr key={doc.id} className="hover:bg-slate-50/60">
@@ -504,6 +504,7 @@ export function PMPromotionalApplications() {
   const [subtab, setSubtab] = useState<Subtab>('applications');
   const [rows, setRows] = useState<ApplicationRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const applicationsLoad = useTableLoading(loading, rows.length > 0);
   const [error, setError] = useState('');
   const [selected, setSelected] = useState<ApplicationRow | null>(null);
   useBackClosesView(selected !== null, () => setSelected(null), 'pm-promotional-application');
@@ -611,12 +612,12 @@ export function PMPromotionalApplications() {
                       ),
                     )}
                   </tr>
+                  <TableRefreshBar active={applicationsLoad.refreshing} colSpan={7} />
                 </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {loading ? (
-                    <tr>
-                      <td colSpan={7} className="px-4 py-12 text-center text-slate-400">Loading applications…</td>
-                    </tr>
+                <tbody className={`divide-y divide-slate-100 ${tableBodyClass(applicationsLoad.refreshing)}`}>
+                  {applicationsLoad.initialLoading ? (
+                    <TableSkeletonRows show={applicationsLoad.showSkeleton}
+                      columns={['two-line', 'text', 'text', 'text', 'text', 'badge', 'button']} label="Loading applications…" />
                   ) : rows.length === 0 ? (
                     <tr>
                       <td colSpan={7} className="px-4 py-12 text-center text-slate-400">

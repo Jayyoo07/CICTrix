@@ -11,6 +11,7 @@ import {
   resetSupervisorPassword,
 } from '../../lib/api/supervisors';
 import '../../styles/admin.css';
+import { SkeletonList, useTableLoading } from '../../components/table-loading';
 
 // Session lives in the shared per-tab module so every screen reads one identity.
 const getCurrentAdminEmail = (): string => getAdminEmail();
@@ -18,6 +19,7 @@ const getCurrentAdminEmail = (): string => getAdminEmail();
 export const SupervisorAccessPage = () => {
   const [supervisors, setSupervisors] = useState<Supervisor[]>([]);
   const [loading, setLoading] = useState(true);
+  const supervisorsLoad = useTableLoading(loading, supervisors.length > 0);
   const [loadError, setLoadError] = useState('');
   const [banner, setBanner] = useState('');
 
@@ -171,14 +173,12 @@ export const SupervisorAccessPage = () => {
               <Users size={18} />
               Supervisor List
               <span style={{ marginLeft: 'auto', fontSize: '13px', fontWeight: 500, color: '#6b7280' }}>
-                {loading ? '' : `${supervisors.length} account${supervisors.length === 1 ? '' : 's'}`}
+                {supervisorsLoad.initialLoading ? '' : `${supervisors.length} account${supervisors.length === 1 ? '' : 's'}`}
               </span>
             </div>
 
-            {loading ? (
-              <div style={{ padding: '40px', textAlign: 'center', color: '#6b7280' }}>
-                Loading supervisors…
-              </div>
+            {supervisorsLoad.initialLoading ? (
+              <SkeletonList show={supervisorsLoad.showSkeleton} label="Loading supervisors…" />
             ) : supervisors.length === 0 && !loadError ? (
               <div style={{ padding: '40px', textAlign: 'center', color: '#6b7280' }}>
                 No supervisors found. Run migration{' '}
