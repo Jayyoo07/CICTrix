@@ -1,7 +1,7 @@
 ---
 title: RSP edits posted job vacancies from the Details page
 date: 2026-10-18
-status: In Progress
+status: Done
 summary: Add an Edit Posting button to the RSP view of a job's Details page that opens the existing Edit Position form prefilled, warns when people have already applied, and returns to Details after saving or cancelling.
 spec: docs/mockups/2026-10-18-job-edit-entry.html (chosen 2026-10-18: B + X)
 ---
