@@ -138,6 +138,65 @@ const loadInterviewerSession = (): InterviewerSession | null => {
 // silently becoming the other. See src/lib/employeeSession.ts.
 const loadEmployeeSession = (): EmployeeSession | null => readEmployeeSession();
 
+/**
+ * Admin pages require a live Supabase sign-in, not just the portal's own
+ * stored session.
+ *
+ * Those are two different things and they expire independently. The portal
+ * session lives in localStorage and never lapses on its own, so the header
+ * kept reading "Super Admin" long after the Supabase token behind every
+ * request had gone — the screen looked signed in while the database saw an
+ * anonymous caller and refused every write. That surfaced as unexplainable
+ * Postgres errors on whichever screen the admin happened to be using.
+ *
+ * Checked here, once, rather than in each feature's save path.
+ *
+ * Deliberately NOT applied to the employee or applicant portals: those
+ * authenticate at the application layer and are anonymous to Postgres by
+ * design, so requiring a Supabase session there would lock out every employee.
+ */
+type SupabaseAuthState = 'checking' | 'live' | 'expired';
+
+const useSupabaseAuthState = (): SupabaseAuthState => {
+  const [state, setState] = useState<SupabaseAuthState>('checking');
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const settle = (hasSession: boolean) => {
+      if (cancelled) return;
+      setState(hasSession ? 'live' : 'expired');
+      // Drop the portal session too, so the header stops claiming a role the
+      // database will not honour.
+      if (!hasSession) clearAdminSession();
+    };
+
+    void supabase.auth
+      .getSession()
+      .then(({ data }) => settle(Boolean(data?.session)))
+      // If the check itself fails we cannot prove the session is gone. Treat it
+      // as live rather than ejecting someone mid-task on a network blip; the
+      // write will report the real error if it is genuinely expired.
+      .catch(() => { if (!cancelled) setState('live'); });
+
+    const { data: sub } = supabase.auth.onAuthStateChange((event, authSession) => {
+      // A session arriving is always good news. A null one is only conclusive
+      // on SIGNED_OUT: supabase-js also emits INITIAL_SESSION with null while
+      // it is still reading storage, and acting on that would throw a working
+      // admin back to the login screen a moment after the page loaded.
+      if (authSession) settle(true);
+      else if (event === 'SIGNED_OUT') settle(false);
+    });
+
+    return () => {
+      cancelled = true;
+      sub?.subscription?.unsubscribe();
+    };
+  }, []);
+
+  return state;
+};
+
 const AdminRoute = ({
   children,
   session,
@@ -147,7 +206,17 @@ const AdminRoute = ({
   session: { email: string; role: Role } | null;
   allowedRoles?: Role[];
 }) => {
+  const authState = useSupabaseAuthState();
+
   if (!session) {
+    return <Navigate to="/admin/login" replace />;
+  }
+
+  // Render nothing for the moment the check takes, rather than flashing the
+  // page and then redirecting.
+  if (authState === 'checking') return null;
+
+  if (authState === 'expired') {
     return <Navigate to="/admin/login" replace />;
   }
 
