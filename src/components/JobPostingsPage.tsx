@@ -14,12 +14,13 @@ import {
     Plus,
     Search,
     Trash2,
-    Unlock,
     Users,
     X
 } from 'lucide-react';
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
+import { JobVacanciesPanel } from './JobVacanciesPanel';
+import { isOpenedVacancy } from '../lib/vacancySearch';
 import { COMPETENCIES, EDUCATION_LEVELS, formatOfficeLabel } from '../constants/positions';
 import { useDepartmentNames } from '../hooks/useDepartmentOptions';
 import { getPreferredDataSourceMode } from '../lib/dataSourceMode';
@@ -84,7 +85,8 @@ const STATUS_COLORS: Record<JobPosting['status'], string> = {
 };
 
 const STATUS_LABELS: Record<JobPosting['status'], string> = {
-  Draft: 'Reviewing',
+  // A Draft is a position defined in Job Positions but not yet opened as a vacancy.
+  Draft: 'Not opened',
   Active: 'Open',
   Closed: 'Closed',
   Filled: 'Filled',
@@ -245,8 +247,13 @@ export const JobPostingsPage = () => {
   }, []);
   const [toast, setToast] = useState('');
   const [lockConfirmJob, setLockConfirmJob] = useState<JobPosting | null>(null);
-  const [unlockDialogJob, setUnlockDialogJob] = useState<JobPosting | null>(null);
-  const [newDeadline, setNewDeadline] = useState('');
+  // Job Positions (defaults) vs Job Vacancies, kept in the URL so Back works.
+  const [searchParams, setSearchParams] = useSearchParams();
+  const activeTab: 'positions' | 'vacancies' = searchParams.get('tab') === 'vacancies' ? 'vacancies' : 'positions';
+  const switchTab = (tab: 'positions' | 'vacancies') => {
+    setViewingApplicantsFor(null);
+    setSearchParams(tab === 'vacancies' ? { tab } : {});
+  };
   /** Validation message for the Plantilla Slots section of the modal. */
   const [slotError, setSlotError] = useState('');
   const [savingJob, setSavingJob] = useState(false);
@@ -1059,13 +1066,17 @@ export const JobPostingsPage = () => {
     return validatePlantillaLabels(form.slots.map((slot) => slot.label));
   };
 
-  const submitForm = async (status: JobPosting['status']) => {
+  const submitForm = async () => {
+    // A new position is saved unopened; opening it (and its deadline) happens
+    // in Job Vacancies. Editing never changes whether it is open.
+    const existing = editingId ? jobs.find((job) => job.id === editingId) : undefined;
+    const status: JobPosting['status'] = existing?.status ?? 'Draft';
+
     const missing: string[] = [];
     if (!form.title?.trim()) missing.push('Position Title');
     if (!form.department?.trim()) missing.push('Place of Assignation');
     if (!form.qualEligibility?.trim()) missing.push('Eligibility');
     if (!form.qualEducation?.trim()) missing.push('Education');
-    if (!form.applicationDeadline?.trim()) missing.push('Application Deadline');
     if (missing.length > 0) {
       setToast(`Missing required field${missing.length > 1 ? 's' : ''}: ${missing.join(', ')}.`);
       return;
@@ -1149,7 +1160,7 @@ export const JobPostingsPage = () => {
       training: form.qualTraining || undefined,
       competency: form.qualCompetency || undefined,
       requiredDocuments,
-      applicationDeadline: new Date(form.applicationDeadline).toISOString(),
+      applicationDeadline: form.applicationDeadline ? new Date(form.applicationDeadline).toISOString() : '',
       interviewPeriod:
         form.interviewStart && form.interviewEnd
           ? { start: new Date(form.interviewStart).toISOString(), end: new Date(form.interviewEnd).toISOString() }
@@ -1188,7 +1199,9 @@ export const JobPostingsPage = () => {
     closeModal();
     const slotCount = slotDrafts.length;
     const slotNote = slotCount > 1 ? ` with ${slotCount} plantillas` : '';
-    setToast(editingId ? `Job post updated successfully${slotNote}.` : `Job post created successfully${slotNote}.`);
+    setToast(editingId
+      ? `Job position updated${slotNote}.`
+      : `Job position created${slotNote}. Open it from Job Vacancies to advertise it.`);
   };
 
   const updateStatus = (id: string, nextStatus: JobPosting['status']) => {
@@ -1309,14 +1322,8 @@ export const JobPostingsPage = () => {
       : row)));
   };
 
-  const openUnlockDialog = (job: JobPosting) => {
-    setNewDeadline('');
-    setUnlockDialogJob(job);
-  };
-
-  const confirmUnlock = async () => {
-    if (!unlockDialogJob) return;
-    const job = unlockDialogJob;
+  /** Job Vacancies: open (or reopen) a position with its YYYY-MM-DD application deadline. */
+  const openVacancy = async (job: JobPosting, deadline: string) => {
     const now = new Date().toISOString();
 
     // Reopening the posting reopens the slots that were closed with it. A
@@ -1330,15 +1337,19 @@ export const JobPostingsPage = () => {
             ...j,
             status: 'Active' as JobPosting['status'],
             postedDate: now,
-            applicationDeadline: newDeadline || j.applicationDeadline,
+            applicationDeadline: new Date(deadline).toISOString(),
             plantillaSlots: (j.plantillaSlots ?? []).map((slot) =>
               slot.status === 'closed' ? { ...slot, status: 'open' as PlantillaSlotStatus } : slot),
           }
         : j
     );
     saveJobs(nextJobs);
-    setToast('Position reopened. Date posted updated.');
-    setUnlockDialogJob(null);
+    setToast(`${normalizeRomanNumeralsInText(job.title)} is now open to applicants.`);
+  };
+
+  const updateDeadline = (job: JobPosting, deadline: string) => {
+    saveJobs(jobs.map((j) => (j.id === job.id ? { ...j, applicationDeadline: new Date(deadline).toISOString() } : j)));
+    setToast('Application deadline updated.');
   };
 
   return (
@@ -1347,15 +1358,50 @@ export const JobPostingsPage = () => {
     <div className="admin-layout">
       <Sidebar activeModule="RSP" userRole="rsp" />
       <main className="admin-content bg-slate-50 !p-0">
-        <div className="border-b border-slate-200 bg-white px-8 py-6">
+        <div className="border-b border-slate-200 bg-white px-8 pt-6">
           <h1 className="!mb-1 !text-2xl font-bold">Job Posts</h1>
-          <p className="!mb-0 text-base text-slate-500">Manage and monitor all job positions and their applicants</p>
+          <p className="!mb-4 text-base text-slate-500">Define positions once, then open them as vacancies with an application deadline.</p>
+          {/* Tabs on white pages (DESIGN_IDENTITY §9.2) */}
+          <div role="tablist" className="-mb-px flex gap-2">
+            {([
+              { id: 'positions', label: 'Job Positions', icon: FileText, count: jobs.length },
+              { id: 'vacancies', label: 'Job Vacancies', icon: Briefcase, count: jobs.filter(isOpenedVacancy).length },
+            ] as const).map((tab) => {
+              const selected = activeTab === tab.id;
+              const Icon = tab.icon;
+              return (
+                <button
+                  key={tab.id}
+                  type="button"
+                  role="tab"
+                  aria-selected={selected}
+                  onClick={() => switchTab(tab.id)}
+                  className={`inline-flex items-center gap-2 border-b-2 px-4 py-2.5 text-sm font-medium transition-colors ${selected ? 'border-[#363EE8] text-[#363EE8]' : 'border-transparent text-slate-500 hover:text-[#040E6B]'}`}
+                >
+                  <Icon className="h-4 w-4" />
+                  {tab.label}
+                  <span className={`rounded-full px-2 py-px text-xs ${selected ? 'bg-[#EEF0FF] text-[#191FA8]' : 'bg-slate-100 text-slate-500'}`}>{tab.count}</span>
+                </button>
+              );
+            })}
+          </div>
         </div>
         <div className="p-6">
+        {activeTab === 'vacancies' && (
+          <JobVacanciesPanel
+            jobs={jobs}
+            loading={jobsLoad.initialLoading}
+            onOpenVacancy={openVacancy}
+            onUpdateDeadline={updateDeadline}
+            onClose={closeApplication}
+          />
+        )}
+        {activeTab === 'positions' && (
+        <>
         <div className="mb-5 flex justify-start">
           <button className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white" onClick={openCreateModal}>
             <Plus className="h-4 w-4" />
-            Add New Position
+            Create Job Position
           </button>
         </div>
 
@@ -1591,7 +1637,7 @@ export const JobPostingsPage = () => {
             <select className="h-10 rounded-xl border border-slate-300 px-3 text-sm" value={statusFilter} onChange={(event) => setStatusFilter(event.target.value as 'all' | JobPosting['status'])}>
               <option value="all">All Status</option>
               <option value="Active">Open</option>
-              <option value="Draft">Reviewing</option>
+              <option value="Draft">Not opened</option>
               <option value="Closed">Closed</option>
               <option value="Filled">Filled</option>
             </select>
@@ -1709,18 +1755,6 @@ export const JobPostingsPage = () => {
                           >
                             Applicants
                           </button>
-                          {job.status === 'Active' && (
-                            <button type="button" title="Close / Lock Application" onClick={() => closeApplication(job)}
-                              className="rounded-lg border border-orange-300 px-2 py-1.5 text-orange-500 hover:bg-orange-50 transition-colors">
-                              <Lock className="h-3.5 w-3.5" />
-                            </button>
-                          )}
-                          {(job.status === 'Closed' || job.status === 'Draft') && (
-                            <button type="button" title="Unlock / Reopen Application" onClick={() => openUnlockDialog(job)}
-                              className="rounded-lg border border-emerald-300 px-2 py-1.5 text-emerald-600 hover:bg-emerald-50 transition-colors">
-                              <Unlock className="h-3.5 w-3.5" />
-                            </button>
-                          )}
                           <button type="button" title="Delete" onClick={() => void deleteJobPosting(job)}
                             className="rounded-lg border border-rose-300 px-2 py-1.5 text-rose-500 hover:bg-rose-50 transition-colors">
                             <Trash2 className="h-3.5 w-3.5" />
@@ -1790,6 +1824,8 @@ export const JobPostingsPage = () => {
             </div>
           </div>
         </section>
+        </>
+        )}
         </>
         )}
         </div>{/* /p-6 */}
@@ -1998,16 +2034,6 @@ export const JobPostingsPage = () => {
                       ))}
                     </select>
                   </div>
-
-                  <div>
-                    <label className="mb-2 block text-base font-semibold text-slate-900">Application Deadline</label>
-                    <input
-                      type="date"
-                      className="w-full rounded-xl border border-slate-300 p-3 text-base"
-                      value={form.applicationDeadline}
-                      onChange={(event) => setForm((prev) => ({ ...prev, applicationDeadline: event.target.value }))}
-                    />
-                  </div>
                 </div>
               </section>
 
@@ -2119,7 +2145,7 @@ export const JobPostingsPage = () => {
               <button
                 type="button"
                 disabled={savingJob}
-                onClick={() => void submitForm('Active')}
+                onClick={() => void submitForm()}
                 className="btn btn-md btn-primary"
               >
                 <Plus size={15} />
@@ -2154,50 +2180,6 @@ export const JobPostingsPage = () => {
               <button type="button" onClick={() => void confirmLock()}
                 className="rounded-xl bg-orange-500 px-5 py-2.5 text-sm font-semibold text-white hover:bg-orange-600">
                 <Lock className="mr-1.5 inline h-3.5 w-3.5" /> Confirm Lock
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Unlock / reopen dialog */}
-      {unlockDialogJob && (
-        <div className="fixed inset-0 z-[300] flex items-center justify-center bg-black/50 p-4">
-          <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl">
-            <div className="mb-4 flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-emerald-100">
-                <Unlock className="h-5 w-5 text-emerald-600" />
-              </div>
-              <div>
-                <h3 className="font-bold text-slate-900">Reopen Application</h3>
-                <p className="text-sm text-slate-500">Set a new deadline and reactivate the posting.</p>
-              </div>
-            </div>
-            <p className="mb-4 rounded-xl bg-slate-50 px-4 py-3 text-sm font-medium text-slate-700">
-              {unlockDialogJob.title}
-            </p>
-            <div className="mb-5">
-              <label className="mb-1.5 block text-sm font-semibold text-slate-700">
-                New Application Deadline <span className="text-xs font-normal text-slate-400">(optional — leave blank to keep existing)</span>
-              </label>
-              <input
-                type="date"
-                value={newDeadline}
-                onChange={(e) => setNewDeadline(e.target.value)}
-                className="w-full rounded-xl border border-slate-300 px-4 py-2.5 text-sm focus:border-blue-500 focus:outline-none"
-              />
-              <p className="mt-1.5 text-xs text-slate-400">
-                Date Posted will be updated to today automatically.
-              </p>
-            </div>
-            <div className="flex justify-end gap-3">
-              <button type="button" onClick={() => setUnlockDialogJob(null)}
-                className="rounded-xl border border-slate-200 px-5 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-50">
-                Cancel
-              </button>
-              <button type="button" onClick={() => void confirmUnlock()}
-                className="rounded-xl bg-emerald-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-emerald-700">
-                <Unlock className="mr-1.5 inline h-3.5 w-3.5" /> Reopen Position
               </button>
             </div>
           </div>

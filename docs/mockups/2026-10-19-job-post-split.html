@@ -1,0 +1,433 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Job Posts · RSP</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --primary:#363EE8; --primary-900:#040E6B; --primary-700:#191FA8; --primary-200:#C8D1FF; --tint:#EEF0FF;
+    --bg-page:#F1F5F9; --surface:#FFFFFF;
+    --n800:#28343D; --n600:#515F69; --n400:#94A3B8; --n200:#E2E8F0;
+    --radius-md:8px; --radius-lg:12px; --radius-pill:999px;
+    --e2:0 4px 12px rgba(16,30,41,.10); --e3:0 12px 32px rgba(16,30,41,.16);
+    --ring:0 0 0 3px rgba(54,62,232,.15); --glow:0 4px 14px rgba(54,62,232,.40);
+    --rail:72px;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:'Poppins',system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;background:var(--primary);color:var(--n800);font-size:14px}
+  svg.i{width:20px;height:20px;stroke:currentColor;fill:none;stroke-width:1.75;stroke-linecap:round;stroke-linejoin:round;flex:none}
+  svg.i.s16{width:16px;height:16px}
+
+  /* Top bar §8.2 */
+  .topbar{position:sticky;top:0;z-index:5;height:64px;background:var(--primary);display:flex;align-items:center;padding:0 24px;color:#fff;gap:12px}
+  .mark{width:40px;height:40px;border-radius:10px;background:rgba(255,255,255,.18);display:grid;place-items:center;font-weight:700}
+  .lock-abyan{font-weight:700;font-size:21px}
+  .lock-sys{font-weight:400;font-size:16px}
+  .tb-right{margin-left:auto;display:flex;align-items:center;gap:12px}
+  .avatar{width:36px;height:36px;border-radius:50%;background:rgba(255,255,255,.18);display:grid;place-items:center}
+  .who b{display:block;font-weight:600;font-size:14px}.who span{font-size:12px;opacity:.8}
+  .tb-div{width:1px;height:28px;background:rgba(255,255,255,.25)}
+  .logout{height:44px;padding:0 16px;border-radius:12px;background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.35);color:#fff;font:600 14px 'Poppins';display:flex;align-items:center;gap:8px;cursor:pointer}
+
+  /* Rail §9.12 (collapsed) */
+  .shell{display:flex;min-height:calc(100vh - 64px)}
+  .rail{width:var(--rail);flex:none;background:linear-gradient(180deg,#363EE8 0%,#040E6B 100%);display:flex;flex-direction:column;align-items:center;padding:16px 0;gap:8px}
+  .chip{width:40px;height:40px;border-radius:50%;background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.22);display:grid;place-items:center;color:rgba(255,255,255,.85)}
+  .rail .active{width:48px;height:48px;border-radius:24px;background:var(--bg-page);display:grid;place-items:center}
+  .rail .active .chip{color:var(--primary);background:var(--tint);border-color:var(--primary-200)}
+  .rail .bottom{margin-top:auto}
+
+  /* Page */
+  .page{flex:1;background:var(--bg-page);border-radius:16px 0 0 16px;padding:24px 32px 48px;min-width:0}
+  .crumbs{font:500 13px/16px 'Poppins';color:var(--n600);margin-bottom:4px}.crumbs b{color:var(--primary-900);font-weight:500}
+  h1{font:700 24px/32px 'Poppins';color:var(--primary-900);margin:0}
+  .page-sub{font:400 14px/22px 'Poppins';color:var(--n600);margin:2px 0 20px}
+
+  /* Tabs §9.2 */
+  .tabs{display:flex;gap:8px;border-bottom:1px solid var(--n200);margin-bottom:20px}
+  .tab{background:none;border:0;border-bottom:2px solid transparent;margin-bottom:-1px;padding:10px 16px;font:500 14px/20px 'Poppins';color:var(--n600);cursor:pointer;display:flex;align-items:center;gap:8px}
+  .tab:hover{color:var(--primary-900)}
+  .tab[aria-selected=true]{color:var(--primary);border-bottom-color:var(--primary)}
+  .tab .count{font:500 12px/16px 'Poppins';background:var(--bg-page);color:var(--n600);border-radius:999px;padding:1px 8px}
+  .tab[aria-selected=true] .count{background:var(--tint);color:var(--primary-700)}
+
+  /* Card + toolbar §9.4 */
+  .card{background:var(--surface);border:1px solid var(--n200);border-radius:var(--radius-lg);padding:20px}
+  .toolbar{display:flex;align-items:flex-start;gap:16px;flex-wrap:wrap;margin-bottom:16px}
+  .toolbar h2{font:600 20px/28px 'Poppins';color:var(--primary-900);margin:0}
+  .toolbar p{font:400 14px/22px 'Poppins';color:var(--n600);margin:0}
+  .tools{margin-left:auto;display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+  .field-icon{position:relative;display:flex;align-items:center}
+  .field-icon svg{position:absolute;left:12px;color:var(--n400);pointer-events:none}
+  .input{height:40px;border:1px solid var(--n200);border-radius:var(--radius-md);background:#fff;font:500 14px/18px 'Poppins';color:var(--n800);padding:0 12px;outline:none;width:100%}
+  .input::placeholder{color:var(--n400)}
+  .input:hover{border-color:var(--primary-200)}
+  .input:focus{border:2px solid var(--primary);box-shadow:var(--ring);padding:0 11px}
+  .field-icon .input{padding-left:40px}.field-icon .input:focus{padding-left:39px}
+  .input.compact{height:36px}
+  .select{height:36px;border:1px solid var(--n200);border-radius:var(--radius-md);background:#fff;font:500 14px 'Poppins';color:var(--primary-900);padding:0 32px 0 12px;appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2394A3B8' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 10px center}
+
+  /* Buttons §9.1 */
+  .btn{height:36px;padding:0 20px;border-radius:var(--radius-pill);font:600 14px 'Poppins';display:inline-flex;align-items:center;gap:8px;cursor:pointer;border:0;white-space:nowrap}
+  .btn-primary{background:linear-gradient(180deg,#363EE8 0%,#191FA8 100%);color:#fff}
+  .btn-primary:hover{background:var(--primary-700)}
+  .btn-primary:focus-visible{box-shadow:var(--glow),0 0 0 2px var(--primary-200);outline:none}
+  .btn-primary:disabled{background:var(--primary-200);color:rgba(255,255,255,.85);cursor:not-allowed;box-shadow:none}
+  .btn-secondary{background:#fff;border:1.5px solid var(--primary);color:var(--primary)}
+  .btn-secondary:hover{background:var(--tint)}
+  .btn-sm{height:32px;padding:0 14px;font-size:13px}
+  .btn-link{background:none;border:0;color:var(--primary);font:500 14px 'Poppins';cursor:pointer;padding:0}
+  .btn-link:hover{color:var(--primary-700);text-decoration:underline}
+
+  /* Table §9.5 */
+  .table-wrap{border:1px solid var(--n200);border-radius:var(--radius-lg);overflow:hidden}
+  table{width:100%;border-collapse:collapse}
+  th{background:var(--bg-page);text-align:left;font:600 13px 'Poppins';color:var(--primary-900);padding:10px 16px}
+  td{padding:12px 16px;border-top:1px solid var(--n200);font:500 14px/18px 'Poppins';color:var(--n800);vertical-align:middle}
+  tr:hover td{background:#F8FAFF}
+  .num{text-align:right}.act{text-align:right;white-space:nowrap}
+  .pt{font:600 14px/20px 'Poppins';color:var(--primary-900)}
+  .ps{font:500 12px/16px 'Poppins';color:var(--n600);letter-spacing:.1px}
+
+  /* Badges §9.8 / §10 */
+  .badge{display:inline-flex;align-items:center;gap:6px;height:24px;padding:0 10px;border-radius:999px;font:500 12px 'Poppins';white-space:nowrap}
+  .badge::before{content:"";width:6px;height:6px;border-radius:50%;background:currentColor;opacity:.9}
+  .b-success{background:#DCFCE7;color:#0F7A40}.b-success::before{background:#16A85A}
+  .b-warning{background:#FCE8C8;color:#A8590A}.b-warning::before{background:#E8821A}
+  .b-info{background:#E0E5FF;color:#191FA8}.b-info::before{background:#363EE8}
+  .b-neutral{background:#F1F5F9;color:#28343D}.b-neutral::before{background:#64748B}
+  .cat{display:inline-block;background:var(--tint);color:var(--primary-700);border-radius:6px;padding:2px 8px;font:500 12px 'Poppins'}
+
+  /* Pagination §9.6 */
+  .pager{display:flex;justify-content:space-between;align-items:center;margin-top:16px}
+  .pager .meta{font:500 12px 'Poppins';color:var(--n600)}
+  .pages{display:flex;gap:8px}
+  .pg{min-width:36px;height:36px;border-radius:8px;border:1px solid var(--n200);background:#fff;font:500 14px 'Poppins';color:var(--n800);display:inline-flex;align-items:center;justify-content:center;gap:4px;padding:0 10px}
+  .pg.on{background:var(--primary);color:#fff;border-color:var(--primary)}
+  .pg.off{color:var(--n400);background:#F8FAFC}
+
+  /* Modal §9.10 */
+  .overlay{position:fixed;inset:0;background:rgba(4,14,107,.45);display:none;align-items:flex-start;justify-content:center;padding:48px 16px;overflow:auto;z-index:20}
+  .overlay.show{display:flex}
+  .modal{background:#fff;border-radius:16px;box-shadow:var(--e3);width:100%;max-width:640px;padding:24px}
+  .modal-head{display:flex;align-items:flex-start;gap:12px;margin-bottom:20px}
+  .modal-head h3{font:600 20px/28px 'Poppins';color:var(--primary-900);margin:0}
+  .modal-head p{font:400 14px/22px 'Poppins';color:var(--n600);margin:2px 0 0}
+  .x{margin-left:auto;width:36px;height:36px;border-radius:50%;border:0;background:none;color:var(--n600);display:grid;place-items:center;cursor:pointer}
+  .x:hover{background:var(--bg-page)}
+  .modal-foot{display:flex;justify-content:flex-end;gap:12px;margin-top:24px;padding-top:20px;border-top:1px solid var(--n200)}
+
+  /* Form §9.3 */
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:16px 16px}
+  .full{grid-column:1/-1}
+  .lbl{display:block;font:500 13px/16px 'Poppins';color:var(--n800);margin-bottom:6px}
+  .req{color:#E05252}
+  .help{font:500 12px/16px 'Poppins';color:var(--n600);margin-top:4px;letter-spacing:.1px}
+  .section-cap{font:600 12px/16px 'Poppins';letter-spacing:.4px;text-transform:uppercase;color:var(--n600);margin:24px 0 12px}
+  textarea.input{height:72px;padding:10px 12px;resize:vertical}
+  .ro{min-height:40px;border:1px solid var(--n200);border-radius:8px;background:var(--bg-page);padding:10px 12px;font:500 14px/18px 'Poppins';color:var(--n800);display:flex;gap:8px;align-items:flex-start}
+  .ro svg{color:var(--n400);margin-left:auto;margin-top:1px}
+
+  /* Typeahead */
+  .ta{position:relative}
+  .menu{position:absolute;left:0;right:0;top:calc(100% + 4px);background:#fff;border:1px solid var(--n200);border-radius:8px;box-shadow:var(--e2);max-height:300px;overflow:auto;z-index:2;display:none}
+  .menu.show{display:block}
+  .opt{display:flex;align-items:center;gap:12px;padding:10px 12px;cursor:pointer;border-top:1px solid var(--bg-page)}
+  .opt:first-child{border-top:0}
+  .opt .oc{width:32px;height:32px;border-radius:8px;background:var(--tint);color:var(--primary);display:grid;place-items:center;flex:none}
+  .opt .ot{font:600 14px/20px 'Poppins';color:var(--primary-900)}
+  .opt .ot mark{background:none;color:var(--primary);font-weight:700}
+  .opt .om{font:500 12px/16px 'Poppins';color:var(--n600)}
+  .opt.hi{background:var(--tint)}
+  .opt.dis{cursor:not-allowed}
+  .opt.dis .ot,.opt.dis .om{color:var(--n400)}
+  .opt.dis .oc{background:var(--bg-page);color:var(--n400)}
+  .opt .badge{margin-left:auto}
+  .menu-foot{padding:8px 12px;font:500 12px 'Poppins';color:var(--n600);background:#F8FAFC;border-top:1px solid var(--n200)}
+  .empty{padding:20px 12px;text-align:center;font:500 14px 'Poppins';color:var(--n600)}
+  .picked{display:flex;align-items:center;gap:12px;border:1px solid var(--primary-200);background:var(--tint);border-radius:12px;padding:12px 16px}
+  .picked .oc{width:40px;height:40px;border-radius:10px;background:#fff;color:var(--primary);display:grid;place-items:center}
+  .deadline{border:1.5px solid var(--primary-200);border-radius:12px;padding:16px;background:#FAFBFF;margin-top:20px}
+  .note{display:flex;gap:8px;align-items:center;font:500 12px/16px 'Poppins';color:var(--n600);margin-top:12px}
+
+  @media (max-width:1023px){.lock-sys{display:none}}
+  @media (max-width:639px){.who,.tb-div,.logout span{display:none}.logout{width:44px;padding:0;justify-content:center}.topbar{padding:0 16px;height:56px}.page{padding:16px}.tools{margin-left:0}}
+  .hidden{display:none}
+  .review{max-width:1200px;margin:0 auto 24px;background:#fff;border:1px dashed var(--primary-200);border-radius:12px;padding:12px 16px;font-size:13px;color:var(--n600)}
+  .review b{color:var(--primary-900)}
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="mark">A</div>
+  <span class="lock-abyan">ABYAN</span>
+  <span class="lock-sys">Human Resource Information System</span>
+  <div class="tb-right">
+    <div class="avatar"><i data-i="user-circle"></i></div>
+    <div class="who"><b>Maria Santos</b><span>RSP Admin</span></div>
+    <div class="tb-div"></div>
+    <button class="logout"><i data-i="log-out" data-s="16"></i><span>Logout</span></button>
+  </div>
+</header>
+
+<div class="shell">
+  <nav class="rail" aria-label="RSP">
+    <div class="chip" title="Dashboard"><i data-i="layout-dashboard"></i></div>
+    <div class="active" title="Job Posts"><div class="chip"><i data-i="briefcase"></i></div></div>
+    <div class="chip" title="Applicants"><i data-i="users"></i></div>
+    <div class="chip" title="Reports"><i data-i="file-text"></i></div>
+    <div class="chip bottom" title="Settings"><i data-i="settings"></i></div>
+  </nav>
+
+  <main class="page">
+    <div class="review"><b>Mockup:</b> click the tabs. "Create Job Position" opens the full-detail form. "Open Vacant Job Position" opens the search; type one letter (try <b>e</b>, <b>n</b>, or <b>HRMO</b>) and pick a position.</div>
+
+    <div class="crumbs">RSP / <b>Job Posts</b></div>
+    <h1>Job Posts</h1>
+    <p class="page-sub">Define positions once, then open them as vacancies with an application deadline.</p>
+
+    <div class="tabs" role="tablist">
+      <button class="tab" role="tab" aria-selected="true" data-tab="positions"><i data-i="file-text" data-s="16"></i>Job Positions <span class="count" id="cPos"></span></button>
+      <button class="tab" role="tab" aria-selected="false" data-tab="vacancies"><i data-i="briefcase" data-s="16"></i>Job Vacancies <span class="count" id="cVac"></span></button>
+    </div>
+
+    <!-- PAGE 1: JOB POSITIONS -->
+    <section id="positions" class="card">
+      <div class="toolbar">
+        <div>
+          <h2>Job Positions</h2>
+          <p>Every plantilla position from the Civil Service, with full qualification standards.</p>
+        </div>
+        <div class="tools">
+          <div class="field-icon" style="width:260px"><i data-i="search"></i><input class="input compact" placeholder="Search title, item no., department…"></div>
+          <select class="select"><option>Title A–Z</option><option>Newest to Oldest</option></select>
+          <button class="btn btn-primary" id="openCreate"><i data-i="plus" data-s="16"></i>Create Job Position</button>
+        </div>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Position title</th><th>Department</th><th class="num">SG</th><th class="num">Monthly salary</th><th>Employment</th><th>Status</th><th class="act">Actions</th></tr></thead>
+          <tbody id="posBody"></tbody>
+        </table>
+      </div>
+      <div class="pager">
+        <span class="meta" id="posMeta"></span>
+        <div class="pages"><span class="pg off"><i data-i="chevron-left" data-s="16"></i>Previous</span><span class="pg on">1</span><span class="pg">2</span><span class="pg">3</span><span class="pg">Next<i data-i="chevron-right" data-s="16"></i></span></div>
+      </div>
+    </section>
+
+    <!-- PAGE 2: JOB VACANCIES -->
+    <section id="vacancies" class="card hidden">
+      <div class="toolbar">
+        <div>
+          <h2>Job Vacancies</h2>
+          <p>Open positions published to applicants. Only the application deadline is set here.</p>
+        </div>
+        <div class="tools">
+          <div class="field-icon" style="width:260px"><i data-i="search"></i><input class="input compact" placeholder="Search title, item no., department…"></div>
+          <select class="select"><option>Newest to Oldest</option><option>Deadline soonest</option></select>
+          <button class="btn btn-primary" id="openVac"><i data-i="briefcase" data-s="16"></i>Open Vacant Job Position</button>
+        </div>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Position title</th><th>Department</th><th class="num">SG</th><th>Posting date</th><th>Application deadline</th><th>Status</th><th class="act">Actions</th></tr></thead>
+          <tbody id="vacBody"></tbody>
+        </table>
+      </div>
+      <div class="pager">
+        <span class="meta" id="vacMeta"></span>
+        <div class="pages"><span class="pg off"><i data-i="chevron-left" data-s="16"></i>Previous</span><span class="pg on">1</span><span class="pg off">Next<i data-i="chevron-right" data-s="16"></i></span></div>
+      </div>
+    </section>
+  </main>
+</div>
+
+<!-- MODAL: CREATE JOB POSITION (page 1, all fields editable) -->
+<div class="overlay" id="mCreate">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="tCreate">
+    <div class="modal-head">
+      <div><h3 id="tCreate">Create Job Position</h3><p>These details are reused every time this position is opened as a vacancy.</p></div>
+      <button class="x" aria-label="Close" data-close><i data-i="x"></i></button>
+    </div>
+    <div class="grid">
+      <div class="full"><label class="lbl">Position title <span class="req">*</span></label><input class="input" value="Engineer III"></div>
+      <div><label class="lbl">Plantilla item no. <span class="req">*</span></label><input class="input" value="OCE-ENG3-012"></div>
+      <div><label class="lbl">Department <span class="req">*</span></label><input class="input" value="City Engineering Office"></div>
+      <div><label class="lbl">Salary grade <span class="req">*</span></label><input class="input" value="SG 19"></div>
+      <div><label class="lbl">Monthly salary</label><input class="input" value="₱51,357"><div class="help">Filled from the salary grade table.</div></div>
+      <div><label class="lbl">Place of assignment</label><input class="input" value="City Hall, 3rd Floor"></div>
+      <div><label class="lbl">Employment status <span class="req">*</span></label><select class="select" style="height:40px;width:100%"><option>Permanent</option><option>Casual</option><option>Contractual</option></select></div>
+    </div>
+    <div class="section-cap">Qualification standards (CSC)</div>
+    <div class="grid">
+      <div><label class="lbl">Education <span class="req">*</span></label><input class="input" value="Bachelor's degree in Civil Engineering"></div>
+      <div><label class="lbl">Experience <span class="req">*</span></label><input class="input" value="2 years of relevant experience"></div>
+      <div><label class="lbl">Training <span class="req">*</span></label><input class="input" value="8 hours of relevant training"></div>
+      <div><label class="lbl">Eligibility <span class="req">*</span></label><input class="input" value="RA 1080 (Civil Engineer)"></div>
+      <div class="full"><label class="lbl">Competencies</label><textarea class="input">Technical: structural design, project supervision. Core: integrity, service orientation.</textarea></div>
+      <div class="full"><label class="lbl">Duties and responsibilities</label><textarea class="input">Prepares plans and estimates for infrastructure projects; supervises site inspections…</textarea></div>
+    </div>
+    <div class="modal-foot"><button class="btn btn-secondary" data-close>Cancel</button><button class="btn btn-primary">Save Position</button></div>
+  </div>
+</div>
+
+<!-- MODAL: OPEN VACANT JOB POSITION (page 2, deadline only) -->
+<div class="overlay" id="mVac">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="tVac">
+    <div class="modal-head">
+      <div><h3 id="tVac">Open Vacant Job Position</h3><p>Pick an existing job position. Its details come from Job Positions.</p></div>
+      <button class="x" aria-label="Close" data-close><i data-i="x"></i></button>
+    </div>
+
+    <div id="stepSearch">
+      <label class="lbl" for="q">Job position <span class="req">*</span></label>
+      <div class="ta">
+        <div class="field-icon"><i data-i="search"></i><input class="input" id="q" placeholder="Start typing a position title or item no." autocomplete="off" role="combobox" aria-expanded="false" aria-controls="menu"></div>
+        <div class="menu" id="menu" role="listbox"></div>
+      </div>
+      <div class="help">Only positions defined in Job Positions appear here.</div>
+    </div>
+
+    <div id="stepPicked" class="hidden">
+      <div class="picked">
+        <div class="oc"><i data-i="briefcase"></i></div>
+        <div><div class="pt" id="pTitle"></div><div class="ps" id="pSub"></div></div>
+        <button class="btn-link" id="change" style="margin-left:auto">Change</button>
+      </div>
+      <div class="section-cap">From Job Positions</div>
+      <div class="grid" id="roGrid"></div>
+      <div class="note"><i data-i="lock" data-s="16"></i>Read-only. To change these, edit the position in Job Positions.</div>
+    </div>
+
+    <div class="deadline">
+      <label class="lbl" for="dl">Application deadline <span class="req">*</span></label>
+      <div class="field-icon"><i data-i="calendar"></i><input class="input" id="dl" type="date" value="2026-11-15" min="2026-10-19"></div>
+      <div class="help">Applicants can submit until 11:59 PM on this date. This is the only field you set here.</div>
+    </div>
+
+    <div class="modal-foot"><button class="btn btn-secondary" data-close>Cancel</button><button class="btn btn-primary" id="submitVac" disabled>Open Vacancy</button></div>
+  </div>
+</div>
+
+<script>
+const ICONS={
+  search:'<circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/>',
+  plus:'<path d="M5 12h14"/><path d="M12 5v14"/>',
+  pencil:'<path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z"/><path d="m15 5 4 4"/>',
+  eye:'<path d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0"/><circle cx="12" cy="12" r="3"/>',
+  briefcase:'<path d="M16 20V4a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/><rect width="20" height="14" x="2" y="6" rx="2"/>',
+  lock:'<rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>',
+  calendar:'<path d="M8 2v4"/><path d="M16 2v4"/><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10h18"/>',
+  x:'<path d="M18 6 6 18"/><path d="m6 6 12 12"/>',
+  'chevron-left':'<path d="m15 18-6-6 6-6"/>','chevron-right':'<path d="m9 18 6-6-6-6"/>',
+  'log-out':'<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" x2="9" y1="12" y2="12"/>',
+  'user-circle':'<circle cx="12" cy="12" r="10"/><circle cx="12" cy="10" r="3"/><path d="M7 20.662V19a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v1.662"/>',
+  'layout-dashboard':'<rect width="7" height="9" x="3" y="3" rx="1"/><rect width="7" height="5" x="14" y="3" rx="1"/><rect width="7" height="9" x="14" y="12" rx="1"/><rect width="7" height="5" x="3" y="16" rx="1"/>',
+  users:'<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>',
+  'file-text':'<path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M10 9H8"/><path d="M16 13H8"/><path d="M16 17H8"/>',
+  settings:'<path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/>'
+};
+const svg=(n,s)=>`<svg class="i${s==16?' s16':''}" viewBox="0 0 24 24" aria-hidden="true">${ICONS[n]||''}</svg>`;
+const paintIcons=root=>root.querySelectorAll('i[data-i]').forEach(el=>{el.outerHTML=svg(el.dataset.i,el.dataset.s)});
+
+const POS=[
+  {t:'Engineer III',no:'OCE-ENG3-012',d:'City Engineering Office',sg:19,sal:'₱51,357',emp:'Permanent',state:'open',edu:"Bachelor's degree in Civil Engineering",exp:'2 years of relevant experience',trn:'8 hours of relevant training',elig:'RA 1080 (Civil Engineer)'},
+  {t:'Engineer II',no:'OCE-ENG2-007',d:'City Engineering Office',sg:16,sal:'₱36,619',emp:'Permanent',state:'filled',edu:"Bachelor's degree in Civil Engineering",exp:'1 year of relevant experience',trn:'4 hours of relevant training',elig:'RA 1080 (Civil Engineer)'},
+  {t:'Engineer I',no:'OCE-ENG1-004',d:'City Engineering Office',sg:12,sal:'₱27,000',emp:'Permanent',state:'unfilled',edu:"Bachelor's degree in Civil Engineering",exp:'None required',trn:'None required',elig:'RA 1080 (Civil Engineer)'},
+  {t:'Administrative Officer IV',no:'HRMO-AO4-003',d:'Human Resource Management Office',sg:15,sal:'₱33,843',emp:'Permanent',state:'unfilled',edu:"Bachelor's degree relevant to the job",exp:'1 year of relevant experience',trn:'4 hours of relevant training',elig:'Career Service (Professional)'},
+  {t:'Administrative Aide VI',no:'HRMO-AA6-011',d:'Human Resource Management Office',sg:6,sal:'₱18,957',emp:'Casual',state:'unfilled',edu:'Completion of two years in college',exp:'None required',trn:'None required',elig:'Career Service (Subprofessional)'},
+  {t:'Nurse II',no:'CHO-NUR2-021',d:'City Health Office',sg:16,sal:'₱36,619',emp:'Permanent',state:'unfilled',edu:"Bachelor of Science in Nursing",exp:'1 year of relevant experience',trn:'4 hours of relevant training',elig:'RA 1080 (Nurse)'},
+  {t:'Nurse I',no:'CHO-NUR1-018',d:'City Health Office',sg:15,sal:'₱33,843',emp:'Permanent',state:'open',edu:"Bachelor of Science in Nursing",exp:'None required',trn:'None required',elig:'RA 1080 (Nurse)'},
+  {t:'Planning Officer III',no:'CPDO-PO3-002',d:'City Planning and Development Office',sg:18,sal:'₱45,138',emp:'Permanent',state:'unfilled',edu:"Bachelor's degree relevant to the job",exp:'2 years of relevant experience',trn:'8 hours of relevant training',elig:'Career Service (Professional)'}
+];
+const VAC=[
+  {no:'OCE-ENG3-012',post:'Oct 10, 2026',dl:'Nov 15, 2026',st:['Open','success']},
+  {no:'CHO-NUR1-018',post:'Oct 05, 2026',dl:'Oct 20, 2026',st:['Closing soon','warning']},
+  {no:'HRMO-AA6-011',post:'Sep 01, 2026',dl:'Sep 30, 2026',st:['Closed','neutral']}
+];
+const STATE={open:['Vacancy open','success'],filled:['Filled','neutral'],unfilled:['Unfilled','info']};
+const badge=([l,v])=>`<span class="badge b-${v}">${l}</span>`;
+const byNo=no=>POS.find(p=>p.no===no);
+
+document.getElementById('posBody').innerHTML=POS.map(p=>`<tr>
+  <td><div class="pt">${p.t}</div><div class="ps">${p.no}</div></td>
+  <td>${p.d}</td><td class="num">${p.sg}</td><td class="num">${p.sal}</td>
+  <td><span class="cat">${p.emp}</span></td><td>${badge(STATE[p.state])}</td>
+  <td class="act"><button class="btn btn-secondary btn-sm"><i data-i="pencil" data-s="16"></i>Edit</button></td></tr>`).join('');
+document.getElementById('vacBody').innerHTML=VAC.map(v=>{const p=byNo(v.no);return `<tr>
+  <td><div class="pt">${p.t}</div><div class="ps">${p.no}</div></td>
+  <td>${p.d}</td><td class="num">${p.sg}</td><td>${v.post}</td><td>${v.dl}</td><td>${badge(v.st)}</td>
+  <td class="act"><button class="btn btn-secondary btn-sm"><i data-i="calendar" data-s="16"></i>Edit Deadline</button></td></tr>`}).join('');
+document.getElementById('posMeta').textContent=`Showing 1–${POS.length} of 24 entries`;
+document.getElementById('vacMeta').textContent=`Showing 1–${VAC.length} of ${VAC.length} entries`;
+document.getElementById('cPos').textContent=24;
+document.getElementById('cVac').textContent=VAC.filter(v=>v.st[0]!=='Closed').length;
+
+// tabs
+document.querySelectorAll('.tab').forEach(t=>t.onclick=()=>{
+  document.querySelectorAll('.tab').forEach(x=>x.setAttribute('aria-selected',x===t));
+  document.getElementById('positions').classList.toggle('hidden',t.dataset.tab!=='positions');
+  document.getElementById('vacancies').classList.toggle('hidden',t.dataset.tab!=='vacancies');
+});
+
+// modals
+const open=id=>document.getElementById(id).classList.add('show');
+document.querySelectorAll('[data-close]').forEach(b=>b.onclick=()=>b.closest('.overlay').classList.remove('show'));
+document.getElementById('openCreate').onclick=()=>open('mCreate');
+document.getElementById('openVac').onclick=()=>{resetPick();open('mVac');setTimeout(()=>q.focus(),0)};
+
+// typeahead
+const q=document.getElementById('q'),menu=document.getElementById('menu'),submit=document.getElementById('submitVac');
+let results=[],hi=-1;
+const esc=s=>s.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
+const mark=(s,term)=>s.replace(new RegExp('('+esc(term)+')','ig'),'<mark>$1</mark>');
+function render(){
+  const term=q.value.trim();
+  if(!term){menu.classList.remove('show');q.setAttribute('aria-expanded','false');return}
+  const t=term.toLowerCase();
+  results=POS.filter(p=>p.t.toLowerCase().includes(t)||p.no.toLowerCase().includes(t)||p.d.toLowerCase().includes(t))
+    .sort((a,b)=>(a.t.toLowerCase().startsWith(t)?0:1)-(b.t.toLowerCase().startsWith(t)?0:1));
+  hi=results.findIndex(p=>p.state==='unfilled');
+  menu.innerHTML=results.length?results.map((p,i)=>{
+    const dis=p.state!=='unfilled';
+    const tag=p.state==='filled'?badge(['Filled','neutral']):p.state==='open'?badge(['Already open','success']):'';
+    return `<div class="opt${dis?' dis':''}${i===hi?' hi':''}" role="option" aria-disabled="${dis}" data-i="${i}">
+      <div class="oc">${svg('briefcase',16)}</div>
+      <div><div class="ot">${mark(p.t,term)}</div><div class="om">${mark(p.no,term)} · SG ${p.sg} · ${p.d}</div></div>${tag}</div>`}).join('')
+    +`<div class="menu-foot">${results.length} match${results.length>1?'es':''} · ↑↓ to move · Enter to select · Esc to close</div>`
+    :`<div class="empty">No job position matches "${term}".<br><button class="btn-link" onclick="document.querySelector('[data-close]').click();document.querySelector('[data-tab=positions]').click();open('mCreate')">Create it in Job Positions</button></div>`;
+  menu.classList.add('show');q.setAttribute('aria-expanded','true');
+  menu.querySelectorAll('.opt:not(.dis)').forEach(o=>{o.onmousedown=e=>{e.preventDefault();pick(results[+o.dataset.i])};o.onmouseenter=()=>{hi=+o.dataset.i;paintHi()}});
+}
+function paintHi(){menu.querySelectorAll('.opt').forEach(o=>o.classList.toggle('hi',+o.dataset.i===hi))}
+function move(d){const ok=results.map((p,i)=>p.state==='unfilled'?i:-1).filter(i=>i>=0);if(!ok.length)return;let k=ok.indexOf(hi);k=k<0?0:(k+d+ok.length)%ok.length;hi=ok[k];paintHi();menu.querySelector('.opt.hi')?.scrollIntoView({block:'nearest'})}
+q.addEventListener('input',render);
+q.addEventListener('focus',render);
+q.addEventListener('blur',()=>setTimeout(()=>menu.classList.remove('show'),100));
+q.addEventListener('keydown',e=>{
+  if(e.key==='ArrowDown'){e.preventDefault();move(1)}
+  else if(e.key==='ArrowUp'){e.preventDefault();move(-1)}
+  else if(e.key==='Enter'&&hi>=0){e.preventDefault();pick(results[hi])}
+  else if(e.key==='Escape'){menu.classList.remove('show')}
+});
+function pick(p){
+  document.getElementById('stepSearch').classList.add('hidden');
+  document.getElementById('stepPicked').classList.remove('hidden');
+  document.getElementById('pTitle').textContent=p.t;
+  document.getElementById('pSub').textContent=`${p.no} · ${p.d}`;
+  const ro=(l,v,full)=>`<div${full?' class="full"':''}><span class="lbl">${l}</span><div class="ro"><span>${v}</span>${svg('lock',16)}</div></div>`;
+  document.getElementById('roGrid').innerHTML=ro('Salary grade',`SG ${p.sg} · ${p.sal}`)+ro('Employment status',p.emp)+ro('Education',p.edu,1)+ro('Experience',p.exp)+ro('Training',p.trn)+ro('Eligibility',p.elig,1);
+  submit.disabled=false;
+}
+function resetPick(){q.value='';document.getElementById('stepSearch').classList.remove('hidden');document.getElementById('stepPicked').classList.add('hidden');submit.disabled=true;menu.classList.remove('show')}
+document.getElementById('change').onclick=()=>{resetPick();q.focus()};
+
+paintIcons(document);
+</script>
+</body>
+</html>
