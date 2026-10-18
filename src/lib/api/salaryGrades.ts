@@ -168,6 +168,28 @@ function validate(grade: number, step: number, monthlySalary: number): string | 
   return null;
 }
 
+/**
+ * Is there still a Supabase sign-in behind this request?
+ *
+ * The portal's own session lives in localStorage and keeps showing "Super
+ * Admin" long after the Supabase token has expired. Every write then fails in
+ * the database, which from the screen looks like the form being broken. Asking
+ * first turns an unexplainable refusal into "sign in again".
+ */
+async function requireSession(): Promise<string | null> {
+  try {
+    const { data } = await supabase.auth.getSession();
+    if (!data?.session) {
+      return 'Your sign-in has expired, so the database sees this request as anonymous. Sign out and sign in again, then retry.';
+    }
+    return null;
+  } catch {
+    // Can't tell — let the write proceed and report whatever the database says,
+    // rather than blocking an edit on a check that itself failed.
+    return null;
+  }
+}
+
 export async function updateSalaryStep(
   grade: number,
   step: number,
@@ -175,6 +197,9 @@ export async function updateSalaryStep(
 ): Promise<Result<SalaryStep>> {
   const invalid = validate(grade, step, monthlySalary);
   if (invalid) return { ok: false, error: invalid };
+
+  const noSession = await requireSession();
+  if (noSession) return { ok: false, error: noSession };
 
   try {
     const { data, error } = await supabase
@@ -202,6 +227,9 @@ export async function addSalaryStep(
   const invalid = validate(grade, step, monthlySalary);
   if (invalid) return { ok: false, error: invalid };
 
+  const noSession = await requireSession();
+  if (noSession) return { ok: false, error: noSession };
+
   try {
     const { data, error } = await supabase
       .from('salary_grades')
@@ -219,6 +247,9 @@ export async function addSalaryStep(
 }
 
 export async function deleteSalaryStep(grade: number, step: number): Promise<Result<true>> {
+  const noSession = await requireSession();
+  if (noSession) return { ok: false, error: noSession };
+
   if (step === HIRING_STEP) {
     // Also refused by the RLS delete policy. Checked here too so the message
     // says why, rather than surfacing a bare permission error.
