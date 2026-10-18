@@ -48,6 +48,8 @@ import {
     applicantsPerPlantillaText,
     internalPlantillaKey,
     plantillaLabel,
+    plantillaLabelForNumber,
+    plantillaNumberOf,
     validatePlantillaLabels,
 } from '../lib/plantillaRules';
 import { isMockModeEnabled, supabase } from '../lib/supabase';
@@ -118,19 +120,6 @@ const buildSlotRow = (overrides: Partial<PlantillaSlotFormRow> = {}): PlantillaS
   ...overrides,
 });
 
-/**
- * Suggest the next name: one past the highest number already used
- * ("Plantilla 2", "Plantilla 5" → "Plantilla 6"). The admin can overwrite it.
- */
-const suggestPlantillaLabel = (existing: PlantillaSlotFormRow[]): string => {
-  const numbers = existing
-    .map((row) => /(\d+)\s*$/.exec(row.label.trim())?.[1])
-    .filter(Boolean)
-    .map(Number);
-  const next = numbers.length > 0 ? Math.max(...numbers) + 1 : existing.length + 1;
-  return `Plantilla ${next}`;
-};
-
 interface JobPostFormValues {
   title: string;
   /** Every plantilla item this post is hiring for. Never empty. */
@@ -172,8 +161,9 @@ interface JobPostFormValues {
 
 const buildDefaultJobForm = (): JobPostFormValues => ({
   title: '',
-  // A plantilla is a name the admin chooses, not a generated code.
-  slots: [buildSlotRow({ label: 'Plantilla 1' })],
+  // Plantilla numbers aren't a sequence (a post can hire for 21 and 13), so
+  // the admin types each one; nothing is pre-filled.
+  slots: [buildSlotRow({ label: '' })],
   department: '',
   division: '',
   positionLevel: '',
@@ -1018,7 +1008,7 @@ export const JobPostingsPage = () => {
     setSlotError('');
     setForm((prev) => ({
       ...prev,
-      slots: [...prev.slots, buildSlotRow({ label: suggestPlantillaLabel(prev.slots) })],
+      slots: [...prev.slots, buildSlotRow({ label: '' })],
     }));
   };
 
@@ -1058,7 +1048,11 @@ export const JobPostingsPage = () => {
    * Plantilla rules the DB also enforces (name required, unique per posting),
    * checked here so the admin gets a pointed message instead of an index error.
    */
-  const validateSlots = async (): Promise<string> => validatePlantillaLabels(form.slots.map((slot) => slot.label));
+  const validateSlots = async (): Promise<string> => {
+    const missing = form.slots.findIndex((slot) => !slot.label.trim());
+    if (missing >= 0) return `Enter a plantilla number for row ${missing + 1}.`;
+    return validatePlantillaLabels(form.slots.map((slot) => slot.label));
+  };
 
   const submitForm = async (status: JobPosting['status']) => {
     const missing: string[] = [];
@@ -1845,17 +1839,17 @@ export const JobPostingsPage = () => {
                     />
                   </div>
 
-                  {/* Plantilla Slots — one row per real vacancy. The "Plantilla N"
-                      label is the row's position in this list, so deleting a
-                      middle row renumbers the rest while their item numbers
-                      stay attached to their own data. */}
+                  {/* Plantilla Slots — one row per real vacancy. The admin types
+                      each plantilla's number (they aren't a 1, 2, 3 sequence) and
+                      it is stored as "Plantilla <n>"
+                      (docs/mockups/2026-10-18-plantilla-numbers.html). */}
                   <div>
                     <div className="mb-2 flex items-baseline justify-between gap-3">
                       <label className="block text-base font-semibold text-slate-900">
                         Plantilla Slots <span className="text-red-500">*</span>
                         <span className="ml-1.5 text-sm font-medium text-slate-500">({form.slots.length})</span>
                       </label>
-                      <span className="text-xs text-slate-400">Name each plantilla, e.g. "Plantilla 2". Names must be unique in this job post.</span>
+                      <span className="text-xs text-slate-400">Enter each plantilla's number, e.g. 21. Numbers must be unique in this job post.</span>
                     </div>
 
                     <div className="space-y-2 rounded-xl border border-slate-200 bg-slate-50 p-3">
@@ -1870,17 +1864,25 @@ export const JobPostingsPage = () => {
                         return (
                           <div key={slot.key} className="rounded-lg border border-slate-200 bg-white p-3">
                             <div className="flex flex-wrap items-center gap-2 sm:flex-nowrap">
-                              <label className="sr-only" htmlFor={`plantilla-label-${slot.key}`}>Plantilla name, row {index + 1}</label>
-                              <input
-                                id={`plantilla-label-${slot.key}`}
-                                className="min-w-0 flex-1 rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold"
-                                style={{ color: '#040E6B' }}
-                                placeholder={`e.g., Plantilla ${index + 1}`}
-                                maxLength={60}
-                                required
-                                value={slot.label}
-                                onChange={(event) => updateSlot(slot.key, { label: event.target.value })}
-                              />
+                              <div className="flex min-w-0 flex-1 items-stretch">
+                                <label
+                                  htmlFor={`plantilla-label-${slot.key}`}
+                                  className="flex shrink-0 items-center rounded-l-lg border border-r-0 border-slate-300 bg-slate-100 px-3 text-sm font-medium text-slate-600"
+                                >
+                                  Plantilla No.
+                                </label>
+                                <input
+                                  id={`plantilla-label-${slot.key}`}
+                                  className="min-w-0 flex-1 rounded-r-lg border border-slate-300 px-3 py-2 text-sm font-semibold"
+                                  style={{ color: '#040E6B' }}
+                                  inputMode="numeric"
+                                  placeholder="e.g., 21"
+                                  maxLength={6}
+                                  required
+                                  value={plantillaNumberOf(slot.label)}
+                                  onChange={(event) => updateSlot(slot.key, { label: plantillaLabelForNumber(event.target.value) })}
+                                />
+                              </div>
                               {slot.status === 'filled' ? (
                                 // Set by placing a hire, not by hand.
                                 <span className="shrink-0 rounded-full bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-700">Filled</span>
@@ -1910,6 +1912,13 @@ export const JobPostingsPage = () => {
                                 <Trash2 className="h-4 w-4" />
                               </button>
                             </div>
+
+                            {slot.label.trim() && !plantillaNumberOf(slot.label) && (
+                              // An older free-text name; it is kept until a number is typed.
+                              <p className="mt-1.5 text-xs text-slate-500">
+                                Currently named "{slot.label.trim()}". Type a number to rename it.
+                              </p>
+                            )}
 
                             {/* Each plantilla carries its own salary; there is no
                                 shared Salary Grade / Monthly Salary field.

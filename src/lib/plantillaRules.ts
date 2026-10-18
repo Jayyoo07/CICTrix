@@ -42,7 +42,20 @@ const ABYAN_CODE_PATTERN = /^\s*abyan[\s-]*\d/i;
 
 // ── Admin: plantilla labels ─────────────────────────────────────────────────
 
-export const normalizePlantillaLabel = (value: string | null | undefined): string =>
+/** The number in a "Plantilla 21" label, or '' when the label isn't one (older free-text names). */
+export const plantillaNumberOf = (label: string | null | undefined): string =>
+  /^\s*plantilla\s+(\d+)\s*$/i.exec(String(label ?? ''))?.[1] ?? '';
+
+/**
+ * The label the admin form stores for a typed plantilla number: "21" → "Plantilla 21".
+ * Non-digits and leading zeros are dropped so "021" and "21" can't both exist; '' stays ''.
+ */
+export const plantillaLabelForNumber = (typed: string): string => {
+  const digits = String(typed ?? '').replace(/\D/g, '').replace(/^0+(?=\d)/, '');
+  return digits ? `Plantilla ${digits}` : '';
+};
+
+export const normalizePlantillaLabel =(value: string | null | undefined): string =>
   String(value ?? '').trim().replace(/\s+/g, ' ').toLowerCase();
 
 /**

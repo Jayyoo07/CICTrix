@@ -10,6 +10,8 @@ import {
   ONE_PER_PLANTILLA_INDEX,
   partitionBySubmitted,
   plantillaLabel,
+  plantillaLabelForNumber,
+  plantillaNumberOf,
   REFERENCE_NO_PATTERN,
   validatePlantillaLabels,
 } from './plantillaRules';
@@ -37,6 +39,21 @@ describe('plantilla labels', () => {
   it('never lets a plantilla be named like a reference number', () => {
     expect(validatePlantillaLabels(['ABYAN-2026-297'])).toMatch(/looks like an application Reference No/);
     expect(validatePlantillaLabels(['abyan 748-102'])).toMatch(/Reference No/);
+  });
+
+  it('reads the number out of a "Plantilla N" label only', () => {
+    expect(plantillaNumberOf('Plantilla 21')).toBe('21');
+    expect(plantillaNumberOf(' plantilla  13 ')).toBe('13');
+    expect(plantillaNumberOf('Plantilla 21-A')).toBe('');
+    expect(plantillaNumberOf(null)).toBe('');
+  });
+
+  it('builds the label from a typed number', () => {
+    expect(plantillaLabelForNumber('21')).toBe('Plantilla 21');
+    expect(plantillaLabelForNumber('021')).toBe('Plantilla 21');
+    expect(plantillaLabelForNumber('0')).toBe('Plantilla 0');
+    expect(plantillaLabelForNumber('1a3')).toBe('Plantilla 13');
+    expect(plantillaLabelForNumber('')).toBe('');
   });
 
   it('formats applicant counts per plantilla', () => {
