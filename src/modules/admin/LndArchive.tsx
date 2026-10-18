@@ -16,6 +16,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { EmptyState } from '../../components/EmptyState';
 import { COMPETENCIES } from '../../constants/positions';
+import { SkeletonList, useDelayedLoading } from '../../components/table-loading';
 import {
   listArchiveOfficeDirectory,
   listTrainingArchive,
@@ -37,10 +38,12 @@ export const LndArchive = ({
 }) => {
   const [offices, setOffices] = useState<ArchiveOffice[]>([]);
   const [loadingOffices, setLoadingOffices] = useState(true);
+  const showOfficesLoader = useDelayedLoading(loadingOffices);
   const [selectedOffice, setSelectedOffice] = useState<string | null>(initialOffice);
   useBackClosesView(selectedOffice !== null, () => setSelectedOffice(null), 'lnd-archive-office');
   const [employees, setEmployees] = useState<ArchiveEmployee[]>([]);
   const [loadingEmployees, setLoadingEmployees] = useState(false);
+  const showEmployeesLoader = useDelayedLoading(loadingEmployees);
 
   const [officeSearch, setOfficeSearch] = useState('');
   const [sort, setSort] = useState<{ key: SortKey; dir: 'asc' | 'desc' }>({ key: 'office', dir: 'asc' });
@@ -187,8 +190,10 @@ export const LndArchive = ({
               className="h-10 w-full rounded-lg border border-gray-300 pl-9 pr-3 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
             />
           </div>
-          {loadingOffices ? (
-            <div className="rounded-xl border border-gray-200 p-12 text-center text-sm text-gray-500">Loading offices…</div>
+          {loadingOffices || showOfficesLoader ? (
+            <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white" aria-busy="true">
+              <SkeletonList show={showOfficesLoader} label="Loading offices…" />
+            </div>
           ) : visibleOffices.length === 0 ? (
             <EmptyState icon={Archive} title="No offices" description="No offices match your search." />
           ) : (
@@ -265,7 +270,9 @@ export const LndArchive = ({
           </div>
 
           {loadingEmployees ? (
-            <div className="rounded-xl border border-gray-200 p-12 text-center text-sm text-gray-500">Loading employees…</div>
+            <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white" aria-busy="true">
+              <SkeletonList show={showEmployeesLoader} label="Loading employees…" />
+            </div>
           ) : visibleEmployees.length === 0 ? (
             <EmptyState
               icon={Archive}

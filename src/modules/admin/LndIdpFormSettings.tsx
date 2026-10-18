@@ -23,6 +23,7 @@ import {
   type IdpMode,
 } from '../../lib/api/idpSchedule';
 import { cycleYearFor, listSubmissions, type IdpSubmission } from '../../lib/api/idpSubmissions';
+import { SkeletonList, useDelayedLoading } from '../../components/table-loading';
 
 const MODES: { id: IdpMode; label: string; hint: string }[] = [
   { id: 'Auto', label: 'Auto', hint: 'Open only between the dates below' },
@@ -39,6 +40,7 @@ export const LndIdpFormSettings = () => {
   const [config, setConfig] = useState<IdpFormConfig>(EMPTY_IDP_CONFIG);
   const [submissions, setSubmissions] = useState<IdpSubmission[]>([]);
   const [loading, setLoading] = useState(true);
+  const showLoader = useDelayedLoading(loading);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState<string | null>(null);
@@ -74,7 +76,13 @@ export const LndIdpFormSettings = () => {
     setSaved('Saved. The employee portal picks this up immediately.');
   };
 
-  if (loading) return <div className="p-8 text-sm text-slate-400">Loading…</div>;
+  if (loading || showLoader) {
+    return (
+      <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white" aria-busy="true">
+        <SkeletonList show={showLoader} label="Loading the IDP form settings…" />
+      </div>
+    );
+  }
 
   // Offices represented so far, most submissions first — enough to see uptake
   // without standing in for the full per-office report, which is still blocked

@@ -13,6 +13,7 @@
 
 import { Fragment, useCallback, useEffect, useMemo, useState } from 'react';
 import { Check, ChevronDown, ChevronLeft, ChevronRight, Search } from 'lucide-react';
+import { SkeletonList, TableSkeletonRows, tableBodyClass, useTableLoading } from '../../components/table-loading';
 import {
   computeNeedsAssessment,
   decideRequest,
@@ -108,6 +109,7 @@ export const LndTrainingNeeds = () => {
   const [requests, setRequests] = useState<OfficeRequest[]>([]);
   const [needs, setNeeds] = useState<CompetencyNeed[]>([]);
   const [loading, setLoading] = useState(true);
+  const needsLoad = useTableLoading(loading, needs.length > 0);
   const [statusFilter, setStatusFilter] = useState<'All' | RequestStatus>('Pending');
   const [openComps, setOpenComps] = useState<Set<string>>(new Set());
   const [busy, setBusy] = useState<string | null>(null);
@@ -212,14 +214,12 @@ export const LndTrainingNeeds = () => {
                   <th className={TH}>Demand</th>
                 </tr>
               </thead>
-              <tbody>
-                {loading && (
-                  <tr>
-                    <td colSpan={4} className="px-5 py-12 text-center text-slate-500">Loading needs assessment…</td>
-                  </tr>
+              <tbody className={tableBodyClass(false)}>
+                {needsLoad.initialLoading && (
+                  <TableSkeletonRows show={needsLoad.showSkeleton} columns={['text', 'badge', 'text', 'text']} label="Loading needs assessment…" />
                 )}
 
-                {!loading && needs.map((n) => {
+                {!needsLoad.initialLoading && needs.map((n) => {
                   const open = openComps.has(n.competency);
                   return (
                     <Fragment key={n.competency}>
@@ -282,7 +282,7 @@ export const LndTrainingNeeds = () => {
                   );
                 })}
 
-                {!loading && needs.length === 0 && (
+                {!needsLoad.initialLoading && needs.length === 0 && (
                   <tr>
                     <td colSpan={4} className="px-5 py-12 text-center text-slate-500">
                       <p className="font-medium">No needs assessment yet.</p>
@@ -306,9 +306,9 @@ export const LndTrainingNeeds = () => {
             <p className="text-sm text-slate-500">Manual requests submitted by office accounts — click an office to expand</p>
           </div>
 
-          {loading ? (
-            <div className="rounded-2xl border border-slate-200 bg-white px-5 py-12 text-center text-slate-500">
-              Loading requests…
+          {needsLoad.initialLoading ? (
+            <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white" aria-busy="true">
+              <SkeletonList show={needsLoad.showSkeleton} label="Loading requests…" />
             </div>
           ) : filteredRequests.length === 0 ? (
             <div className="rounded-2xl border border-slate-200 bg-white px-5 py-12 text-center text-slate-500">
@@ -396,7 +396,7 @@ export const LndTrainingNeeds = () => {
             </div>
           )}
 
-          {!loading && pageCount > 1 && (
+          {!needsLoad.initialLoading && pageCount > 1 && (
             <nav className="flex flex-wrap items-center justify-between gap-3" aria-label="Training request pages">
               <p className="text-xs text-slate-500">
                 Showing {pageStart + 1}–{pageStart + pageRequests.length} of {filteredRequests.length}
