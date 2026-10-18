@@ -76,11 +76,21 @@ export function TableRefreshBar({ active, colSpan }: TableRefreshBarProps) {
   return (
     <tr className="tl-bar-row" aria-hidden="true">
       <th colSpan={colSpan}>
-        <div className={`tl-bar${active ? ' tl-bar--on' : ''}`}>
-          <i />
-        </div>
+        <RefreshBar active={active} />
       </th>
     </tr>
+  );
+}
+
+/**
+ * The same bar for a list built from divs: it pins to the top of the nearest
+ * positioned ancestor, so put it inside a `position: relative` container.
+ */
+export function RefreshBar({ active }: { active: boolean }) {
+  return (
+    <div className={`tl-bar${active ? ' tl-bar--on' : ''}`} aria-hidden="true">
+      <i />
+    </div>
   );
 }
 

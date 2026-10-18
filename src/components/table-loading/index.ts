@@ -8,6 +8,7 @@ export {
 export {
   TableSkeletonRows,
   TableRefreshBar,
+  RefreshBar,
   tableBodyClass,
   Skeleton,
   SkeletonList,

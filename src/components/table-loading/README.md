@@ -13,6 +13,7 @@ Loading states for tables fed by Supabase. Built to option C in `docs/mockups/20
 | `useTableLoading(loading, hasRows)` | Returns `{ initialLoading, showSkeleton, refreshing }`. `hasRows` decides the mode when a load starts. |
 | `<TableSkeletonRows columns rows show label />` | Placeholder `<tr>`s. `columns` is a count or a shape per column (`text`, `two-line`, `badge`, `button`). |
 | `<TableRefreshBar active colSpan />` | The progress bar. Put it last in `<thead>`. |
+| `<RefreshBar active />` | The same bar for div-based lists; place it in a `position: relative` container. |
 | `tableBodyClass(refreshing)` | Class for the real-rows `<tbody>`: fades rows in, dims them while refreshing. |
 | `<Skeleton className style />`, `<LoadingStatus label />` | One shimmer bar and a hidden status, for card grids and lists that aren't tables. |
 | `<SkeletonList show rows label />` | Two-line placeholder rows for a list or panel that isn't a `<table>`. |
