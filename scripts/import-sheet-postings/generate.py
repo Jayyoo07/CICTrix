@@ -742,8 +742,9 @@ def main() -> None:
         "FROM _sheet_postings s",
         f"JOIN public.salary_grades g ON g.salary_grade = s.salary_grade AND g.step = {SALARY_STEP};",
         "",
-        "INSERT INTO public.plantilla_slots (job_posting_id, slot_number, item_number, salary_grade, monthly_salary, status)",
-        "SELECT s.id, 1, s.item_number, s.salary_grade, g.monthly_salary, s.slot_status",
+        # label is NOT NULL since 20260928; "Plantilla <slot_number>" matches its backfill.
+        "INSERT INTO public.plantilla_slots (job_posting_id, slot_number, label, item_number, salary_grade, monthly_salary, status)",
+        "SELECT s.id, 1, 'Plantilla 1', s.item_number, s.salary_grade, g.monthly_salary, s.slot_status",
         "FROM _sheet_postings s",
         f"JOIN public.salary_grades g ON g.salary_grade = s.salary_grade AND g.step = {SALARY_STEP};",
         "",

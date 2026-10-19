@@ -190,8 +190,8 @@ SELECT s.id, s.title, s.department, s.department, s.division, s.item_number, s.s
 FROM _sheet_postings s
 JOIN public.salary_grades g ON g.salary_grade = s.salary_grade AND g.step = 1;
 
-INSERT INTO public.plantilla_slots (job_posting_id, slot_number, item_number, salary_grade, monthly_salary, status)
-SELECT s.id, 1, s.item_number, s.salary_grade, g.monthly_salary, s.slot_status
+INSERT INTO public.plantilla_slots (job_posting_id, slot_number, label, item_number, salary_grade, monthly_salary, status)
+SELECT s.id, 1, 'Plantilla 1', s.item_number, s.salary_grade, g.monthly_salary, s.slot_status
 FROM _sheet_postings s
 JOIN public.salary_grades g ON g.salary_grade = s.salary_grade AND g.step = 1;
 
