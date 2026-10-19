@@ -99,6 +99,13 @@ export const formatDivisionAndOffice = (
   [division, department].map((part) => String(part ?? '').trim()).filter(Boolean).join(' · ');
 
 /**
+ * The office alone, for grouping and filtering. Divisions are children of an
+ * office, so "All Offices" lists offices and each one covers all its divisions.
+ */
+export const formatOfficeName = (department?: string | null): string =>
+  String(department ?? '').trim() || 'Unassigned Office';
+
+/**
  * Display label for an office/department. With a division it reads
  * "Division · Office"; otherwise the stored short department name (e.g.
  * "Information Technology") is suffixed to read as an office ("Information

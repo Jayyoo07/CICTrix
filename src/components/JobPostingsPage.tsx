@@ -21,7 +21,7 @@ import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { JobVacanciesPanel } from './JobVacanciesPanel';
 import { isOpenedVacancy } from '../lib/vacancySearch';
-import { COMPETENCIES, EDUCATION_LEVELS, formatOfficeLabel } from '../constants/positions';
+import { COMPETENCIES, EDUCATION_LEVELS, formatOfficeLabel, formatOfficeName } from '../constants/positions';
 import { useDepartmentNames } from '../hooks/useDepartmentOptions';
 import { getPreferredDataSourceMode } from '../lib/dataSourceMode';
 import { mockDatabase } from '../lib/mockDatabase';
@@ -852,14 +852,14 @@ export const JobPostingsPage = () => {
       const query = `${job.title} ${job.jobCode} ${job.summary}`.toLowerCase();
       const matchesSearch = !search || query.includes(search.toLowerCase());
       const matchesStatus = statusFilter === 'all' || job.status === statusFilter;
-      const office = formatOfficeLabel(job.department, job.division);
-      const matchesOffice = officeFilter === 'all' || office === officeFilter;
+      const matchesOffice = officeFilter === 'all' || formatOfficeName(job.department) === officeFilter;
       return matchesSearch && matchesStatus && matchesOffice;
     });
   }, [jobs, officeFilter, search, statusFilter]);
 
   const officeOptions = useMemo(
-    () => Array.from(new Set(jobs.map((job) => formatOfficeLabel(job.department, job.division)))).sort((a, b) => a.localeCompare(b)),
+    // Offices only: divisions sit under their office (see formatOfficeName).
+    () => Array.from(new Set(jobs.map((job) => formatOfficeName(job.department)))).sort((a, b) => a.localeCompare(b)),
     [jobs]
   );
 
