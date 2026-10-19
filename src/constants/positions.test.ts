@@ -1,5 +1,17 @@
 import { describe, expect, it } from 'vitest';
-import { formatDivisionAndOffice, formatOfficeLabel } from './positions';
+import { formatDivisionAndOffice, formatOfficeLabel, formatOfficeName } from './positions';
+
+describe('formatOfficeName', () => {
+  it('is the office alone, never a division label or a "Department" suffix', () => {
+    expect(formatOfficeName(' Office of The City Engineer ')).toBe('Office of The City Engineer');
+    expect(formatOfficeName('Legal')).toBe('Legal');
+  });
+
+  it('names a posting with no office', () => {
+    expect(formatOfficeName('')).toBe('Unassigned Office');
+    expect(formatOfficeName(null)).toBe('Unassigned Office');
+  });
+});
 
 describe('formatDivisionAndOffice', () => {
   it('shows the division with its office', () => {
