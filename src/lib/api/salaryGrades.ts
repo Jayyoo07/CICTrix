@@ -106,6 +106,35 @@ export function isMissingTable(error: { code?: string; message?: string } | null
   );
 }
 
+/**
+ * Was the write refused for permission reasons rather than bad input?
+ *
+ * The schedule is writable only by super admins, enforced by RLS. Postgres
+ * reports that as "new row violates row-level security policy" on an insert,
+ * and as a zero-row result on an update — neither tells an admin anything they
+ * can act on, and the first reads as a bug in the form, which is how it was
+ * first reported.
+ */
+export function isNotPermitted(error: { code?: string; message?: string } | null | undefined): boolean {
+  if (!error) return false;
+  const code = String(error.code ?? '');
+  const msg = String(error.message ?? '').toLowerCase();
+  return (
+    code === '42501' ||
+    code === 'PGRST116' ||          // update matched no row: RLS filtered it out
+    msg.includes('row-level security')
+  );
+}
+
+/**
+ * Shown instead of the Postgres wording. It names the two things that actually
+ * cause this — the account, and a signed-out session — because the second is
+ * invisible: the portal keeps showing "Super Admin" from its own stored session
+ * long after the Supabase token behind the request has gone.
+ */
+const NOT_PERMITTED_MESSAGE =
+  'The database refused this change. Only a super admin can edit the salary schedule, and that is checked against your Supabase sign-in rather than the portal session shown in the header. Sign out and back in; if it persists, the account is not registered as a super admin.';
+
 export async function listSalaryGrades(): Promise<Result<SalaryGradeRow[]>> {
   try {
     const { data, error } = await supabase
@@ -139,6 +168,28 @@ function validate(grade: number, step: number, monthlySalary: number): string | 
   return null;
 }
 
+/**
+ * Is there still a Supabase sign-in behind this request?
+ *
+ * The portal's own session lives in localStorage and keeps showing "Super
+ * Admin" long after the Supabase token has expired. Every write then fails in
+ * the database, which from the screen looks like the form being broken. Asking
+ * first turns an unexplainable refusal into "sign in again".
+ */
+async function requireSession(): Promise<string | null> {
+  try {
+    const { data } = await supabase.auth.getSession();
+    if (!data?.session) {
+      return 'Your sign-in has expired, so the database sees this request as anonymous. Sign out and sign in again, then retry.';
+    }
+    return null;
+  } catch {
+    // Can't tell — let the write proceed and report whatever the database says,
+    // rather than blocking an edit on a check that itself failed.
+    return null;
+  }
+}
+
 export async function updateSalaryStep(
   grade: number,
   step: number,
@@ -146,6 +197,9 @@ export async function updateSalaryStep(
 ): Promise<Result<SalaryStep>> {
   const invalid = validate(grade, step, monthlySalary);
   if (invalid) return { ok: false, error: invalid };
+
+  const noSession = await requireSession();
+  if (noSession) return { ok: false, error: noSession };
 
   try {
     const { data, error } = await supabase
@@ -155,7 +209,10 @@ export async function updateSalaryStep(
       .eq('step', step)
       .select()
       .single();
-    if (error) return { ok: false, error: error.message ?? 'Failed to save the amount.' };
+    if (error) {
+      if (isNotPermitted(error)) return { ok: false, error: NOT_PERMITTED_MESSAGE };
+      return { ok: false, error: error.message ?? 'Failed to save the amount.' };
+    }
     return { ok: true, data: fromRow(data) };
   } catch (err) {
     return { ok: false, error: err instanceof Error ? err.message : String(err) };
@@ -170,13 +227,19 @@ export async function addSalaryStep(
   const invalid = validate(grade, step, monthlySalary);
   if (invalid) return { ok: false, error: invalid };
 
+  const noSession = await requireSession();
+  if (noSession) return { ok: false, error: noSession };
+
   try {
     const { data, error } = await supabase
       .from('salary_grades')
       .insert([{ salary_grade: grade, step, monthly_salary: monthlySalary }])
       .select()
       .single();
-    if (error) return { ok: false, error: error.message ?? 'Failed to add the step.' };
+    if (error) {
+      if (isNotPermitted(error)) return { ok: false, error: NOT_PERMITTED_MESSAGE };
+      return { ok: false, error: error.message ?? 'Failed to add the step.' };
+    }
     return { ok: true, data: fromRow(data) };
   } catch (err) {
     return { ok: false, error: err instanceof Error ? err.message : String(err) };
@@ -184,6 +247,9 @@ export async function addSalaryStep(
 }
 
 export async function deleteSalaryStep(grade: number, step: number): Promise<Result<true>> {
+  const noSession = await requireSession();
+  if (noSession) return { ok: false, error: noSession };
+
   if (step === HIRING_STEP) {
     // Also refused by the RLS delete policy. Checked here too so the message
     // says why, rather than surfacing a bare permission error.
@@ -195,7 +261,10 @@ export async function deleteSalaryStep(grade: number, step: number): Promise<Res
       .delete()
       .eq('salary_grade', grade)
       .eq('step', step);
-    if (error) return { ok: false, error: error.message ?? 'Failed to remove the step.' };
+    if (error) {
+      if (isNotPermitted(error)) return { ok: false, error: NOT_PERMITTED_MESSAGE };
+      return { ok: false, error: error.message ?? 'Failed to remove the step.' };
+    }
     return { ok: true, data: true };
   } catch (err) {
     return { ok: false, error: err instanceof Error ? err.message : String(err) };
@@ -213,6 +282,52 @@ export function stepOneSalaryFor(grade: number | null | undefined, table: Salary
 export function formatSalary(amount: number | null | undefined): string {
   if (amount == null || !Number.isFinite(Number(amount))) return '—';
   return `₱${Number(amount).toLocaleString('en-PH', { maximumFractionDigits: 0 })}`;
+}
+
+/**
+ * The pay range of a grade: Step 1 to Step 8.
+ *
+ * Applicants are told one figure today — the Step 1 hiring rate — which is the
+ * least a post pays, not what it pays.
+ *
+ * Deliberately the two ENDS of the scale rather than the highest and lowest
+ * step that happen to be configured. A grade with steps 1 and 3 filled in is a
+ * part-entered grade, and reporting "Step 1 to Step 3" as the range would
+ * advertise a ceiling that is an artefact of data entry rather than the
+ * schedule. Step 1 is what the post pays on hiring; Step 8 is where the grade
+ * tops out.
+ *
+ * Returns null when neither end is set. When only one is, min and max are
+ * equal and the caller shows a single amount instead of the same number twice.
+ */
+export function stepRangeFor(
+  grade: number | null | undefined,
+  table: SalaryGradeRow[],
+): { min: number; max: number } | null {
+  if (grade == null || !Number.isFinite(Number(grade))) return null;
+  const row = table.find((r) => r.salaryGrade === Number(grade));
+  if (!row) return null;
+
+  const amountAt = (step: number) => {
+    const found = row.steps.find((s) => s.step === step);
+    return found && Number.isFinite(found.monthlySalary) && found.monthlySalary > 0
+      ? found.monthlySalary
+      : null;
+  };
+
+  const low = amountAt(HIRING_STEP);
+  const high = amountAt(MAX_STEP);
+  if (low == null && high == null) return null;
+  if (low == null) return { min: high as number, max: high as number };
+  if (high == null) return { min: low, max: low };
+  // Guarded rather than assumed ascending: a mistyped Step 8 below Step 1
+  // should still render as a range, not backwards.
+  return { min: Math.min(low, high), max: Math.max(low, high) };
+}
+
+/** "₱14,634" when there is one amount, "₱14,634 – ₱16,349" when there is a spread. */
+export function formatSalaryRange(min: number, max: number): string {
+  return min === max ? formatSalary(min) : `${formatSalary(min)} – ${formatSalary(max)}`;
 }
 
 /**

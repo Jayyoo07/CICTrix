@@ -55,6 +55,7 @@ import { LndTrainingNeeds } from './LndTrainingNeeds';
 import { LndArchive } from './LndArchive';
 import { cycleYearFor, listSubmissions, type IdpSubmission } from '../../lib/api/idpSubmissions';
 import { idpOffices, tagSelectionsByOffice } from '../../lib/idpAnalytics';
+import '../../styles/dashboard-scale.css';
 
 type MenuId =
   | 'dashboard'
@@ -947,7 +948,9 @@ export const LNDDashboard = ({
             tables push the whole page (and the sticky header) sideways. */}
         <main className="min-w-0 flex-1">
           {effectiveModule === 'dashboard' ? (
-            <LndDashboardContent />
+            <div className="dash-lg">
+              <LndDashboardContent />
+            </div>
           ) : effectiveModule === 'summary-of-ratings' ? (
             <LndSummaryOfRatings />
           ) : effectiveModule === 'training-calendar' ? (

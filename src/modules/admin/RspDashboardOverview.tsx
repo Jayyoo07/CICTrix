@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Briefcase, CalendarDays, ChevronDown, ChevronLeft, ChevronRight, GitBranch, Users } from 'lucide-react';
 import { getSuccessionDashboardOverview, type SuccessionOverview } from '../../lib/api/succession';
 import '../../styles/rsp-dashboard.css';
+import '../../styles/dashboard-scale.css';
 
 // RSP dashboard overview, built to docs/mockups/2026-10-15-rsp-dashboard-kpis.html.
 // Pure presentation over data RSPDashboard already loads; the only fetch of its

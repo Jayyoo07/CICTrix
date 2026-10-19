@@ -59,3 +59,13 @@ mabuh-ai/
 # Local dev/one-off scripts — often contain hardcoded service-role keys.
 # Never commit (would leak DB credentials).
 scratch/
+
+# Agent skills
+.agents/skills/
+skills-lock.json
+
+# Implementation plans
+implementation_plan*.md
+implementation-plan*.md
+
+

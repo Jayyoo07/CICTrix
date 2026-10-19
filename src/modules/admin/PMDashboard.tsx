@@ -90,6 +90,7 @@ import { PMArchive } from './pm/PMArchive';
 import { SummaryOfRatings } from './pm/SummaryOfRatings';
 import { SkeletonList, TableRefreshBar, TableSkeletonRows, tableBodyClass, useTableLoading } from '../../components/table-loading';
 import { PmDashboardOverview } from './PmDashboardOverview';
+import '../../styles/dashboard-scale.css';
 
 type EvaluationEmployeeRow = { name: string; position: string; status: string };
 type EvaluationGroup = {
@@ -1015,7 +1016,7 @@ export const PMDashboard = ({
             )}
 
             {activeSection === 'dashboard' && (
-              <>
+              <div className="dash-lg">
                 <PmDashboardOverview
                   pending={pendingSubmissions}
                   onOpenSummary={() => setActiveSection('summary-of-ratings')}
@@ -1300,7 +1301,7 @@ export const PMDashboard = ({
                   </section>
                 </div>
                 </div>
-              </>
+              </div>
             )}
 
 
