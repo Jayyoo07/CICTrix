@@ -269,7 +269,11 @@ export async function getOfficeDirectory(): Promise<
     // (e.g. IT showed 11 employees + 7 hired applicants = 18). Count employees only.
     void hiredApplicants;
 
-    const rows: OfficeDirectoryRow[] = departments.map((dept) => {
+    // Divisions are child rows: they're listed under their office below, not as
+    // offices of their own.
+    const offices = departments.filter((dept) => !dept?.parent_department_id);
+
+    const rows: OfficeDirectoryRow[] = offices.map((dept) => {
       const officeName = String(dept?.name ?? '').trim();
       const officeIdKey = String(dept?.id ?? '');
 

@@ -23,6 +23,7 @@
  */
 
 import { supabase as supabaseClient } from '../supabase';
+import { DIVISION_PARENT_COLUMN } from './departments';
 import { listAttendance } from './trainingAttendance';
 
 const supabase = supabaseClient as any;
@@ -206,7 +207,7 @@ export type ArchiveOffice = {
  */
 export async function listArchiveOfficeDirectory(): Promise<ArchiveOffice[]> {
   const [{ data: depts }, { data: trainings }] = await Promise.all([
-    supabase.from('departments').select('name, is_active'),
+    supabase.from('departments').select('name, is_active').is(DIVISION_PARENT_COLUMN, null),
     supabase.from('employee_training').select('employee_id, from_date'),
   ]);
   const activeOffices = (depts ?? []).filter((d: any) => d.is_active).map((d: any) => String(d.name));

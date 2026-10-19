@@ -12,6 +12,7 @@
  */
 
 import { supabase as supabaseClient } from '../supabase';
+import { DIVISION_PARENT_COLUMN } from './departments';
 
 const supabase = supabaseClient as any;
 
@@ -95,7 +96,7 @@ export async function getComplianceByOffice(
 ): Promise<{ ok: true; data: OfficeCompliance[] } | { ok: false; error: string }> {
   try {
     const [deptRes, empRes] = await Promise.all([
-      supabase.from('departments').select('id, name').order('name'),
+      supabase.from('departments').select('id, name').is(DIVISION_PARENT_COLUMN, null).order('name'),
       supabase.from('employees_with_department').select('id, full_name, department_id, department'),
     ]);
     if (deptRes.error) return { ok: false, error: deptRes.error.message ?? 'Failed to load offices.' };

@@ -15,6 +15,7 @@
  */
 
 import { supabase as supabaseClient } from '../supabase';
+import { DIVISION_PARENT_COLUMN } from './departments';
 import { categoryAverage, computeOverallScore } from './ipcrWorkspace';
 import { bucketForScore } from './performanceEvaluations';
 import { embeddedRating } from './ipcrRatings';
@@ -547,7 +548,7 @@ export async function getLatestOverallScores(
 export async function listDepartmentSummaries(): Promise<Result<DepartmentSummary[]>> {
   try {
     const [{ data: depts, error: dErr }, { data: positions, error: pErr }] = await Promise.all([
-      supabase.from('departments').select('id, code, name, is_active').order('name'),
+      supabase.from('departments').select('id, code, name, is_active').is(DIVISION_PARENT_COLUMN, null).order('name'),
       supabase.from('critical_positions').select('department_id, incumbent_employee_id'),
     ]);
     if (dErr) return { ok: false, error: dErr.message };
