@@ -1,7 +1,7 @@
 ---
 title: Repair Supabase migration history so the Supabase Preview check passes
 date: 2026-10-20
-status: In Progress
+status: Done
 summary: The remote migration log has 6 versions that match no local file, and none of the repo's 97 files is logged (42 shared a version with another file). Rename the duplicates, then rewrite the log to say all 97 are applied, so the GitHub integration finds nothing to run on prod. 10 files never fully ran on prod; they get fixed in a separate, reviewed PR.
 ---
 
