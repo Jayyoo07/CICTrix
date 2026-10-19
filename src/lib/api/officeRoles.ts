@@ -26,6 +26,24 @@ export const ROLE_LABELS: Record<OfficeRole, string> = {
   DeptHead: 'Department Head',
 };
 
+export const OFFICE_HEAD_POSITIONS: Record<string, string> = {
+  'Information Technology': 'Head of Information Technology',
+  'Office of The City Accountant': 'City Accountant',
+  'Office of The City Health Officer': 'City Health Officer',
+  'Legal': 'City Legal Officer',
+  'Office of The City Engineer': 'City Engineer',
+  'City General Services Office': 'City General Services Officer',
+  'City Budget Office': 'City Budget Officer',
+  'City Planning and Development Office': 'City Planning and Development Coordinator',
+  'City Social Welfare and Development Office': 'City Social Welfare and Development Officer',
+  'City Treasury Office': 'City Treasurer',
+  'City Veterinarian Office': 'City Veterinarian',
+  'City Agriculture Office': 'City Agriculturist',
+  'City Assessor Office': 'City Assessor',
+  'Internal Audit Services': 'Internal Auditor V',
+  'Human Resource Management Office': 'City Government Department Head II (HRMO)',
+};
+
 export interface OfficeRoleAssignment {
   id: string;
   employee_id: string | null;
@@ -274,6 +292,48 @@ export async function listEmployeeOptions(): Promise<EmployeeOption[]> {
   }
 }
 
+async function syncDepartmentAndEmployeeHead(input: {
+  employeeId: string;
+  officeId: string;
+  officeName: string;
+  notes?: string;
+}): Promise<void> {
+  const { error: deptError } = await supabase
+    .from('departments')
+    .update({ head_employee_id: input.employeeId })
+    .eq('id', input.officeId);
+  if (deptError) console.warn('[officeRoles] Failed to update departments.head_employee_id:', deptError);
+
+  const headTitle = OFFICE_HEAD_POSITIONS[input.officeName] || 'Department Head';
+  const { data: empData } = await supabase
+    .from('employees')
+    .select('position_history')
+    .eq('id', input.employeeId)
+    .maybeSingle();
+
+  const existingHistory = Array.isArray(empData?.position_history) ? empData.position_history : [];
+  const newHistoryEntry = {
+    position: headTitle,
+    department: input.officeName,
+    effectiveDate: new Date().toISOString().split('T')[0],
+    changeType: 'promotion',
+    notes: input.notes || `Appointed Department Head of ${input.officeName} by Super Admin`,
+  };
+  const updatedHistory = [...existingHistory, newHistoryEntry];
+
+  const { error: empUpdateError } = await supabase
+    .from('employees')
+    .update({
+      department: input.officeName,
+      current_department: input.officeName,
+      position: headTitle,
+      current_position: headTitle,
+      position_history: updatedHistory,
+    })
+    .eq('id', input.employeeId);
+  if (empUpdateError) console.warn('[officeRoles] Failed to sync employee record:', empUpdateError);
+}
+
 /** Assign a Supervisor / Dept Head role to an employee for a specific office. */
 export async function createAssignment(input: {
   employeeId: string;
@@ -283,10 +343,28 @@ export async function createAssignment(input: {
   role: OfficeRole;
   performedBy: string;
 }): Promise<{ ok: true; assignment: OfficeRoleAssignment } | { ok: false; error: string }> {
-  const username = usernameFromName(input.employeeName);
-  const password = generateTemporaryPassword();
-
   try {
+    const { data: existingActive } = await supabase
+      .from('office_role_assignments')
+      .select('employee_name')
+      .eq('office_id', input.officeId)
+      .eq('role', 'DeptHead')
+      .eq('status', 'Active')
+      .maybeSingle();
+
+    if (existingActive) {
+      return {
+        ok: false,
+        error:
+          'This office currently has an active Department Head (' +
+          existingActive.employee_name +
+          '). Please transfer or revoke their assignment before appointing a new head.',
+      };
+    }
+
+    const username = usernameFromName(input.employeeName);
+    const password = generateTemporaryPassword();
+
     const { data, error } = await supabase
       .from('office_role_assignments')
       .insert([
@@ -308,6 +386,13 @@ export async function createAssignment(input: {
       .single();
 
     if (error) return { ok: false, error: error.message ?? 'Failed to create the assignment.' };
+
+    await syncDepartmentAndEmployeeHead({
+      employeeId: input.employeeId,
+      officeId: input.officeId,
+      officeName: input.officeName,
+      notes: `Appointed Department Head of ${input.officeName} by Super Admin`,
+    });
 
     await logAudit({
       action: 'assign',
@@ -400,20 +485,36 @@ export async function revokeOrTransfer(input: {
       details: reason ? `Access revoked. Reason: ${reason}` : 'Access revoked.',
     });
 
-    // 2) Reassign the role to the successor, if provided.
+    // 2) Reassign the role to the successor, if provided, or clear head if vacancy revocation
     let successorAssignment: OfficeRoleAssignment | null = null;
-    if (successor && assignment.office_id && assignment.office_name) {
+    if (successor && assignment.office_id) {
+      let officeName = assignment.office_name;
+      if (!officeName) {
+        const { data: dept } = await supabase
+          .from('departments')
+          .select('name')
+          .eq('id', assignment.office_id)
+          .maybeSingle();
+        officeName = dept?.name ?? '';
+      }
       const created = await createAssignmentInternal({
         employeeId: successor.employeeId,
         employeeName: successor.employeeName,
         officeId: assignment.office_id,
-        officeName: assignment.office_name,
+        officeName: officeName,
         role: assignment.role,
         performedBy,
         auditAction: 'transfer',
         auditDetails: `Role transferred from ${assignment.employee_name ?? 'previous holder'} to ${successor.employeeName}.`,
+        notes: `Succession transfer as Department Head of ${officeName} from ${assignment.employee_name ?? 'previous holder'}`,
       });
       if (created.ok) successorAssignment = created.assignment;
+    } else if (!successor && assignment.office_id) {
+      const { error: deptError } = await supabase
+        .from('departments')
+        .update({ head_employee_id: null })
+        .eq('id', assignment.office_id);
+      if (deptError) console.warn('[officeRoles] Failed to clear departments.head_employee_id:', deptError);
     }
 
     // 3) Reroute selected pending submissions to the successor.
@@ -434,6 +535,21 @@ export async function revokeOrTransfer(input: {
           performed_by: performedBy,
           details: `Rerouted ${rerouted} pending submission(s) to ${successor.employeeName}.`,
         });
+      } else {
+        console.warn('[officeRoles] Failed to reroute performance_evaluations:', rerouteError);
+      }
+
+      // Defensively update performance_reviews if present
+      try {
+        const { error: reviewError } = await supabase
+          .from('performance_reviews')
+          .update({ supervisor_id: successor.employeeId })
+          .in('id', rerouteSubmissionIds);
+        if (reviewError) {
+          console.warn('[officeRoles] Optional performance_reviews reroute notice:', reviewError.message);
+        }
+      } catch {
+        // Table or columns may not exist
       }
     }
 
@@ -453,6 +569,7 @@ async function createAssignmentInternal(input: {
   performedBy: string;
   auditAction: 'assign' | 'transfer';
   auditDetails: string;
+  notes?: string;
 }): Promise<{ ok: true; assignment: OfficeRoleAssignment } | { ok: false; error: string }> {
   const username = usernameFromName(input.employeeName);
   const password = generateTemporaryPassword();
@@ -476,6 +593,13 @@ async function createAssignmentInternal(input: {
     .select()
     .single();
   if (error) return { ok: false, error: error.message ?? 'Failed to create successor assignment.' };
+
+  await syncDepartmentAndEmployeeHead({
+    employeeId: input.employeeId,
+    officeId: input.officeId,
+    officeName: input.officeName,
+    notes: input.notes || `Succession transfer as Department Head of ${input.officeName} by Super Admin`,
+  });
 
   await logAudit({
     action: input.auditAction,
