@@ -23,9 +23,17 @@ export interface Department {
 
 export type DepartmentOption = { value: string; label: string };
 
+/**
+ * A division is a `departments` row pointing at its office through this column.
+ * Office lists filter with `.is(DIVISION_PARENT_COLUMN, null)` so divisions only
+ * appear under their office (Office Directory), never as offices themselves.
+ */
+export const DIVISION_PARENT_COLUMN = 'parent_department_id';
+
+/** Top-level offices only; divisions are excluded (see DIVISION_PARENT_COLUMN). */
 export async function listDepartments(includeInactive = false) {
   try {
-    let query = supabase.from('departments').select('*');
+    let query = supabase.from('departments').select('*').is(DIVISION_PARENT_COLUMN, null);
     if (!includeInactive) query = query.eq('is_active', true);
     const { data, error } = await query.order('name');
     if (error) throw error;
