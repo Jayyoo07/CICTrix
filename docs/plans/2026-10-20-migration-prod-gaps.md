@@ -1,7 +1,7 @@
 ---
 title: Add the schema pieces production never received
 date: 2026-10-20
-status: In Progress
+status: Done
 summary: Ten migration files never fully ran on production (fyzdfgxaaowjzbjpwrii). The history repair marks them applied, so their missing pieces need new, idempotent migrations that the GitHub integration applies on merge. A read-only re-check, now including policies, triggers, constraints, grants and Realtime, sets exactly what each new file adds.
 ---
 
@@ -48,6 +48,7 @@ Every statement is idempotent: `create table/index if not exists`, `add column i
    - `restore_ipcr_remarks_column`
    - `restore_applicant_document_events`
    The CLI stamps versions in UTC, which gave `20261019…`. That sorts before the existing `20261020_remove_seeded_department_heads`, and the CLI refuses to apply files older than the newest remote version. So the files were renamed, keeping their order, to `20261020120000` through `20261020120008`.
+   **Update (#16):** those names broke the check on merge. By filename they sorted before `20261020_remove_…` (`1` < `_`), but by version they sorted after `20261020`. The files are now `20261021000000` through `20261021000008`, and that is how they were applied.
 3. Commit (`fix(db): add schema pieces missing from production`).
 4. After the repair PR merges, rebase, push to `Jayyoo07/CICTrix` and open a PR to `dehandenver/CICTrix` `main` (each step needs the user's go-ahead).
 
