@@ -139,6 +139,8 @@ const TABS: TabDef[] = [
 ];
 
 export const SystemAdministrationPage = () => {
+  const [activeTab, setActiveTab] = useState<'directory' | 'access-roles'>('directory');
+
   return (
     <div className="min-h-screen bg-[#f8f9fa]">
       <AdminHeader userName="Super Admin" divisionLabel="System Administrator" />
@@ -151,10 +153,40 @@ export const SystemAdministrationPage = () => {
               System Administration
             </h1>
             <p className="admin-subtitle">
-              Office Directory — offices, department heads, supervisors, and employees from RSP.
+              {activeTab === 'directory'
+                ? 'Master list of offices, department heads, supervisors, and headcount.'
+                : 'Assign or remove department heads, manage office access, and handle succession transfers.'}
             </p>
           </div>
-          <OfficeDirectory />
+
+          <div className="mb-6">
+            <div className="inline-flex bg-slate-100 p-1 rounded-xl gap-1 border border-slate-200/60">
+              <button
+                type="button"
+                onClick={() => setActiveTab('directory')}
+                className={
+                  activeTab === 'directory'
+                    ? 'px-4 py-2 text-sm font-bold text-[#040E6B] bg-white rounded-lg shadow-sm border border-slate-200/50 transition-all'
+                    : 'px-4 py-2 text-sm font-semibold text-slate-600 rounded-lg hover:text-slate-900 transition-colors'
+                }
+              >
+                Office Directory
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveTab('access-roles')}
+                className={
+                  activeTab === 'access-roles'
+                    ? 'px-4 py-2 text-sm font-bold text-[#040E6B] bg-white rounded-lg shadow-sm border border-slate-200/50 transition-all'
+                    : 'px-4 py-2 text-sm font-semibold text-slate-600 rounded-lg hover:text-slate-900 transition-colors'
+                }
+              >
+                Access & Role Management
+              </button>
+            </div>
+          </div>
+
+          {activeTab === 'directory' ? <OfficeDirectory /> : <AccessRoleManagement />}
         </main>
       </div>
     </div>
@@ -602,6 +634,11 @@ const AccessRoleManagement = () => {
         <AddPersonnelModal
           departments={departments}
           employees={employees}
+          assignments={assignments}
+          onOpenTransfer={(assignment) => {
+            setShowAdd(false);
+            setRemoveTarget(assignment);
+          }}
           onClose={() => setShowAdd(false)}
           onDone={(msg) => {
             flash(msg);
@@ -629,11 +666,15 @@ const AccessRoleManagement = () => {
 const AddPersonnelModal = ({
   departments,
   employees,
+  assignments,
+  onOpenTransfer,
   onClose,
   onDone,
 }: {
   departments: Department[];
   employees: EmployeeOption[];
+  assignments: OfficeRoleAssignment[];
+  onOpenTransfer: (assignment: OfficeRoleAssignment) => void;
   onClose: () => void;
   onDone: (msg: string) => void;
 }) => {
@@ -643,12 +684,22 @@ const AddPersonnelModal = ({
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState('');
   const [creds, setCreds] = useState<{ username: string; password: string } | null>(null);
+  const [successNotice, setSuccessNotice] = useState('');
   const [copied, setCopied] = useState(false);
+
+  const incumbent = officeId
+    ? assignments.find((a) => a.office_id === officeId && a.status === 'Active' && a.role === 'DeptHead')
+    : undefined;
 
   const handleSubmit = async () => {
     setErr('');
     if (!employeeId) return setErr('Select an employee.');
     if (!officeId) return setErr('Select an office.');
+    if (incumbent) {
+      return setErr(
+        `This office currently has an active Department Head (${incumbent.employee_name}). To replace this head, use Remove / Transfer to ensure pending IPCR reviews are rerouted.`
+      );
+    }
     const emp = employees.find((e) => e.id === employeeId);
     const off = departments.find((d) => d.id === officeId);
     if (!emp || !off) return setErr('Invalid selection.');
@@ -669,7 +720,9 @@ const AddPersonnelModal = ({
       username: result.assignment.account_username ?? '',
       password: result.assignment.account_password ?? '',
     });
-    onDone(`✓ ${emp.full_name} assigned as ${ROLE_LABELS[role]} of ${off.name}.`);
+    const successMsg = `Successfully appointed ${emp.full_name} as Department Head of ${off.name}. They can access their office dashboard immediately using their current account switcher.`;
+    setSuccessNotice(successMsg);
+    onDone(successMsg);
   };
 
   const copy = async () => {
@@ -718,19 +771,77 @@ const AddPersonnelModal = ({
             An Office Account username and temporary password will be generated automatically.
           </p>
 
+          {incumbent && (
+            <div
+              style={{
+                margin: '12px 0',
+                padding: '12px 14px',
+                background: '#fffbeb',
+                border: '1px solid #fde68a',
+                borderRadius: '8px',
+                color: '#78350f',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '10px',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', fontSize: '13px', lineHeight: 1.4 }}>
+                <AlertCircle size={18} style={{ color: '#d97706', flexShrink: 0, marginTop: '1px' }} />
+                <span>
+                  This office currently has an active Department Head ({incumbent.employee_name}). To replace this head, use Remove / Transfer to ensure pending IPCR reviews are rerouted.
+                </span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                <button
+                  type="button"
+                  onClick={() => onOpenTransfer(incumbent)}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    padding: '6px 12px',
+                    background: '#fef3c7',
+                    color: '#92400e',
+                    border: '1px solid #fcd34d',
+                    borderRadius: '6px',
+                    fontSize: '12px',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                  }}
+                >
+                  Go to Transfer Flow
+                </button>
+              </div>
+            </div>
+          )}
+
           {err && <div style={{ ...bannerErr, margin: '12px 0 0' }}>{err}</div>}
 
           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', marginTop: '20px' }}>
             <button type="button" onClick={onClose} disabled={saving} style={secondaryBtn}>
               Cancel
             </button>
-            <button type="button" onClick={handleSubmit} disabled={saving} style={primaryBtn}>
+            <button
+              type="button"
+              onClick={handleSubmit}
+              disabled={saving || !!incumbent}
+              style={{
+                ...primaryBtn,
+                ...(saving || incumbent ? { opacity: 0.5, cursor: 'not-allowed' } : {}),
+              }}
+            >
               {saving ? 'Assigning…' : 'Assign Role'}
             </button>
           </div>
         </div>
       ) : (
         <div style={{ color: 'var(--text-primary)' }}>
+          {successNotice && (
+            <div style={{ ...bannerOk, marginBottom: '16px' }}>
+              <CheckCircle2 size={18} style={{ color: '#047857', flexShrink: 0 }} />
+              <span>{successNotice}</span>
+            </div>
+          )}
           <p style={{ marginBottom: '12px', lineHeight: 1.5 }}>
             Share these Office Account credentials securely — the password will not be shown again:
           </p>
