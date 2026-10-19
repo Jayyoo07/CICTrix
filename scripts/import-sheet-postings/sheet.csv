@@ -1,0 +1,117 @@
+Plantilla Item No.,Position Title,Division / Section,SG,Monthly Salary,Status,Critical Flag,Functional Description
+999,Office of the City Engineer,,,,,,
+1,City Engineer,Office Proper,SG 26,,FILLED,🔴 CRITICAL,Department Head
+4,Assistant City Engineer,Office Proper / Executive,SG 24,,FILLED,🔴 CRITICAL,Assistant Department Head / Succession
+42,Architect III,"Planning, Programming, Design & Architectural Division",SG 19,,FILLED,🔴 CRITICAL,Chief Architect — City Master Planning
+55,Engineer IV (Chief Maintenance Engr),Construction & Maint Div.,SG 22,,FILLED,🔴 CRITICAL,Division Chief — Public Works Field Ops
+95,Engineer IV (Chief Mech/Elec Engr),Electrical & Mech Div.,SG 22,,FILLED,🔴 CRITICAL,Division Chief — Electrical & Mech
+12,Administrative Officer IV (HRMO),Administrative Division,SG 15,,FILLED,🟢 NON-CRITICAL,HR Management & Records Section
+18,Admin Assistant III (Sr Bookkeeper),Administrative Division,SG 9,,FILLED,🟢 NON-CRITICAL,Budgeting & Financial Accounting
+22,Admin Aide VI (Clerk III),Administrative Division,SG6,,FILLED,🟢 NON-CRITICAL,Document Tracking & Communications
+45,Architect I,"Planning, Programming, Design & Architectural Division",SG 12,,FILLED,🟢 NON-CRITICAL,Building Design & CAD Drafting
+62,Engineer II (Civil Engineer),Construction & Maint Div.,SG 16,,FILLED,🟢 NON-CRITICAL,Infrastructure Field Site Inspector
+68,Construction & Maint General Foreman,Construction & Maint Div.,SG 11,,FILLED,🟢 NON-CRITICAL,General Field Supervisor
+72,Construction & Maintenance Foreman,Construction & Maint Div.,SG 8,,FILLED,🟢 NON-CRITICAL,Carpentry & Masonry Lead
+86,Carpenter II,Construction & Maint Div.,SG 5,,FILLED,🟢 NON-CRITICAL,Timber & Framing Repair
+90,Construction & Maintenance Man,Construction & Maint Div.,SG 2,,FILLED,🟢 NON-CRITICAL,Permanent Field Maintenance Worker
+98,Engineer II (Electrical Engineer),Electrical & Mech Div.,SG 16,,FILLED,🟢 NON-CRITICAL,Facility Power & Streetlighting
+105,Electrician III,Electrical & Mech Div.,SG 8,,FILLED,🟢 NON-CRITICAL,Senior Facility Electrician
+108,Electrician II,Electrical & Mech Div.,SG 6,,FILLED,🟢 NON-CRITICAL,Streetlighting Maintenance Specialist
+138,Engineer II (Plan Evaluator / Civil Inspector),Office of the Building Official,SG 16,,FILLED,🟢 NON-CRITICAL,Plan Reviewer
+145,Engineer II (Mechanical Inspector),Office of the Building Official,SG 16,,FILLED,🟢 NON-CRITICAL, Elevator/Boiler Inspector
+142,Engineer II (Electrical Inspector),Office of the Building Official,SG 16,,FILLED,🟢 NON-CRITICAL,Electrical Permit Safety Inspector
+28,Admin Aide IV (Clerk II),Administrative Division,SG 4,,VACANT,🟢 NON-CRITICAL,Open Recruitment — Clerical Support
+38,Engineer II (Civil / Structural),"Planning, Programming, Design & Architectural Division",SG 16,,VACANT,🟢 NON-CRITICAL,Open Recruitment — Program Estimator
+40,Engineer I (Civil),"Planning, Programming, Design & Architectural Division",SG 12,,VACANT,🟢 NON-CRITICAL,Open Recruitment — Entry Engineer
+65,Engineer II (Drainage / Flood Control),Construction & Maint Div.,SG 16,,VACANT,🟢 NON-CRITICAL,Open Recruitment — Drainage Specialist
+102,Engineer II (Mechanical Engineer),Electrical & Mech Div.,SG 16,,VACANT,🟢 NON-CRITICAL,Open Recruitment — HVAC & Heavy Mech
+9999,,,,,,,
+99999,,,,,,,
+999999,Office of the City Accountant,,,,,,
+2,City Accountant,Executive & Administrative Division,SG 26,,FILLED,🔴 CRITICAL,Department Head (Appointed / CPA)
+5,Assistant City Accountant,Executive & Administrative Division,SG 24,,FILLED,🔴 CRITICAL,Assistant Department Head / Succession
+81,Accountant IV (Chief Accountant Division Chief),Financial Statements Unit,SG 22,,FILLED,🔴 CRITICAL,Financial Reporting Division Chief
+23,Accountant III (Division Chief),"Processing, Claims & Pre-Audit Division",SG 19,,FILLED,🔴 CRITICAL,Pre-Audit Claims Division Chief
+110,Accountant III (Division Chief),Barangay Accounts Division,SG 19,,FILLED,🔴 CRITICAL,Barangay Accounts Division Head
+24,Administrative Officer IV,Executive & Administrative Division,SG 15,,FILLED,🟢 NON-CRITICAL,Personnel & HR Records Lead
+94,Administrative Aide IV (Clerk II),Executive & Administrative Division,SG 4,,FILLED,🟢 NON-CRITICAL,Incumbent Document Handler
+41,Administrative Aide I (Laborer I),Executive & Administrative Division,SG 1,,FILLED,🟢 NON-CRITICAL,Incumbent Utility Worker
+44,Accountant II (General Fund Accountant),Financial Statements Unit,SG 16,,FILLED,🟢 NON-CRITICAL,Balance Sheet & Trial Balance Lead
+46,Accountant I (Books of Accounts - GF),Financial Statements Unit,SG 12,,FILLED,🟢 NON-CRITICAL,General Fund Ledger Bookkeeper
+15,Accounts Analyst (COA Audit Liaison),Financial Statements Unit,SG 11,,FILLED,🟢 NON-CRITICAL,COA Audit Observation Responder
+19,Admin Assistant III (Sr Bookkeeper - GF),Financial Statements Unit,SG 9,,FILLED,🟢 NON-CRITICAL,General Fund Journal Verification
+96,Accountant II (Regular Staff Payroll Examiner),"Processing, Claims & Pre-Audit Division",SG 16,,FILLED,🟢 NON-CRITICAL,Plantilla Payroll Pre-Audit Examiner
+13,Accountant II (Procurement Claims Examiner),"Processing, Claims & Pre-Audit Division",SG 16,,FILLED,🟢 NON-CRITICAL,Supplier Purchase Order Voucher Examiner
+14,Accountant I (Disbursements & Vouchers),"Processing, Claims & Pre-Audit Division",SG 12,,FILLED,🟢 NON-CRITICAL,Check & LDDAP-ADA Voucher Examiner
+16,Admin Assistant III (Sr Bookkeeper - Payroll),"Processing, Claims & Pre-Audit Division",SG 9,,FILLED,🟢 NON-CRITICAL,Deductions & Remittance Bookkeeper
+17,Administrative Aide IV (Clerk II),"Processing, Claims & Pre-Audit Division",SG 8,,FILLED,🟢 NON-CRITICAL,Pre-Audit Voucher Log & Dispatch Clerk
+20,Accountant II (Barangay Auditor - North),Barangay Accounts Division,SG 16,,FILLED,🟢 NON-CRITICAL,North District Barangays Pre-Audit CPA
+25,Accountant I (Barangay Transactions),Barangay Accounts Division,SG 12,,FILLED,🟢 NON-CRITICAL,Barangay Voucher Reviewer
+21,Admin Assistant III (Sr Bookkeeper - Barangay),Barangay Accounts Division,SG 9,,FILLED,🟢 NON-CRITICAL,Barangay General Ledger Bookkeeper
+27,Administrative Aide IV (Clerk II),Executive & Administrative Division,SG 4,,VACANT,🟢 NON-CRITICAL,Open Recruitment — Outgoing Tracking Clerk
+97,Accountant II (Trust Fund Accountant),Financial Statements Unit,SG 16,,VACANT,🟢 NON-CRITICAL,Open Recruitment — National Grants CPA
+39,Accountant II (Infrastructure Claims Examiner),"Processing, Claims & Pre-Audit Division",SG 16,,VACANT,🟢 NON-CRITICAL,Open Recruitment — Progress Billing
+47,Accountant II (Casual & JO Payroll Examiner),"Processing, Claims & Pre-Audit Division",SG 16,,VACANT,🟢 NON-CRITICAL,Open Recruitment — JO/COS Payroll Examiner
+26,Accountant I (Travel & Cash Advances),"Processing, Claims & Pre-Audit Division",SG 12,,VACANT,🟢 NON-CRITICAL,Open Recruitment — Liquidation Examiner
+9999999,,,,,,,
+99999999,,,,,,,
+9999999999,City Health Office,,,,,,
+3,City Health Officer II,Executive & Administrative Division,SG 26,,FILLED,🔴 CRITICAL,Department Head (Appointed / MD)
+31,Medical Officer IV (Clinical Division Head),Medical & Clinical Services Division,SG 23,,FILLED,🔴 CRITICAL,Clinical Division Chief / Physician
+36,Nurse V (Chief Nurse),Public Health Nursing Division,SG 22,,FILLED,🔴 CRITICAL,Public Health Nursing Division Chief
+52,Midwife VI (Supervising Midwife),Maternal & Child Health Services (Midwifery Section),SG 18,,FILLED,🔴 CRITICAL,Midwifery Services Supervisor
+59,Dentist IV (Chief Dentist),Dental Health Services Division,SG 23,,FILLED,🔴 CRITICAL,Dental Health Services Division Chief
+8,Administrative Officer IV (HRMO II),Executive & Administrative Division,SG 15,,FILLED,🟢 NON-CRITICAL,Personnel & Records Section Head
+9,Medical Records Officer II,Executive & Administrative Division,SG 14,,FILLED,🟢 NON-CRITICAL,Health Information & Vital Statistics Lead
+10,Admin Assistant III (Computer Operator II),Executive & Administrative Division,SG 9,,FILLED,🟢 NON-CRITICAL,Health Data & iClinicSys System Admin
+32,Medical Officer IV (District Physician),Medical & Clinical Services Division,SG 23,,FILLED,🔴 CRITICAL,RHU District 1 Health Center Physician
+33,Medical Officer III (District Physician),Medical & Clinical Services Division,SG 21,,FILLED,🔴 CRITICAL,RHU District 2 Health Center Physician
+37,Nurse IV (Supervising Nurse),Public Health Nursing Division,SG 19,,FILLED,🔴 CRITICAL,Community Nursing Supervisor
+76,Nutritionist-Dietitian III (City Nutrition Officer),Nutrition & Population Unit,SG 18,,FILLED,🔴 CRITICAL,City Nutrition Action Officer (CNAO)
+35,Medical Specialist I (Pediatrician/TB Lead),Medical & Clinical Services Division,SG 22,,FILLED,🔴 CRITICAL,National TB Control & Child Health Lead
+43,Nurse III (Public Health Nurse Lead),Public Health Nursing Division,SG 17,,FILLED,🟢 NON-CRITICAL,Immunization & Epidemic Surveillance Lead
+48,Nurse II (Public Health Nurse),Public Health Nursing Division,SG 16,,FILLED,🟢 NON-CRITICAL,District 1 Health Center Staff Nurse
+49,Nurse II (Public Health Nurse),Public Health Nursing Division,SG 16,,FILLED,🟢 NON-CRITICAL,District 2 Health Center Staff Nurse
+50,Nurse I (Public Health Nurse),Public Health Nursing Division,SG 15,,FILLED,🟢 NON-CRITICAL,Field Vaccination & School Health Nurse
+53,Midwife IV (Birthing Center Lead),Maternal & Child Health Services (Midwifery Section),SG 15,,FILLED,🟢 NON-CRITICAL,City Birthing Center Operations Lead
+54,Midwife II (Community Midwife),Maternal & Child Health Services (Midwifery Section),SG 11,,FILLED,🟢 NON-CRITICAL,Barangay Health Station District 3
+60,Dentist III (Public Health Dentist),Dental Health Services Division,SG 20,,FILLED,🟢 NON-CRITICAL,School & Community Oral Health Lead
+30,Administrative Aide I (Utility Worker I),Executive & Administrative Division,SG 1,,VACANT,🟢 NON-CRITICAL,Clinic Sanitation & Facility Maintenance
+34,Medical Officer III (District Physician),Medical & Clinical Services Division,SG 21,,VACANT,🟢 NON-CRITICAL,RHU District 3 Health Center Physician
+51,Nurse II (Public Health Nurse),Public Health Nursing Division,SG 16,,VACANT,🟢 NON-CRITICAL,District 2 Health Center Staff Nurse
+61,Nurse I (Public Health Nurse),Public Health Nursing Division,SG 15,,VACANT,🟢 NON-CRITICAL,Communicable Disease Control Nurse
+56,Midwife II (Community Midwife),Maternal & Child Health Services (Midwifery Section),SG 11,,VACANT,🟢 NON-CRITICAL,Barangay Health Station District 2
+9999999999,,,,,,,
+9999999999999,,,,,,,
+99999999999999, Office of the City Social Welfare ,,,,,,
+149,City Social Welfare & Dev. Officer,Executive & Administrative Division,SG 26,,FILLED,🔴 CRITICAL,Department Head (Registered Social Worker)
+113,Social Welfare Officer IV (Division Chief),"Community, Family & Gender Welfare Division",SG 22,,FILLED,🔴 CRITICAL,Community & Family Welfare Division Chief
+114,Social Welfare Officer IV (Division Chief),Child & Youth Welfare Division (ECCD & Day Care Services),SG 22,,FILLED,🔴 CRITICAL,Child & Youth Welfare Division Chief
+115,Social Welfare Officer IV (Division Chief),Disaster Relief & Crisis Division,SG 22,,FILLED,🔴 CRITICAL,Disaster Relief & Crisis Division Chief
+118,Social Welfare Officer III (Elderly & PWD Lead),Elderly & Special Services Division,SG 18,,FILLED,🔴 CRITICAL,Elderly & PWD Welfare Section Head
+101,Administrative Officer IV (HRMO II),Executive & Administrative Division,SG 15,,FILLED,🟢 NON-CRITICAL,Personnel & Administrative Records Lead
+116,Admin Assistant III (Computer Operator II),Executive & Administrative Division,SG 9,,FILLED,🟢 NON-CRITICAL,AICS & Financial Assistance System Admin
+120,Administrative Aide IV (Clerk II),Executive & Administrative Division,SG 4,,FILLED,🟢 NON-CRITICAL,Intake Desk & Document Receiving Clerk
+87,Social Welfare Officer II (Community Lead),"Community, Family & Gender Welfare Division",SG 15,,FILLED,🟢 NON-CRITICAL,Community Development Focal (RSW)
+103,Social Welfare Officer I (District Worker),"Community, Family & Gender Welfare Division",SG 11,,FILLED,🟢 NON-CRITICAL,District 1 Community Field Social Worker
+84,Early Childhood Care Officer II (ECCD Lead),Child & Youth Welfare Division,SG 8,,FILLED,🟢 NON-CRITICAL,City Day Care Operations Supervisor
+83,Disaster Relief & Crisis Division,Disaster Relief & Crisis Division,SG 18,,FILLED,🔴 CRITICAL,Crisis Intervention Unit (CIU) Head
+89,Social Welfare Officer II (CIU Worker),Disaster Relief & Crisis Division,SG 15,,FILLED,🟢 NON-CRITICAL,Emergency Assistance & CIU Social Worker
+70,Social Welfare Assistant (Disaster Logistics),Disaster Relief & Crisis Division,SG 8,,FILLED,🟢 NON-CRITICAL,Relief Supplies & Warehouse Logistics
+91,Social Welfare Officer II (OSCA Focal),Elderly & Special Services Division,SG 15,,FILLED,🟢 NON-CRITICAL,OSCA & Senior Citizen Welfare Officer
+93,Social Welfare Assistant (Special Services),Elderly & Special Services Division,SG 8,,FILLED,🟢 NON-CRITICAL,Senior Citizen & PWD Benefit Assister
+85,Early Childhood Care Officer I (Day Care Lead),Child & Youth Welfare Division,SG 6,,FILLED,🟢 NON-CRITICAL,Out-of-School Youth & CICL Case Manager
+111,Early Childhood Care Officer II (ECCD Lead),Child & Youth Welfare Division,SG 8,,FILLED,🟢 NON-CRITICAL,City Day Care Operations Supervisor
+6,Assistant City Social Welfare Officer,Executive & Administrative Division,SG 24,,FILLED,🔴 CRITICAL,Assistant Department Head / Succession
+7,Administrative Officer V (Admin Officer),Executive & Administrative Division,SG 18,,FILLED,🔴 CRITICAL,Administrative Division Chief
+121,Administrative Aide I (Utility Worker I),Executive & Administrative Division,SG 1,,VACANT,🟢 NON-CRITICAL,Facility Care & Office Logistics
+104,Social Welfare Officer I (District Worker),"Community, Family & Gender Division",SG 11,,VACANT,🟢 NON-CRITICAL,District 1 Community Field Social Worker
+112,Social Welfare Officer II (Youth Focal),Child & Youth Welfare Division,SG 15,,VACANT,🟢 NON-CRITICAL,Out-of-School Youth & CICL Case Manager
+117,Admin Assistant II (CIU Intake Desk)Disaster Relief & Crisis Division,Disaster Relief & Crisis Division,SG 8,,VACANT,🟢 NON-CRITICAL,CIU Intake & Assessment Desk
+92,Social Welfare Officer II (PDAO Focal),Elderly & Special Services Division,SG 15,,VACANT,🟢 NON-CRITICAL,Persons with Disability Affairs Focal (PDAO)
+,,,,,,,
+,,,,,,,
+, Office of the City Social Welfare ,,,,,,
+,City Social Welfare & Dev. Officer,Executive & Administrative Division,SG 26,,,,Department Head (Registered Social Worker)
+,Executive & Administrative Division,,SG 24,,,,Assistant Department Head / Succession
+,Social Welfare Officer IV (Division Chief),Family & Community Welfare Division,SG 22,,,,

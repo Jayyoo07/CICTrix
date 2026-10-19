@@ -12,7 +12,7 @@
  */
 
 import { supabase as supabaseClient } from '../../lib/supabase';
-import { getDepartmentIdByName } from './departments';
+import { DIVISION_PARENT_COLUMN, getDepartmentIdByName } from './departments';
 
 // Cast to `any` to bypass the auto-generated Supabase types resolving to `never`
 // for tables that exist at runtime but aren't reflected in the local type defs.
@@ -175,6 +175,7 @@ export async function getDepartments() {
       .from('departments')
       .select('name')
       .eq('is_active', true)
+      .is(DIVISION_PARENT_COLUMN, null)
       .order('name');
 
     if (error) throw error;
