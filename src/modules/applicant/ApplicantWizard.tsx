@@ -23,7 +23,7 @@ import {
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { Button, Dialog } from '../../components';
-import { POSITION_TO_DEPARTMENT_MAP } from '../../constants/positions';
+import { formatDivisionAndOffice, POSITION_TO_DEPARTMENT_MAP } from '../../constants/positions';
 import {
     type EmployeePortalAccount,
     findEmployeePortalAccount,
@@ -1267,7 +1267,7 @@ export const ApplicantWizard: React.FC = () => {
                 {activeJobs.map(job => (
                   <div key={job.id} className="rounded-xl border border-slate-200 bg-slate-50 p-4 hover:border-blue-300 hover:shadow-md transition-all flex flex-col h-full text-left">
                     <h4 className="font-bold text-slate-900 leading-tight mb-1">{job.title}</h4>
-                    <p className="text-sm text-slate-600 flex-1">{job.division || job.department}</p>
+                    <p className="text-sm text-slate-600 flex-1">{formatDivisionAndOffice(job.department, job.division)}</p>
                     <div className="mt-4 pt-4 border-t border-slate-200">
                       <p className="text-xs text-slate-500 mb-3">{(job.plantillaSlots ?? []).length > 1 ? `${(job.plantillaSlots ?? []).length} plantillas` : "1 plantilla"}</p>
                       <button
