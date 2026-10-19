@@ -10,6 +10,13 @@ React 18 + TypeScript + Vite front end, Supabase (Postgres, migrations in `supab
 - `npx tsc --noEmit` type-checks. `npm run build` type-checks and builds.
 - `npm run lint` runs ESLint with zero warnings allowed.
 - `npm test` runs Vitest.
+- `npm run check:migrations` checks `supabase/migrations` for version drift. CI runs it on every PR that touches migrations.
+
+### Adding a migration
+
+- Create the file with `npx supabase migration new <name>`, which gives it a unique 14-digit version. Never hand-name a migration or reuse a date.
+- Merge it by PR. The Supabase GitHub integration applies it to production on merge to `main`.
+- Don't run repo migrations by hand: no SQL Editor in the dashboard and no MCP `apply_migration` for files in `supabase/migrations`. Hand-applied SQL drifts the remote migration log from the repo and breaks the Supabase Preview check.
 
 ## Ethics & Guardrails
 

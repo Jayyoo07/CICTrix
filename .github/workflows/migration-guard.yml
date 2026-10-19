@@ -1,0 +1,25 @@
+name: Migration guard
+
+# Fails when supabase/migrations has duplicate versions, an 8-digit version that
+# prefixes a longer one, or a new version that isn't 14 digits. See scripts/check-migrations.mjs.
+on:
+  pull_request:
+    paths:
+      - 'supabase/migrations/**'
+      - 'scripts/check-migrations.mjs'
+      - '.github/workflows/migration-guard.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'supabase/migrations/**'
+      - 'scripts/check-migrations.mjs'
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: node scripts/check-migrations.mjs
