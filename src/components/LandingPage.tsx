@@ -17,6 +17,7 @@ import { SharedFooter } from './SharedFooter';
 import '../styles/landing-hero.css';
 import { getAuthoritativeJobPostings, getJobPostingsLoadError, loadJobPostings } from '../lib/recruitmentData';
 import type { JobPosting } from '../types/recruitment.types';
+import { plantillaLabel, plantillaNumberOf } from '../lib/plantillaRules';
 import { vacancySalaryLabel } from '../lib/vacancySalary';
 import { useSalarySchedule } from '../hooks/useSalarySchedule';
 import { TableSkeletonRows, tableBodyClass, useTableLoading } from './table-loading';
@@ -35,6 +36,8 @@ type VacancyRow = {
   type: string;
   status: JobPosting['status'];
   openSlots: number;
+  /** Plantilla numbers on this posting, closed ones left out; filled ones show struck. */
+  plantillas: { key: string; text: string; open: boolean }[];
   postingDate: string;
   closingDate: string;
   positionType: string;
@@ -91,7 +94,7 @@ export const LandingPage = () => {
   const vacanciesLoad = useTableLoading(vacanciesLoading, vacancyJobs.length > 0);
   const [reloadKey, setReloadKey] = useState(0);
   const [searchQuery, setSearchQuery] = useState('');
-  const [sortBy, setSortBy] = useState('newest');
+  const [sortBy, setSortBy] = useState('department');
 
   // Load jobs from Supabase and subscribe to updates
   useEffect(() => {
@@ -119,7 +122,15 @@ export const LandingPage = () => {
             itemNumber: job.jobCode || job.id || '',
             type: job.employmentStatus === 'Permanent' ? 'Plantilla' : 'Contractual',
             status: job.status,
-            openSlots: (job.plantillaSlots ?? []).filter((slot) => slot.status !== 'closed').length,
+            openSlots: (job.plantillaSlots ?? []).filter((slot) => slot.status === 'open').length,
+            plantillas: [...(job.plantillaSlots ?? [])]
+              .filter((slot) => slot.status !== 'closed')
+              .sort((a, b) => a.slotNumber - b.slotNumber)
+              .map((slot) => ({
+                key: slot.id,
+                text: plantillaNumberOf(slot.label) || plantillaLabel(slot),
+                open: slot.status === 'open',
+              })),
             postingDate: job.postedDate ? new Date(job.postedDate).toISOString().split('T')[0] : '',
             closingDate: job.applicationDeadline ? String(job.applicationDeadline).slice(0, 10) : '',
             positionType: job.positionType || '',
@@ -202,7 +213,7 @@ export const LandingPage = () => {
     } else if (sortBy === 'title-za') {
       result.sort((a, b) => b.title.localeCompare(a.title));
     } else if (sortBy === 'department') {
-      result.sort((a, b) => a.department.localeCompare(b.department));
+      result.sort((a, b) => a.department.localeCompare(b.department) || a.title.localeCompare(b.title));
     }
 
     return result;
@@ -453,7 +464,16 @@ export const LandingPage = () => {
                         </td>
                         <td className="px-4 py-3 text-slate-600">{job.department || 'Not specified'}</td>
                         <td className="px-4 py-3 text-slate-600">
-                          {job.openSlots} open {job.openSlots === 1 ? 'slot' : 'slots'}
+                          {job.plantillas.map((plantilla, idx) => (
+                            <span key={plantilla.key}>
+                              {idx > 0 && ' · '}
+                              {plantilla.open ? (
+                                <span className="font-semibold text-[#050D65]">{plantilla.text}</span>
+                              ) : (
+                                <s className="text-slate-400" title="Filled">{plantilla.text}</s>
+                              )}
+                            </span>
+                          ))}
                         </td>
                         <td className="whitespace-nowrap px-4 py-3 text-slate-600">{vacancySalaryLabel(job.originalJob, salarySchedule)}</td>
                         <td className="px-4 py-3 text-slate-600">
