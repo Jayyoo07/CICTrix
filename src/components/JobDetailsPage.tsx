@@ -272,6 +272,13 @@ export const JobDetailsPage = () => {
   const slots = job?.plantillaSlots ?? [];
   const isMultiSlot = slots.length > 1;
   const openSlots = slots.filter((slot) => slot.status === 'open');
+  // Plantillas merged from separate postings keep their own summary and
+  // duties; when any has them, those sections list each plantilla in turn.
+  const orderedSlots = [...slots].sort((a, b) => a.slotNumber - b.slotNumber);
+  const slotsWithSummary = orderedSlots.filter((slot) => slot.summary);
+  const slotsWithDuties = orderedSlots.filter((slot) => (slot.responsibilities ?? []).length > 0);
+  const slotHeading = (slot: (typeof slots)[number]) =>
+    slot.division ? `${plantillaLabel(slot)} · ${slot.division}` : plantillaLabel(slot);
   const selectedChoices = choices.filter((choice) => selectedKeys.includes(choice.key));
   const canContinue = selectedChoices.length > 0;
 
@@ -352,7 +359,17 @@ export const JobDetailsPage = () => {
         <Row label="Application closes" value={formatShortDate(closingDate)} />
       </dl>
 
-      {job?.summary && (
+      {slotsWithSummary.length > 0 ? (
+        <>
+          <p className="af-caps af-rows-title">Position summary</p>
+          {slotsWithSummary.map((slot) => (
+            <div key={slot.id} style={{ marginBottom: 12 }}>
+              <p className="af-body-s"><strong>{slotHeading(slot)}</strong></p>
+              <p className="af-text">{slot.summary}</p>
+            </div>
+          ))}
+        </>
+      ) : job?.summary && (
         <>
           <p className="af-caps af-rows-title">Position summary</p>
           <p className="af-text">{job.summary}</p>
@@ -427,7 +444,24 @@ export const JobDetailsPage = () => {
 
   const moreCards = (
     <div className="af-stack" style={{ gridArea: 'more' }}>
-      {job && !landingJob && job.responsibilities && job.responsibilities.filter((r) => r.trim()).length > 0 && (
+      {slotsWithDuties.length > 0 ? (
+        <section className="af-card" aria-labelledby="jd-resp">
+          <div className="af-card-head">
+            <span className="af-chip" aria-hidden="true"><ListChecks size={20} strokeWidth={1.75} /></span>
+            <h2 className="af-title-s" id="jd-resp">Responsibilities</h2>
+          </div>
+          {slotsWithDuties.map((slot) => (
+            <div key={slot.id}>
+              <p className="af-caps af-rows-title">{slotHeading(slot)}</p>
+              <ul className="af-list">
+                {(slot.responsibilities ?? []).map((resp, idx) => (
+                  <li key={idx}><CheckCircle2 size={16} strokeWidth={1.75} aria-hidden="true" />{resp}</li>
+                ))}
+              </ul>
+            </div>
+          ))}
+        </section>
+      ) : job && !landingJob && job.responsibilities && job.responsibilities.filter((r) => r.trim()).length > 0 && (
         <section className="af-card" aria-labelledby="jd-resp">
           <div className="af-card-head">
             <span className="af-chip" aria-hidden="true"><ListChecks size={20} strokeWidth={1.75} /></span>

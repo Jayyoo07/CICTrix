@@ -60,6 +60,12 @@ const toSlot = (row: any): PlantillaSlot => ({
   status: (String(row?.status ?? 'open') as PlantillaSlotStatus),
   filledByApplicantId: row?.filled_by_applicant_id ? String(row.filled_by_applicant_id) : undefined,
   filledAt: row?.filled_at ? String(row.filled_at) : undefined,
+  division: row?.division ? String(row.division).trim() : undefined,
+  summary: row?.summary ? String(row.summary).trim() : undefined,
+  // text[] or jsonb depending on the environment; both arrive as arrays.
+  responsibilities: Array.isArray(row?.responsibilities)
+    ? row.responsibilities.map((item: unknown) => String(item ?? '').trim()).filter(Boolean)
+    : undefined,
 });
 
 // ─── Reads ──────────────────────────────────────────────────────────────────

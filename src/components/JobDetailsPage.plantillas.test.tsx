@@ -17,11 +17,18 @@ const job = {
   postedDate: '2026-09-25T00:00:00.000Z',
   requiredDocuments: ['Resume/CV', 'Application Letter'],
   responsibilities: [],
-  summary: '',
+  summary: 'Posting-wide summary',
   qualifications: { education: '', experience: { years: 0, field: '' }, skills: [], certifications: [] },
+  // Slots 20 and 100 were merged from separate postings and keep their own text.
   plantillaSlots: [
-    { id: 'slot-a', jobPostingId: 'job-legal-1', slotNumber: 1, label: 'Plantilla 20', itemNumber: 'ABYAN-2026-297', status: 'filled' },
-    { id: 'slot-b', jobPostingId: 'job-legal-1', slotNumber: 2, label: 'Plantilla 100', itemNumber: 'ABYAN-2026-298', status: 'open', salaryGrade: 10 },
+    {
+      id: 'slot-a', jobPostingId: 'job-legal-1', slotNumber: 1, label: 'Plantilla 20', itemNumber: 'ABYAN-2026-297', status: 'filled',
+      division: 'Records Division', summary: 'Keeps the legal records.', responsibilities: ['Files case folders'],
+    },
+    {
+      id: 'slot-b', jobPostingId: 'job-legal-1', slotNumber: 2, label: 'Plantilla 100', itemNumber: 'ABYAN-2026-298', status: 'open', salaryGrade: 10,
+      summary: 'Drafts routine contracts.', responsibilities: ['Prepares contract drafts'],
+    },
     { id: 'slot-c', jobPostingId: 'job-legal-1', slotNumber: 3, label: 'Plantilla 3', itemNumber: 'PLT-0A1B2C3D4E', status: 'open' },
   ],
 } as unknown as JobPosting;
@@ -103,6 +110,18 @@ describe('Job Details — "Choose your plantilla items"', () => {
     const filled = screen.getByText('Plantilla 20').closest('[aria-disabled="true"]');
     expect(filled).not.toBeNull();
     expect(filled).toHaveAttribute('data-tooltip', expect.stringMatching(/filled/i));
+  });
+
+  it('shows each merged plantilla with its own summary and duties', async () => {
+    await renderPage();
+
+    expect(screen.getAllByText('Plantilla 20 · Records Division').length).toBe(2);
+    expect(screen.getByText('Keeps the legal records.')).toBeInTheDocument();
+    expect(screen.getByText('Drafts routine contracts.')).toBeInTheDocument();
+    expect(screen.getByText('Files case folders')).toBeInTheDocument();
+    expect(screen.getByText('Prepares contract drafts')).toBeInTheDocument();
+    // Per-plantilla text replaces the posting-wide summary, not added to it.
+    expect(screen.queryByText('Posting-wide summary')).not.toBeInTheDocument();
   });
 
   it('no longer lists Curriculum Vitae as a required document', async () => {
