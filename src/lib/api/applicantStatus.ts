@@ -28,7 +28,7 @@
  *
  * Withdrawn - Hired Elsewhere is the third ending, and the only one no button
  * writes. The database sets it on a person's other open applications the moment
- * one of them is hired (migration 20261015), and restores them if that hire is
+ * one of them is hired (migration 20261021200000), and restores them if that hire is
  * reverted.
  */
 

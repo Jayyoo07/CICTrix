@@ -3,7 +3,7 @@
 -- applications
 -- Date: 2026-10-15
 -- Plan: docs/plans/2026-10-15-one-reference-multi-plantilla.md
--- Rollback: supabase/rollbacks/20261015_one_reference_per_applicant_rollback.sql
+-- Rollback: supabase/rollbacks/20261021200000_one_reference_per_applicant_rollback.sql
 --
 -- WHAT CHANGES
 --
@@ -437,8 +437,10 @@ UPDATE public.application_plantilla_slots s
 
 -- ── 9. Tracker view ─────────────────────────────────────────────────────────
 -- Columns from 20260923 unchanged and in the same order; new ones appended,
--- which CREATE OR REPLACE allows without dropping dependants.
-CREATE OR REPLACE VIEW public.applicant_tracker_view AS
+-- which CREATE OR REPLACE allows without dropping dependants. security_invoker
+-- is restated because a replace resets view options, and 20261015 soft delete
+-- relies on it to hide deleted applicants from the browser roles.
+CREATE OR REPLACE VIEW public.applicant_tracker_view WITH (security_invoker = true) AS
 SELECT
   a.id,
   a.item_number,

@@ -199,7 +199,7 @@ export const ApplicantWizard: React.FC = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [completed, setCompleted] = useState<null | Array<{ key: string; label: string; outcome: SubmitOutcome }>>(null);
 
-  // Since 20261015 one person keeps one Reference No. across every plantilla.
+  // Since migration 20261021200000 one person keeps one Reference No. across every plantilla.
   // When this submission's numbers all agree, that is the person's number, and
   // any applications under it beyond the ones just listed were filed earlier.
   // Mixed numbers mean the migration has not been applied: keep per-row numbers.

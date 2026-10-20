@@ -128,7 +128,7 @@ describe('Withdrawn - Hired Elsewhere', () => {
     expect(nextStatuses(WITHDRAWN)).toEqual([]);
   });
 
-  it('matches the exact string migration 20261015 stores', () => {
+  it('matches the exact string migration 20261021200000 stores', () => {
     // The trigger writes an ASCII hyphen. A mismatch here would leave every
     // withdrawn application unmapped and counted as pending.
     expect(normalizeStatus('Withdrawn - Hired Elsewhere')).toBe(WITHDRAWN);

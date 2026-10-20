@@ -1,5 +1,5 @@
 -- ============================================================================
--- Rollback for 20261015_one_reference_per_applicant.sql
+-- Rollback for 20261021200000_one_reference_per_applicant.sql
 --
 -- Restores one unique Reference No. per application (20260923/20260928).
 --
@@ -40,7 +40,7 @@ ALTER TABLE public.application_plantilla_slots DROP COLUMN IF EXISTS status_befo
 
 -- ── Tracker view back to its 20260923 shape (must precede dropping columns) ─
 DROP VIEW IF EXISTS public.applicant_tracker_view;
-CREATE VIEW public.applicant_tracker_view AS
+CREATE VIEW public.applicant_tracker_view WITH (security_invoker = true) AS
 SELECT
   a.id, a.item_number, a.reference_no, a.reference_no_normalized,
   a.first_name, a.last_name, a.email, a.contact_number, a.position, a.office,
