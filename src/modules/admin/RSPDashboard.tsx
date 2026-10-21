@@ -370,7 +370,7 @@ const isNewlyHired = (hireDate: string | null | undefined): boolean => {
   return daysSinceHire >= 0 && daysSinceHire < NEWLY_HIRED_BADGE_DAYS;
 };
 
-type FunnelStage = 'pending' | 'reviewed' | 'shortlisted' | 'qualified' | 'hired' | 'notQualified';
+type FunnelStage = 'pending' | 'reviewed' | 'shortlisted' | 'qualified' | 'hired' | 'notQualified' | 'hiredElsewhere';
 
 /**
  * Place an applicant in exactly ONE funnel stage.
@@ -391,6 +391,7 @@ const BUCKET_TO_STAGE: Record<FunnelBucket, FunnelStage> = {
   qualified: 'qualified',
   selected: 'hired',
   closed: 'notQualified',
+  withdrawn: 'hiredElsewhere',
 };
 
 const funnelStageOf = (rawStatus: string): FunnelStage => {

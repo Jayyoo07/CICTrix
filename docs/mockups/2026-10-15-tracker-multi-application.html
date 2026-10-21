@@ -1,0 +1,46 @@
+<h2>Applicant tracker: how should all applications under one Reference No. appear?</h2>
+<p class="subtitle">Juan searched ABYAN-731-052. He has 3 applications. Today the page shows only the newest one, followed by its timeline, documents, schedule and notice sections.</p>
+
+<div class="options">
+  <div class="option" data-choice="a" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>Summary list on top, pick one to see its details</h3>
+      <div class="mockup"><div class="mockup-header">/track?ref=ABYAN-731-052</div><div class="mockup-body" style="font-size:13px">
+        <b>Juan Dela Cruz</b> · Reference No. ABYAN-731-052 · 3 applications
+        <div style="margin-top:8px;border:2px solid #363EE8;border-radius:8px;padding:8px">▾ <b>Records Officer I</b> · Plantilla 5 · CMO <span style="float:right;background:#e6f4ea;color:#1e6b34;border-radius:8px;padding:0 8px">Selected</span>
+          <div class="placeholder" style="margin-top:8px">Timeline · Documents · Schedule · Notice (same sections as today, for this application)</div>
+        </div>
+        <div style="margin-top:6px;border:1px solid #ccc;border-radius:8px;padding:8px;color:#777">▸ Administrative Aide I · Plantilla 2 · HRMO <span style="float:right">Withdrawn: hired on Plantilla 5</span></div>
+        <div style="margin-top:6px;border:1px solid #ccc;border-radius:8px;padding:8px;color:#777">▸ Clerk II · Plantilla 1 · CTO <span style="float:right">Withdrawn: hired on Plantilla 5</span></div>
+      </div></div>
+      <p>Every application is visible at a glance, and you open one at a time. The one that needs attention (Pending or scheduled) opens by default, otherwise the newest. The existing detail sections are reused as they are.</p>
+    </div>
+  </div>
+
+  <div class="option" data-choice="b" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>Tabs, one per application</h3>
+      <div class="mockup"><div class="mockup-header">/track?ref=ABYAN-731-052</div><div class="mockup-body" style="font-size:13px">
+        <b>Juan Dela Cruz</b> · ABYAN-731-052
+        <div style="margin-top:8px;border-bottom:1px solid #ccc"><span style="border-bottom:2px solid #363EE8;padding:4px 8px"><b>Records Officer I · P5</b></span><span style="padding:4px 8px;color:#777">Admin Aide I · P2</span><span style="padding:4px 8px;color:#777">Clerk II · P1</span></div>
+        <div class="placeholder" style="margin-top:8px">Selected · Timeline · Documents · Schedule · Notice</div>
+      </div></div>
+      <p>Compact, but you can't see the other applications' statuses without clicking each tab. Long position names get cramped on a phone.</p>
+    </div>
+  </div>
+
+  <div class="option" data-choice="c" onclick="toggleSelect(this)">
+    <div class="letter">C</div>
+    <div class="content">
+      <h3>All applications stacked in full</h3>
+      <div class="mockup"><div class="mockup-header">/track?ref=ABYAN-731-052</div><div class="mockup-body" style="font-size:13px">
+        <div class="placeholder">Records Officer I · P5: full timeline, documents, schedule</div>
+        <div class="placeholder" style="margin-top:6px">Admin Aide I · P2: full timeline, documents, schedule</div>
+        <div class="placeholder" style="margin-top:6px">Clerk II · P1: full timeline, documents, schedule</div>
+      </div></div>
+      <p>Nothing is hidden, but the page gets very long. With 3 or more applications, a resubmission request is easy to scroll past.</p>
+    </div>
+  </div>
+</div>

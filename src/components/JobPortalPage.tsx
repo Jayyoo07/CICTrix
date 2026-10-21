@@ -19,6 +19,7 @@ import {
 import abyanLogo from '../assets/abyan-logo.png';
 import { SharedFooter } from './SharedFooter';
 import { getAuthoritativeJobPostings, loadJobPostings } from '../lib/recruitmentData';
+import { plantillaLabel } from '../lib/plantillaRules';
 import { vacancySalaryLabel } from '../lib/vacancySalary';
 import { useSalarySchedule } from '../hooks/useSalarySchedule';
 import { LoadingStatus, Skeleton, TableSkeletonRows, tableBodyClass, useTableLoading } from './table-loading';
@@ -67,6 +68,13 @@ export function JobPortalPage() {
           positionType: job.positionType || 'Civil Service',
           employmentStatus: job.employmentStatus || 'Permanent',
           status: job.status || 'Active',
+          plantillaText: (() => {
+            const slots = job.plantillaSlots ?? [];
+            if (slots.length === 1) return plantillaLabel(slots[0]);
+            if (slots.length === 0) return '';
+            const open = slots.filter((slot) => slot.status === 'open').length;
+            return `${slots.length} plantillas · ${open} open`;
+          })(),
           originalJob: job,
         }));
         
@@ -415,6 +423,9 @@ export function JobPortalPage() {
                   <h3 className="text-lg font-bold text-[#050D65] line-clamp-2 mb-2">
                     {job.title}
                   </h3>
+                  {job.plantillaText && (
+                    <p className="text-xs font-semibold text-slate-500 mb-2">{job.plantillaText}</p>
+                  )}
                   
                   <p className="text-sm text-slate-500 font-medium flex items-center gap-1.5 mb-4">
                     <MapPin size={15} className="text-[#363EE8]" />
@@ -480,7 +491,12 @@ export function JobPortalPage() {
                     columns={['text', 'text', 'text', 'text', 'text', 'badge', 'button']} label="Loading vacant positions…" />
                 ) : paginatedVacancies.map((job) => (
                   <tr key={job.id} className="transition hover:bg-slate-50/50">
-                    <td className="px-6 py-4 font-bold text-[#050D65]">{job.title}</td>
+                    <td className="px-6 py-4 font-bold text-[#050D65]">
+                      {job.title}
+                      {job.plantillaText && (
+                        <div className="mt-0.5 text-xs font-medium text-slate-500">{job.plantillaText}</div>
+                      )}
+                    </td>
                     <td className="px-6 py-4 text-slate-600">{job.department}</td>
                     <td className="px-6 py-4">
                       <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${

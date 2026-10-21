@@ -17,11 +17,18 @@ const job = {
   postedDate: '2026-09-25T00:00:00.000Z',
   requiredDocuments: ['Resume/CV', 'Application Letter'],
   responsibilities: [],
-  summary: '',
+  summary: 'Posting-wide summary',
   qualifications: { education: '', experience: { years: 0, field: '' }, skills: [], certifications: [] },
+  // Slots 20 and 100 were merged from separate postings and keep their own text.
   plantillaSlots: [
-    { id: 'slot-a', jobPostingId: 'job-legal-1', slotNumber: 1, label: 'Plantilla 20', itemNumber: 'ABYAN-2026-297', status: 'filled' },
-    { id: 'slot-b', jobPostingId: 'job-legal-1', slotNumber: 2, label: 'Plantilla 100', itemNumber: 'ABYAN-2026-298', status: 'open', salaryGrade: 10 },
+    {
+      id: 'slot-a', jobPostingId: 'job-legal-1', slotNumber: 1, label: 'Plantilla 20', itemNumber: 'ABYAN-2026-297', status: 'filled',
+      division: 'Records Division', summary: 'Keeps the legal records.', responsibilities: ['Files case folders'],
+    },
+    {
+      id: 'slot-b', jobPostingId: 'job-legal-1', slotNumber: 2, label: 'Plantilla 100', itemNumber: 'ABYAN-2026-298', status: 'open', salaryGrade: 10,
+      summary: 'Drafts routine contracts.', responsibilities: ['Prepares contract drafts'],
+    },
     { id: 'slot-c', jobPostingId: 'job-legal-1', slotNumber: 3, label: 'Plantilla 3', itemNumber: 'PLT-0A1B2C3D4E', status: 'open' },
   ],
 } as unknown as JobPosting;
@@ -37,19 +44,24 @@ vi.mock('../lib/plantillaSlots', () => ({
   fetchSlotApplicantCounts: () => Promise.resolve(new Map([['slot-b', 15]])),
 }));
 
-const renderPage = async () => {
+/** `plantillaSlotId` is what a landing vacancy row hands over for its plantilla. */
+const renderPage = async (plantillaSlotId?: string) => {
   const { JobDetailsPage } = await import('./JobDetailsPage');
+  const state = plantillaSlotId
+    ? { landingJob: { id: 'job-legal-1', title: job.title, department: job.department, itemNumber: job.jobCode, postingDate: '', closingDate: '', originalJob: job, plantillaSlotId } }
+    : null;
   render(
-    <MemoryRouter initialEntries={['/job-details/job-legal-1']}>
+    <MemoryRouter initialEntries={[{ pathname: '/job-details/job-legal-1', state }]}>
       <Routes>
         <Route path="/job-details/:jobId" element={<JobDetailsPage />} />
       </Routes>
     </MemoryRouter>,
   );
-  return screen.findByRole('heading', { name: /Choose your plantilla items/ });
+  await screen.findByText(/Please review your application carefully before submission/);
+  return document.querySelector('.af-hero-sub') as HTMLElement;
 };
 
-describe('Job Details — "Choose your plantilla items"', () => {
+describe('Job Details — the one plantilla a vacancy stands for', () => {
   beforeEach(() => {
     // jsdom has no matchMedia; the page uses it for its desktop/mobile layout.
     window.matchMedia = vi.fn().mockImplementation((query: string) => ({
@@ -63,46 +75,57 @@ describe('Job Details — "Choose your plantilla items"', () => {
     localStorage.setItem('cictrix_applied_plantilla', JSON.stringify({ 'slot-c': { referenceNo: 'ABYAN-748-102', at: '' } }));
   });
 
-  it('shows each plantilla by its admin label and salary grade only', async () => {
-    const heading = await renderPage();
-    const chooser = heading.closest('section') as HTMLElement;
+  it('shows the submission instruction and a Continue button, with no plantilla card to choose from', async () => {
+    const hero = await renderPage('slot-b');
 
-    expect(within(chooser).getByText('Plantilla 20')).toBeInTheDocument();
-    expect(within(chooser).getByText('Plantilla 100')).toBeInTheDocument();
-    expect(within(chooser).getAllByText('SG 10').length).toBeGreaterThan(0);
+    expect(hero).toHaveTextContent('Plantilla 100');
+    expect(screen.getByRole('note')).toHaveTextContent(
+      'Please review your application carefully before submission. Ensure that all required fields are completed and all supporting documents are accurate, complete, valid, and readable. The completeness and quality of your submission may be considered during the evaluation of your application.',
+    );
+    expect(screen.queryByText(/Choose your plantilla items/)).not.toBeInTheDocument();
+    expect(screen.queryByRole('checkbox')).not.toBeInTheDocument();
+    expect(screen.queryByText('Plantilla 20')).not.toBeInTheDocument();
+    for (const button of screen.getAllByRole('button', { name: /Continue to Application/ })) expect(button).toBeEnabled();
+  });
+
+  it('falls back to the first open plantilla when no row named one', async () => {
+    const hero = await renderPage();
+
+    expect(hero).toHaveTextContent('Plantilla 100');
   });
 
   it('never shows a plantilla item number or any ABYAN-style code', async () => {
-    await renderPage();
+    await renderPage('slot-b');
 
     expect(screen.queryByText(/Plantilla Item No/i)).not.toBeInTheDocument();
     expect(document.body.textContent).not.toMatch(/ABYAN-\d/);
     expect(document.body.textContent).not.toMatch(/PLT-/);
   });
 
-  it('lets the applicant select an open plantilla', async () => {
-    await renderPage();
+  it('says an already-applied plantilla is no longer open, with no way to continue', async () => {
+    await renderPage('slot-c');
 
-    const checkbox = screen.getByRole('checkbox', { name: /Plantilla 100/ });
-    expect(checkbox).toBeEnabled();
+    expect(screen.getByRole('heading', { name: 'This plantilla is no longer open' })).toBeInTheDocument();
+    expect(screen.getByText(/already applied/i)).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Continue to Application/ })).not.toBeInTheDocument();
   });
 
-  it('shows an already-applied plantilla as "Already applied" and not selectable', async () => {
-    const heading = await renderPage();
-    const chooser = heading.closest('section') as HTMLElement;
+  it('says a filled plantilla is no longer open', async () => {
+    await renderPage('slot-a');
 
-    expect(within(chooser).getByText('Already applied')).toBeInTheDocument();
-    expect(screen.queryByRole('checkbox', { name: /Plantilla 3/ })).not.toBeInTheDocument();
-    const applied = within(chooser).getByText('Plantilla 3').closest('[aria-disabled="true"]');
-    expect(applied).not.toBeNull();
+    expect(screen.getByRole('heading', { name: 'This plantilla is no longer open' })).toBeInTheDocument();
+    expect(screen.getByText(/has been filled/i)).toBeInTheDocument();
   });
 
-  it('shows a filled plantilla as disabled with a reason, not hidden', async () => {
-    await renderPage();
+  it('shows only this plantilla\'s own summary and duties', async () => {
+    await renderPage('slot-b');
 
-    const filled = screen.getByText('Plantilla 20').closest('[aria-disabled="true"]');
-    expect(filled).not.toBeNull();
-    expect(filled).toHaveAttribute('data-tooltip', expect.stringMatching(/filled/i));
+    expect(screen.getByText('Drafts routine contracts.')).toBeInTheDocument();
+    expect(screen.getByText('Prepares contract drafts')).toBeInTheDocument();
+    expect(screen.queryByText('Keeps the legal records.')).not.toBeInTheDocument();
+    expect(screen.queryByText('Files case folders')).not.toBeInTheDocument();
+    // Per-plantilla text replaces the posting-wide summary, not added to it.
+    expect(screen.queryByText('Posting-wide summary')).not.toBeInTheDocument();
   });
 
   it('no longer lists Curriculum Vitae as a required document', async () => {

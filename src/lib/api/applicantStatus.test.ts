@@ -120,6 +120,45 @@ describe('workflow transitions', () => {
   });
 });
 
+describe('Withdrawn - Hired Elsewhere', () => {
+  const WITHDRAWN: ApplicantWorkflowStatus = 'Withdrawn - Hired Elsewhere';
+
+  it('is a terminal status', () => {
+    expect(isTerminal(WITHDRAWN)).toBe(true);
+    expect(nextStatuses(WITHDRAWN)).toEqual([]);
+  });
+
+  it('matches the exact string migration 20261021200000 stores', () => {
+    // The trigger writes an ASCII hyphen. A mismatch here would leave every
+    // withdrawn application unmapped and counted as pending.
+    expect(normalizeStatus('Withdrawn - Hired Elsewhere')).toBe(WITHDRAWN);
+    expect(normalizeStatus('withdrawn - hired elsewhere')).toBe(WITHDRAWN);
+    expect(normalizeStatus('Withdrawn – Hired Elsewhere')).toBe(WITHDRAWN);
+  });
+
+  it('is never offered as a manual action', () => {
+    // Only a hire on another plantilla produces it, in the database.
+    for (const s of APPLICANT_STATUSES) {
+      expect(canTransition(s, WITHDRAWN), `${s} -> ${WITHDRAWN}`).toBe(false);
+    }
+  });
+
+  it('is not counted as a failure in the funnel', () => {
+    expect(funnelBucket(WITHDRAWN)).toBe('withdrawn');
+  });
+
+  it('leaves plain "Withdrawn", the applicant withdrawing, as it was', () => {
+    expect(normalizeStatus('Withdrawn')).toBe('Disqualified');
+  });
+
+  it('tells the applicant the application closed because of an appointment', () => {
+    const msg = APPLICANT_MESSAGES[WITHDRAWN];
+    expect(msg).toMatch(/appointed to another position/i);
+    expect(msg).toMatch(/Reference No\./);
+    expect(msg).not.toMatch(/regret|disqualif|not selected/i);
+  });
+});
+
 describe('applicant-facing messages', () => {
   it('covers every status', () => {
     for (const s of APPLICANT_STATUSES) {

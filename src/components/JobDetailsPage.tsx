@@ -5,6 +5,7 @@ import {
   Building2,
   CheckCircle2,
   ChevronDown,
+  Info,
   ListChecks,
   Lock,
   Pencil,
@@ -22,7 +23,6 @@ import { plantillaLabel } from '../lib/plantillaRules';
 import { isCurriculumVitae } from '../lib/applicationDocuments';
 import {
   APPLY_STEPS,
-  ConfirmModal,
   PublicTopBar,
   StatusBadge,
   Stepper,
@@ -30,12 +30,8 @@ import {
 import {
   buildPlantillaChoices,
   choiceLabel,
-  draftKeysWithData,
   formatShortDate,
   isSelectable,
-  loadDrafts,
-  previouslySelectedKeys,
-  saveDrafts,
   type PlantillaChoice,
 } from '../modules/applicant/flow/applicationDrafts';
 
@@ -47,6 +43,8 @@ interface LandingJobData {
   postingDate: string;
   closingDate: string;
   type: string;
+  /** The plantilla this vacancy row stands for; the landing table lists one per row. */
+  plantillaSlotId?: string;
 }
 
 const DISABLED_REASON: Record<string, string> = {
@@ -55,7 +53,11 @@ const DISABLED_REASON: Record<string, string> = {
   applied: "You've already applied for this item. Choose another item.",
 };
 
-const formatPeso = (value: number) =>
+/** Shown on every public job details page, above Continue to Application. */
+const SUBMISSION_INSTRUCTION =
+  'Please review your application carefully before submission. Ensure that all required fields are completed and all supporting documents are accurate, complete, valid, and readable. The completeness and quality of your submission may be considered during the evaluation of your application.';
+
+const formatPeso =(value: number) =>
   `Php ${Number(value).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
 /** One line of the summary list. An unstated value reads as muted italic text, never a made-up value. */
@@ -173,21 +175,13 @@ export const JobDetailsPage = () => {
     return [];
   }, [job, landingJob, loaded]);
   const selectable = useMemo(() => choices.filter(isSelectable), [choices]);
-  const [selectedKeys, setSelectedKeys] = useState<string[]>([]);
-  const [seededFor, setSeededFor] = useState<string | null>(null);
-  const [pendingDeselect, setPendingDeselect] = useState<PlantillaChoice | null>(null);
+  // Each vacancy is one plantilla, so there is nothing to choose: the row the
+  // applicant clicked names it, else the posting's first open one.
+  const target: PlantillaChoice | null =
+    choices.find((choice) => choice.key === landingJob?.plantillaSlotId) ?? selectable[0] ?? choices[0] ?? null;
   const [summaryOpen, setSummaryOpen] = useState(isDesktop);
 
-  // Restore the previous selection when coming back from Step 2; otherwise,
-  // with exactly one open item, preselect it (the step is still shown).
   const postingKey = job?.id ?? (landingJob ? String(landingJob.id) : '');
-  useEffect(() => {
-    if (!postingKey || choices.length === 0 || seededFor === postingKey) return;
-    const openKeys = new Set(selectable.map((choice) => choice.key));
-    const restored = previouslySelectedKeys(postingKey).filter((key) => openKeys.has(key));
-    setSelectedKeys(restored.length > 0 ? restored : selectable.length === 1 ? [selectable[0].key] : []);
-    setSeededFor(postingKey);
-  }, [postingKey, choices.length, selectable, seededFor]);
 
   // The summary is collapsible on mobile only; on desktop it is always open.
   useEffect(() => {
@@ -196,34 +190,6 @@ export const JobDetailsPage = () => {
     mql.addEventListener?.('change', sync);
     return () => mql.removeEventListener?.('change', sync);
   }, []);
-
-  const toggleChoice = (choice: PlantillaChoice) => {
-    if (!isSelectable(choice)) return;
-    if (selectedKeys.includes(choice.key)) {
-      // Unticking an item that already has answers throws them away — ask first.
-      if (postingKey && draftKeysWithData(postingKey).has(choice.key)) {
-        setPendingDeselect(choice);
-        return;
-      }
-      setSelectedKeys((prev) => prev.filter((key) => key !== choice.key));
-    } else {
-      setSelectedKeys((prev) => [...prev, choice.key]);
-    }
-  };
-
-  const confirmDeselect = () => {
-    if (!pendingDeselect) return;
-    const key = pendingDeselect.key;
-    // Drop the stored copy so re-selecting starts blank.
-    const state = loadDrafts();
-    delete state.drafts[key];
-    state.choices = state.choices.filter((choice) => choice.key !== key);
-    saveDrafts(state);
-    setSelectedKeys((prev) => prev.filter((k) => k !== key));
-    setPendingDeselect(null);
-  };
-
-  const selectAllOpen = () => setSelectedKeys(selectable.map((choice) => choice.key));
 
   if (!job && !landingJob) {
     return (
@@ -272,15 +238,26 @@ export const JobDetailsPage = () => {
   const slots = job?.plantillaSlots ?? [];
   const isMultiSlot = slots.length > 1;
   const openSlots = slots.filter((slot) => slot.status === 'open');
-  const selectedChoices = choices.filter((choice) => selectedKeys.includes(choice.key));
+  // Plantillas merged from separate postings keep their own summary and
+  // duties; when any has them, those sections list each plantilla in turn.
+  // Applicants see only their plantilla's text; RSP sees every plantilla's.
+  const orderedSlots = [...slots]
+    .sort((a, b) => a.slotNumber - b.slotNumber)
+    .filter((slot) => isAdminView || !target?.slotId || slot.id === target.key);
+  const slotsWithSummary = orderedSlots.filter((slot) => slot.summary);
+  const slotsWithDuties = orderedSlots.filter((slot) => (slot.responsibilities ?? []).length > 0);
+  const slotHeading = (slot: (typeof slots)[number]) =>
+    slot.division ? `${plantillaLabel(slot)} · ${slot.division}` : plantillaLabel(slot);
+  const selectedChoices = target && isSelectable(target) ? [target] : [];
   const canContinue = selectedChoices.length > 0;
+  const shownChoices = isAdminView ? choices : target ? [target] : [];
 
   // Salary grade can live on the posting or on each plantilla item. Show the
   // posting's, else the items' ("SG 10", or a range when they differ).
   const monthlySalaryText = (() => {
     const grades = job?.salaryGrade != null
       ? [job.salaryGrade]
-      : Array.from(new Set(choices.map((c) => c.salaryGrade).filter((g): g is number => g != null)));
+      : Array.from(new Set(shownChoices.map((c) => c.salaryGrade).filter((g): g is number => g != null)));
     const amounts: number[] = [];
     for (const g of grades) {
       const range = stepRangeFor(g, salarySchedule);
@@ -292,7 +269,7 @@ export const JobDetailsPage = () => {
 
   const salaryGradeText = (() => {
     if (job?.salaryGrade != null) return `SG ${job.salaryGrade}`;
-    const grades = Array.from(new Set(choices.map((c) => c.salaryGrade).filter((g): g is number => g != null))).sort((a, b) => a - b);
+    const grades = Array.from(new Set(shownChoices.map((c) => c.salaryGrade).filter((g): g is number => g != null))).sort((a, b) => a - b);
     if (grades.length === 0) return 'Not specified';
     return grades.length === 1 ? `SG ${grades[0]}` : `SG ${grades[0]}–${grades[grades.length - 1]}`;
   })();
@@ -352,7 +329,17 @@ export const JobDetailsPage = () => {
         <Row label="Application closes" value={formatShortDate(closingDate)} />
       </dl>
 
-      {job?.summary && (
+      {slotsWithSummary.length > 0 ? (
+        <>
+          <p className="af-caps af-rows-title">Position summary</p>
+          {slotsWithSummary.map((slot) => (
+            <div key={slot.id} style={{ marginBottom: 12 }}>
+              <p className="af-body-s"><strong>{slotHeading(slot)}</strong></p>
+              <p className="af-text">{slot.summary}</p>
+            </div>
+          ))}
+        </>
+      ) : job?.summary && (
         <>
           <p className="af-caps af-rows-title">Position summary</p>
           <p className="af-text">{job.summary}</p>
@@ -427,7 +414,24 @@ export const JobDetailsPage = () => {
 
   const moreCards = (
     <div className="af-stack" style={{ gridArea: 'more' }}>
-      {job && !landingJob && job.responsibilities && job.responsibilities.filter((r) => r.trim()).length > 0 && (
+      {slotsWithDuties.length > 0 ? (
+        <section className="af-card" aria-labelledby="jd-resp">
+          <div className="af-card-head">
+            <span className="af-chip" aria-hidden="true"><ListChecks size={20} strokeWidth={1.75} /></span>
+            <h2 className="af-title-s" id="jd-resp">Responsibilities</h2>
+          </div>
+          {slotsWithDuties.map((slot) => (
+            <div key={slot.id}>
+              <p className="af-caps af-rows-title">{slotHeading(slot)}</p>
+              <ul className="af-list">
+                {(slot.responsibilities ?? []).map((resp, idx) => (
+                  <li key={idx}><CheckCircle2 size={16} strokeWidth={1.75} aria-hidden="true" />{resp}</li>
+                ))}
+              </ul>
+            </div>
+          ))}
+        </section>
+      ) : job && !landingJob && job.responsibilities && job.responsibilities.filter((r) => r.trim()).length > 0 && (
         <section className="af-card" aria-labelledby="jd-resp">
           <div className="af-card-head">
             <span className="af-chip" aria-hidden="true"><ListChecks size={20} strokeWidth={1.75} /></span>
@@ -443,114 +447,42 @@ export const JobDetailsPage = () => {
     </div>
   );
 
-  // ── Right column: the chooser (public) or the slot breakdown (RSP) ─────────
+  // ── Right column: the applicant's plantilla (public) or the slot breakdown (RSP) ──
+  // No chooser: each vacancy is one plantilla, named here with the way forward.
+  // No card: the submission instruction, then the way forward (the hero names the plantilla).
   const chooser = (
-    <section className="af-card" aria-labelledby="jd-choose">
-      <div className="af-chooser-head">
-        <div className="af-card-head" style={{ marginBottom: 0 }}>
-          <span className="af-chip" aria-hidden="true"><Building2 size={20} strokeWidth={1.75} /></span>
-          <h2 className="af-title-s" id="jd-choose">Choose your plantilla items ({choices.length})</h2>
-        </div>
-        <span className="badge badge-info af-counter" aria-live="polite">
-          {selectedChoices.length} selected
-        </span>
+    <div className="af-stack" style={{ gap: 16 }}>
+      <div className="af-alert af-alert-info" role="note">
+        <Info size={20} strokeWidth={1.75} aria-hidden="true" />
+        <p className="af-alert-body">{SUBMISSION_INSTRUCTION}</p>
       </div>
 
-      <p className="af-body-m" style={{ marginTop: 12 }}>
-        Select the plantilla items you want to apply for. You'll fill out a separate application for each one.
-      </p>
-      {selectable.length > 1 && (
-        <button
-          type="button"
-          className="af-textbtn"
-          onClick={selectAllOpen}
-          disabled={selectedChoices.length === selectable.length}
-          style={{ marginTop: 8 }}
-        >
-          Select all open items
-        </button>
-      )}
-
-      {!loaded && choices.length === 0 ? (
-        <div className="af-stack" aria-busy="true" aria-label="Loading plantilla items" style={{ margin: '16px 0 20px', gap: 12 }}>
-          <div className="af-skel" style={{ height: 76 }} />
-          <div className="af-skel" style={{ height: 76 }} />
+      {!loaded && !target ? (
+        <div className="af-skel" aria-busy="true" aria-label="Loading plantilla" style={{ height: 44 }} />
+      ) : !target || !isSelectable(target) ? (
+        <div className="af-alert af-alert-warning" role="status">
+          <Lock size={20} strokeWidth={1.75} aria-hidden="true" />
+          <div style={{ minWidth: 0, flex: 1 }}>
+            <h2 className="af-alert-title">This plantilla is no longer open</h2>
+            <p className="af-alert-body">
+              {target ? DISABLED_REASON[target.status]?.replace(' Choose another item.', '') : 'It has been filled or closed.'}
+            </p>
+            <button type="button" className="btn btn-sm btn-secondary" onClick={() => navigate('/job-portal')} style={{ marginTop: 12 }}>
+              Back to Vacancies
+            </button>
+          </div>
         </div>
-      ) : selectable.length === 0 ? (
-        <div className="af-empty">
-          <Lock size={28} strokeWidth={1.75} aria-hidden="true" />
-          <p className="af-title-s">No open plantilla items right now</p>
-          <p className="af-body-m">Every item on this posting has been filled or closed.</p>
-          <button type="button" className="btn btn-md btn-secondary" onClick={() => navigate('/job-portal')}>
-            Back to Vacancies
-          </button>
-        </div>
-      ) : null}
-
-      <ul className="af-choices af-choices-scroll">
-        {choices.map((choice) => {
-          const selected = selectedKeys.includes(choice.key);
-          const meta = (
-            <div className="af-choice-body af-choice-line">
-              {/* A plantilla shows its name and salary grade only, never a code. */}
-              <span className="af-choice-name">
-                {choiceLabel(choice)}
-                {(() => {
-                  const range = stepRangeFor(choice.salaryGrade, salarySchedule);
-                  const text = range
-                    ? formatSalaryRange(range.min, range.max)
-                    : choice.monthlySalary != null
-                      ? formatPeso(choice.monthlySalary)
-                      : '';
-                  return text ? <span className="af-choice-meta">{text} monthly</span> : null;
-                })()}
-              </span>
-              {choice.salaryGrade != null && <span className="af-choice-sg">SG {choice.salaryGrade}</span>}
-              <StatusBadge status={choice.status} />
-            </div>
-          );
-
-          if (!isSelectable(choice)) {
-            const reason = DISABLED_REASON[choice.status] ?? '';
-            return (
-              <li key={choice.key}>
-                <div className="af-choice" aria-disabled="true" tabIndex={0} data-tooltip={reason} title={reason}>
-                  <Lock className="af-choice-lock" strokeWidth={1.75} aria-hidden="true" />
-                  {meta}
-                  <span className="af-sr-only">{reason}</span>
-                </div>
-              </li>
-            );
-          }
-
-          return (
-            <li key={choice.key}>
-              <label className="af-choice" data-selected={selected}>
-                <input
-                  type="checkbox"
-                  checked={selected}
-                  onChange={() => toggleChoice(choice)}
-                  aria-label={`${choiceLabel(choice)}${choice.salaryGrade != null ? `, SG ${choice.salaryGrade}` : ''}, ${choice.status === 'closing' ? 'closing soon' : 'open'}`}
-                />
-                {meta}
-              </label>
-            </li>
-          );
-        })}
-      </ul>
-
-      {selectable.length > 0 && (
+      ) : (
         <button
           type="button"
           className="btn btn-md btn-primary btn-block af-desktop-only"
           onClick={handleContinue}
-          disabled={!canContinue}
         >
           Continue to Application
           <ArrowRight size={18} strokeWidth={1.75} aria-hidden="true" />
         </button>
       )}
-    </section>
+    </div>
   );
 
   const adminSlots = (
@@ -605,9 +537,11 @@ export const JobDetailsPage = () => {
               <h1>{title}</h1>
               <p className="af-hero-sub">
                 <Briefcase size={18} strokeWidth={1.75} aria-hidden="true" />
-                {isMultiSlot
-                  ? `${slots.length} Plantillas · ${openSlots.length} open`
-                  : slots[0] ? plantillaLabel(slots[0]) : 'Plantilla 1'}
+                {!isAdminView && target
+                  ? choiceLabel(target)
+                  : isMultiSlot
+                    ? `${slots.length} Plantillas · ${openSlots.length} open`
+                    : slots[0] ? plantillaLabel(slots[0]) : 'Plantilla 1'}
                 {department ? ` · ${department}` : ''}
               </p>
             </div>
@@ -646,7 +580,7 @@ export const JobDetailsPage = () => {
         </div>
       </main>
 
-      {!isAdminView && selectable.length > 0 && (
+      {!isAdminView && canContinue && (
         <div className="af-actionbar af-mobile-only">
           <button type="button" className="btn btn-md btn-primary" onClick={handleContinue} disabled={!canContinue}>
             Continue to Application
@@ -654,18 +588,6 @@ export const JobDetailsPage = () => {
           </button>
         </div>
       )}
-
-      <ConfirmModal
-        open={Boolean(pendingDeselect)}
-        title={pendingDeselect ? `Discard your answers for Plantilla ${pendingDeselect.slotNumber}?` : ''}
-        confirmLabel="Discard Answers"
-        destructive
-        onConfirm={confirmDeselect}
-        onCancel={() => setPendingDeselect(null)}
-      >
-        You've started an application for {pendingDeselect ? choiceLabel(pendingDeselect) : ''}. Removing it deletes those
-        answers. If you select it again, you'll start with a blank form.
-      </ConfirmModal>
     </div>
   );
 };

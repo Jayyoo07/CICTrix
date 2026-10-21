@@ -8,7 +8,7 @@ import '../../styles/dashboard-scale.css';
 // Pure presentation over data RSPDashboard already loads; the only fetch of its
 // own is the succession overview.
 
-export type OverviewFunnelStage = 'pending' | 'reviewed' | 'shortlisted' | 'qualified' | 'hired' | 'notQualified';
+export type OverviewFunnelStage = 'pending' | 'reviewed' | 'shortlisted' | 'qualified' | 'hired' | 'notQualified' | 'hiredElsewhere';
 
 export interface OverviewJob {
   id: number | string;
@@ -204,6 +204,8 @@ export function RspDashboardOverview({
     const reachedQualified = stages.filter((s) => ['qualified', 'hired'].includes(s.stage)).length;
     const hired = stages.filter((s) => s.stage === 'hired').length;
     const closedOut = stages.filter((s) => s.stage === 'notQualified').length;
+    // Withdrawn by a hire on another plantilla: not a rejection, so kept apart.
+    const hiredElsewhere = stages.filter((s) => s.stage === 'hiredElsewhere').length;
     const screened = scoped.length - pending.length;
     return {
       total: scoped.length,
@@ -218,6 +220,7 @@ export function RspDashboardOverview({
         { label: 'Hired', value: hired, tone: 'ok' },
       ],
       closedOut,
+      hiredElsewhere,
     };
   }, [applicants, department, period, stageOf, today]);
 
@@ -453,6 +456,8 @@ export function RspDashboardOverview({
               {applicantStats.screened > 0 && (
                 <p className="rd-conv">
                   {applicantStats.closedOut} of {applicantStats.screened} screened applicants ({pct(applicantStats.closedOut, applicantStats.screened)}%) were closed out as not qualified or withdrawn.
+                  {applicantStats.hiredElsewhere > 0 &&
+                    ` ${applicantStats.hiredElsewhere} more ${applicantStats.hiredElsewhere === 1 ? 'was' : 'were'} withdrawn after being hired for another plantilla.`}
                 </p>
               )}
             </div>

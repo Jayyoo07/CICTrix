@@ -26,6 +26,8 @@ const STATUS_BADGE: Record<ApplicantWorkflowStatus, string> = {
   Selected: 'badge-success',
   Disqualified: 'badge-error',
   'Not Selected': 'badge-error',
+  // Closed, but not a failure: they were hired on another plantilla.
+  'Withdrawn - Hired Elsewhere': 'badge-neutral',
 };
 
 const CHECKBOX_CLASS = 'h-[18px] w-[18px] shrink-0 cursor-pointer accent-[var(--color-primary)]';

@@ -29,6 +29,13 @@ export interface PlantillaSlot {
   status: PlantillaSlotStatus;
   filledByApplicantId?: string;
   filledAt?: string;
+  /**
+   * This plantilla's own division, summary and duties, for postings that
+   * hold several plantillas of one title. Undefined means the posting's apply.
+   */
+  division?: string;
+  summary?: string;
+  responsibilities?: string[];
 }
 
 export type ApplicationSlotStatus = 'applied' | 'shortlisted' | 'not_selected' | 'hired';

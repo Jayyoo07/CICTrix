@@ -1,0 +1,65 @@
+<h2>How should an applicant hired on another plantilla look in this list?</h2>
+<p class="subtitle">RSP › Administrative Aide I › Plantilla 2 applicants. Juan was just hired on Plantilla 5 (Records Officer I). Same reference number on both applications.</p>
+
+<div class="options">
+  <div class="option" data-choice="a" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>Dimmed row, stays in place</h3>
+      <div class="mockup"><div class="mockup-header">Applicant list</div><div class="mockup-body">
+        <table style="width:100%;border-collapse:collapse;font-size:13px">
+          <tr style="text-align:left;border-bottom:1px solid #ccc"><th></th><th>Applicant</th><th>Reference No.</th><th>Status</th><th>Score</th><th></th></tr>
+          <tr style="border-bottom:1px solid #eee"><td><input type="checkbox"></td><td>Maria Santos</td><td>ABYAN-204-118</td><td>Qualified</td><td>88.4</td><td><button class="mock-button">Mark for hiring</button></td></tr>
+          <tr style="border-bottom:1px solid #eee;opacity:.5;background:repeating-linear-gradient(135deg,transparent 0 6px,rgba(0,0,0,.03) 6px 12px)"><td><input type="checkbox" disabled></td><td>Juan Dela Cruz</td><td>ABYAN-731-052 <span style="font-size:11px;border:1px solid #999;border-radius:8px;padding:0 6px">3 apps</span></td><td><span style="background:#e6f4ea;color:#1e6b34;border-radius:8px;padding:1px 8px;font-size:12px">Hired elsewhere</span><div style="font-size:11px">Records Officer I · Plantilla 5 · Oct 14</div></td><td>91.0</td><td><button class="mock-button" disabled title="Already hired on Plantilla 5">Mark for hiring</button></td></tr>
+          <tr><td><input type="checkbox"></td><td>Ana Reyes</td><td>ABYAN-560-903</td><td>For Evaluation</td><td>—</td><td><button class="mock-button">Evaluate</button></td></tr>
+        </table>
+      </div></div>
+      <p>Ranking stays honest (Juan keeps rank 1 by score) but the row reads as unavailable. Lowest effort.</p>
+    </div>
+  </div>
+
+  <div class="option" data-choice="b" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>Normal row, locked status + lock icon on actions</h3>
+      <div class="mockup"><div class="mockup-header">Applicant list</div><div class="mockup-body">
+        <table style="width:100%;border-collapse:collapse;font-size:13px">
+          <tr style="text-align:left;border-bottom:1px solid #ccc"><th></th><th>Applicant</th><th>Reference No.</th><th>Status</th><th>Score</th><th></th></tr>
+          <tr style="border-bottom:1px solid #eee"><td><input type="checkbox"></td><td>Maria Santos</td><td>ABYAN-204-118</td><td>Qualified</td><td>88.4</td><td><button class="mock-button">Mark for hiring</button></td></tr>
+          <tr style="border-bottom:1px solid #eee"><td>🔒</td><td>Juan Dela Cruz</td><td>ABYAN-731-052</td><td><s style="color:#888">Qualified</s> → <b>Withdrawn: hired on Plantilla 5</b></td><td>91.0</td><td><span style="font-size:12px;color:#888">No actions</span></td></tr>
+          <tr><td><input type="checkbox"></td><td>Ana Reyes</td><td>ABYAN-560-903</td><td>For Evaluation</td><td>—</td><td><button class="mock-button">Evaluate</button></td></tr>
+        </table>
+      </div></div>
+      <p>Shows the status it had before the hire. Full contrast, so it is easy to miss that the row is locked.</p>
+    </div>
+  </div>
+
+  <div class="option" data-choice="c" onclick="toggleSelect(this)">
+    <div class="letter">C</div>
+    <div class="content">
+      <h3>Moved to a collapsed "No longer available" group</h3>
+      <div class="mockup"><div class="mockup-header">Applicant list</div><div class="mockup-body">
+        <table style="width:100%;border-collapse:collapse;font-size:13px">
+          <tr style="text-align:left;border-bottom:1px solid #ccc"><th></th><th>Applicant</th><th>Reference No.</th><th>Status</th><th>Score</th><th></th></tr>
+          <tr style="border-bottom:1px solid #eee"><td><input type="checkbox"></td><td>Maria Santos</td><td>ABYAN-204-118</td><td>Qualified</td><td>88.4</td><td><button class="mock-button">Mark for hiring</button></td></tr>
+          <tr style="border-bottom:1px solid #ccc"><td><input type="checkbox"></td><td>Ana Reyes</td><td>ABYAN-560-903</td><td>For Evaluation</td><td>—</td><td><button class="mock-button">Evaluate</button></td></tr>
+          <tr><td colspan="6" style="padding-top:8px;color:#666">▸ No longer available (1): hired on another plantilla</td></tr>
+        </table>
+      </div></div>
+      <p>Cleanest working list. Hides the rank-1 score until expanded, which can look like the ranking skipped someone.</p>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <h3>Shared by all options: the reference number opens every application under it</h3>
+  <div class="mockup"><div class="mockup-header">Popover on "ABYAN-731-052 · 3 apps" (RSP) and the applicant's own tracker page</div><div class="mockup-body" style="font-size:13px">
+    <b>Juan Dela Cruz · ABYAN-731-052</b>
+    <table style="width:100%;border-collapse:collapse;margin-top:6px">
+      <tr style="text-align:left;border-bottom:1px solid #ccc"><th>Position</th><th>Plantilla</th><th>Status</th></tr>
+      <tr style="border-bottom:1px solid #eee"><td>Records Officer I</td><td>Plantilla 5</td><td><b style="color:#1e6b34">Selected (Hired)</b></td></tr>
+      <tr style="border-bottom:1px solid #eee;color:#777"><td>Administrative Aide I</td><td>Plantilla 2</td><td>Withdrawn: hired on Plantilla 5</td></tr>
+      <tr style="color:#777"><td>Clerk II</td><td>Plantilla 1</td><td>Withdrawn: hired on Plantilla 5</td></tr>
+    </table>
+  </div></div>
+</div>
