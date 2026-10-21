@@ -38,6 +38,8 @@ type VacancyRow = {
   openSlots: number;
   /** React key: one row per plantilla, so several rows share a posting id. */
   rowKey: string;
+  /** Job details reads this to show the one plantilla this row applies to. */
+  plantillaSlotId: string;
   /** This row's plantilla; filled ones show struck, closed ones get no row. */
   plantilla: { text: string; open: boolean };
   postingDate: string;
@@ -126,6 +128,7 @@ export const LandingPage = () => {
             .map((slot): VacancyRow => ({
             id: job.id,
             rowKey: slot.id,
+            plantillaSlotId: slot.id,
             title: job.title || '',
             department: job.department || '',
             itemNumber: job.jobCode || job.id || '',

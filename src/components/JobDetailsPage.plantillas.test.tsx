@@ -44,19 +44,23 @@ vi.mock('../lib/plantillaSlots', () => ({
   fetchSlotApplicantCounts: () => Promise.resolve(new Map([['slot-b', 15]])),
 }));
 
-const renderPage = async () => {
+/** `plantillaSlotId` is what a landing vacancy row hands over for its plantilla. */
+const renderPage = async (plantillaSlotId?: string) => {
   const { JobDetailsPage } = await import('./JobDetailsPage');
+  const state = plantillaSlotId
+    ? { landingJob: { id: 'job-legal-1', title: job.title, department: job.department, itemNumber: job.jobCode, postingDate: '', closingDate: '', originalJob: job, plantillaSlotId } }
+    : null;
   render(
-    <MemoryRouter initialEntries={['/job-details/job-legal-1']}>
+    <MemoryRouter initialEntries={[{ pathname: '/job-details/job-legal-1', state }]}>
       <Routes>
         <Route path="/job-details/:jobId" element={<JobDetailsPage />} />
       </Routes>
     </MemoryRouter>,
   );
-  return screen.findByRole('heading', { name: /Choose your plantilla items/ });
+  return screen.findByRole('heading', { level: 2, name: /Plantilla|no longer open/ });
 };
 
-describe('Job Details — "Choose your plantilla items"', () => {
+describe('Job Details — the one plantilla a vacancy stands for', () => {
   beforeEach(() => {
     // jsdom has no matchMedia; the page uses it for its desktop/mobile layout.
     window.matchMedia = vi.fn().mockImplementation((query: string) => ({
@@ -70,56 +74,54 @@ describe('Job Details — "Choose your plantilla items"', () => {
     localStorage.setItem('cictrix_applied_plantilla', JSON.stringify({ 'slot-c': { referenceNo: 'ABYAN-748-102', at: '' } }));
   });
 
-  it('shows each plantilla by its admin label and salary grade only', async () => {
-    const heading = await renderPage();
-    const chooser = heading.closest('section') as HTMLElement;
+  it('names the vacancy row\'s plantilla with its salary grade, with nothing to choose', async () => {
+    const heading = await renderPage('slot-b');
+    const card = heading.closest('section') as HTMLElement;
 
-    expect(within(chooser).getByText('Plantilla 20')).toBeInTheDocument();
-    expect(within(chooser).getByText('Plantilla 100')).toBeInTheDocument();
-    expect(within(chooser).getAllByText('SG 10').length).toBeGreaterThan(0);
+    expect(heading).toHaveTextContent('Plantilla 100');
+    expect(within(card).getByText(/SG 10/)).toBeInTheDocument();
+    expect(screen.queryByText(/Choose your plantilla items/)).not.toBeInTheDocument();
+    expect(screen.queryByRole('checkbox')).not.toBeInTheDocument();
+    expect(screen.queryByText('Plantilla 20')).not.toBeInTheDocument();
+    expect(within(card).getByRole('button', { name: /Continue to Application/ })).toBeEnabled();
+  });
+
+  it('falls back to the first open plantilla when no row named one', async () => {
+    const heading = await renderPage();
+
+    expect(heading).toHaveTextContent('Plantilla 100');
   });
 
   it('never shows a plantilla item number or any ABYAN-style code', async () => {
-    await renderPage();
+    await renderPage('slot-b');
 
     expect(screen.queryByText(/Plantilla Item No/i)).not.toBeInTheDocument();
     expect(document.body.textContent).not.toMatch(/ABYAN-\d/);
     expect(document.body.textContent).not.toMatch(/PLT-/);
   });
 
-  it('lets the applicant select an open plantilla', async () => {
-    await renderPage();
+  it('says an already-applied plantilla is no longer open, with no way to continue', async () => {
+    const heading = await renderPage('slot-c');
 
-    const checkbox = screen.getByRole('checkbox', { name: /Plantilla 100/ });
-    expect(checkbox).toBeEnabled();
+    expect(heading).toHaveTextContent('This plantilla is no longer open');
+    expect(screen.getByText(/already applied/i)).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Continue to Application/ })).not.toBeInTheDocument();
   });
 
-  it('shows an already-applied plantilla as "Already applied" and not selectable', async () => {
-    const heading = await renderPage();
-    const chooser = heading.closest('section') as HTMLElement;
+  it('says a filled plantilla is no longer open', async () => {
+    const heading = await renderPage('slot-a');
 
-    expect(within(chooser).getByText('Already applied')).toBeInTheDocument();
-    expect(screen.queryByRole('checkbox', { name: /Plantilla 3/ })).not.toBeInTheDocument();
-    const applied = within(chooser).getByText('Plantilla 3').closest('[aria-disabled="true"]');
-    expect(applied).not.toBeNull();
+    expect(heading).toHaveTextContent('This plantilla is no longer open');
+    expect(screen.getByText(/has been filled/i)).toBeInTheDocument();
   });
 
-  it('shows a filled plantilla as disabled with a reason, not hidden', async () => {
-    await renderPage();
+  it('shows only this plantilla\'s own summary and duties', async () => {
+    await renderPage('slot-b');
 
-    const filled = screen.getByText('Plantilla 20').closest('[aria-disabled="true"]');
-    expect(filled).not.toBeNull();
-    expect(filled).toHaveAttribute('data-tooltip', expect.stringMatching(/filled/i));
-  });
-
-  it('shows each merged plantilla with its own summary and duties', async () => {
-    await renderPage();
-
-    expect(screen.getAllByText('Plantilla 20 · Records Division').length).toBe(2);
-    expect(screen.getByText('Keeps the legal records.')).toBeInTheDocument();
     expect(screen.getByText('Drafts routine contracts.')).toBeInTheDocument();
-    expect(screen.getByText('Files case folders')).toBeInTheDocument();
     expect(screen.getByText('Prepares contract drafts')).toBeInTheDocument();
+    expect(screen.queryByText('Keeps the legal records.')).not.toBeInTheDocument();
+    expect(screen.queryByText('Files case folders')).not.toBeInTheDocument();
     // Per-plantilla text replaces the posting-wide summary, not added to it.
     expect(screen.queryByText('Posting-wide summary')).not.toBeInTheDocument();
   });
