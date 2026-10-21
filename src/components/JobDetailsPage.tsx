@@ -5,6 +5,7 @@ import {
   Building2,
   CheckCircle2,
   ChevronDown,
+  Info,
   ListChecks,
   Lock,
   Pencil,
@@ -52,7 +53,11 @@ const DISABLED_REASON: Record<string, string> = {
   applied: "You've already applied for this item. Choose another item.",
 };
 
-const formatPeso = (value: number) =>
+/** Shown on every public job details page, above Continue to Application. */
+const SUBMISSION_INSTRUCTION =
+  'Please review your application carefully before submission. Ensure that all required fields are completed and all supporting documents are accurate, complete, valid, and readable. The completeness and quality of your submission may be considered during the evaluation of your application.';
+
+const formatPeso =(value: number) =>
   `Php ${Number(value).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
 /** One line of the summary list. An unstated value reads as muted italic text, never a made-up value. */
@@ -444,48 +449,40 @@ export const JobDetailsPage = () => {
 
   // ── Right column: the applicant's plantilla (public) or the slot breakdown (RSP) ──
   // No chooser: each vacancy is one plantilla, named here with the way forward.
+  // No card: the submission instruction, then the way forward (the hero names the plantilla).
   const chooser = (
-    <section className="af-card" aria-labelledby="jd-plantilla">
+    <div className="af-stack" style={{ gap: 16 }}>
+      <div className="af-alert af-alert-info" role="note">
+        <Info size={20} strokeWidth={1.75} aria-hidden="true" />
+        <p className="af-alert-body">{SUBMISSION_INSTRUCTION}</p>
+      </div>
+
       {!loaded && !target ? (
-        <div className="af-skel" aria-busy="true" aria-label="Loading plantilla" style={{ height: 76 }} />
+        <div className="af-skel" aria-busy="true" aria-label="Loading plantilla" style={{ height: 44 }} />
       ) : !target || !isSelectable(target) ? (
-        <div className="af-empty">
-          <Lock size={28} strokeWidth={1.75} aria-hidden="true" />
-          <h2 className="af-title-s" id="jd-plantilla">This plantilla is no longer open</h2>
-          <p className="af-body-m">
-            {target ? DISABLED_REASON[target.status]?.replace(' Choose another item.', '') : 'It has been filled or closed.'}
-          </p>
-          <button type="button" className="btn btn-md btn-secondary" onClick={() => navigate('/job-portal')}>
-            Back to Vacancies
-          </button>
-        </div>
-      ) : (
-        <div className="af-card-head" style={{ marginBottom: 16 }}>
-          <span className="af-chip" aria-hidden="true"><Building2 size={20} strokeWidth={1.75} /></span>
-          <div className="af-card-head-text">
-            {/* A plantilla shows its name and salary grade only, never a code. */}
-            <h2 className="af-title-s" id="jd-plantilla">{choiceLabel(target)}</h2>
-            <p className="af-caption">
-              {[target.salaryGrade != null ? `SG ${target.salaryGrade}` : '', monthlySalaryText ? `${monthlySalaryText} monthly` : '']
-                .filter(Boolean)
-                .join(' · ')}
+        <div className="af-alert af-alert-warning" role="status">
+          <Lock size={20} strokeWidth={1.75} aria-hidden="true" />
+          <div style={{ minWidth: 0, flex: 1 }}>
+            <h2 className="af-alert-title">This plantilla is no longer open</h2>
+            <p className="af-alert-body">
+              {target ? DISABLED_REASON[target.status]?.replace(' Choose another item.', '') : 'It has been filled or closed.'}
             </p>
+            <button type="button" className="btn btn-sm btn-secondary" onClick={() => navigate('/job-portal')} style={{ marginTop: 12 }}>
+              Back to Vacancies
+            </button>
           </div>
         </div>
-      )}
-
-      {canContinue && (
+      ) : (
         <button
           type="button"
           className="btn btn-md btn-primary btn-block af-desktop-only"
           onClick={handleContinue}
-          disabled={!canContinue}
         >
           Continue to Application
           <ArrowRight size={18} strokeWidth={1.75} aria-hidden="true" />
         </button>
       )}
-    </section>
+    </div>
   );
 
   const adminSlots = (

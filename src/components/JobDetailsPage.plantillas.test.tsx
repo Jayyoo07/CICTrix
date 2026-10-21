@@ -57,7 +57,8 @@ const renderPage = async (plantillaSlotId?: string) => {
       </Routes>
     </MemoryRouter>,
   );
-  return screen.findByRole('heading', { level: 2, name: /Plantilla|no longer open/ });
+  await screen.findByText(/Please review your application carefully before submission/);
+  return document.querySelector('.af-hero-sub') as HTMLElement;
 };
 
 describe('Job Details — the one plantilla a vacancy stands for', () => {
@@ -74,22 +75,23 @@ describe('Job Details — the one plantilla a vacancy stands for', () => {
     localStorage.setItem('cictrix_applied_plantilla', JSON.stringify({ 'slot-c': { referenceNo: 'ABYAN-748-102', at: '' } }));
   });
 
-  it('names the vacancy row\'s plantilla with its salary grade, with nothing to choose', async () => {
-    const heading = await renderPage('slot-b');
-    const card = heading.closest('section') as HTMLElement;
+  it('shows the submission instruction and a Continue button, with no plantilla card to choose from', async () => {
+    const hero = await renderPage('slot-b');
 
-    expect(heading).toHaveTextContent('Plantilla 100');
-    expect(within(card).getByText(/SG 10/)).toBeInTheDocument();
+    expect(hero).toHaveTextContent('Plantilla 100');
+    expect(screen.getByRole('note')).toHaveTextContent(
+      'Please review your application carefully before submission. Ensure that all required fields are completed and all supporting documents are accurate, complete, valid, and readable. The completeness and quality of your submission may be considered during the evaluation of your application.',
+    );
     expect(screen.queryByText(/Choose your plantilla items/)).not.toBeInTheDocument();
     expect(screen.queryByRole('checkbox')).not.toBeInTheDocument();
     expect(screen.queryByText('Plantilla 20')).not.toBeInTheDocument();
-    expect(within(card).getByRole('button', { name: /Continue to Application/ })).toBeEnabled();
+    for (const button of screen.getAllByRole('button', { name: /Continue to Application/ })) expect(button).toBeEnabled();
   });
 
   it('falls back to the first open plantilla when no row named one', async () => {
-    const heading = await renderPage();
+    const hero = await renderPage();
 
-    expect(heading).toHaveTextContent('Plantilla 100');
+    expect(hero).toHaveTextContent('Plantilla 100');
   });
 
   it('never shows a plantilla item number or any ABYAN-style code', async () => {
@@ -101,17 +103,17 @@ describe('Job Details — the one plantilla a vacancy stands for', () => {
   });
 
   it('says an already-applied plantilla is no longer open, with no way to continue', async () => {
-    const heading = await renderPage('slot-c');
+    await renderPage('slot-c');
 
-    expect(heading).toHaveTextContent('This plantilla is no longer open');
+    expect(screen.getByRole('heading', { name: 'This plantilla is no longer open' })).toBeInTheDocument();
     expect(screen.getByText(/already applied/i)).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /Continue to Application/ })).not.toBeInTheDocument();
   });
 
   it('says a filled plantilla is no longer open', async () => {
-    const heading = await renderPage('slot-a');
+    await renderPage('slot-a');
 
-    expect(heading).toHaveTextContent('This plantilla is no longer open');
+    expect(screen.getByRole('heading', { name: 'This plantilla is no longer open' })).toBeInTheDocument();
     expect(screen.getByText(/has been filled/i)).toBeInTheDocument();
   });
 

@@ -15,7 +15,7 @@ Applying from a vacancy row goes straight to that row's plantilla. No "Choose yo
 | # | Decision |
 |---|---|
 | D1 | The landing row passes `plantillaSlotId` through Apply; Job Details targets that plantilla, else the posting's first open one (Job Portal and direct links). |
-| D2 | The chooser card becomes a small card naming the plantilla (label, SG, salary) with Continue to Application. A filled or already-applied plantilla shows "This plantilla is no longer open" and Back to Vacancies. |
+| D2 | No card: the submission instruction (info alert) and Continue to Application. The hero names the plantilla. A filled or already-applied plantilla shows "This plantilla is no longer open" and Back to Vacancies. |
 | D3 | The hero line, salary, position summary and responsibilities show only that plantilla. The RSP admin view is unchanged. |
 
 ## Steps
