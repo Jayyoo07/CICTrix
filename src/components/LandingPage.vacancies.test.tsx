@@ -39,25 +39,32 @@ vi.mock('../hooks/useSalarySchedule', () => ({ useSalarySchedule: () => [] }));
 const renderPage = async () => {
   const { LandingPage } = await import('./LandingPage');
   render(<MemoryRouter><LandingPage /></MemoryRouter>);
-  return screen.findByText('Social Welfare Officer IV (Division Chief)');
+  return screen.findAllByText('Social Welfare Officer IV (Division Chief)');
 };
 
 describe('Landing — vacancies table plantilla numbers', () => {
-  it('lists plantilla numbers, striking filled ones and leaving closed ones out', async () => {
-    const title = await renderPage();
-    const row = title.closest('tr') as HTMLElement;
+  it('gives each plantilla its own row, striking filled ones and leaving closed ones out', async () => {
+    const titles = await renderPage();
+    const rows = titles.map((title) => title.closest('tr') as HTMLElement);
 
-    expect(within(row).getByText('113')).toBeInTheDocument();
-    expect(within(row).getByText('114')).toBeInTheDocument();
-    expect(within(row).getByText('115').tagName).toBe('S');
-    expect(within(row).queryByText('116')).not.toBeInTheDocument();
-    expect(within(row).queryByText(/open slot/)).not.toBeInTheDocument();
+    expect(rows).toHaveLength(3);
+    expect(within(rows[0]).getByText('113')).toBeInTheDocument();
+    expect(within(rows[0]).getByRole('button', { name: 'Apply' })).toBeEnabled();
+    expect(within(rows[1]).getByText('114')).toBeInTheDocument();
+    expect(within(rows[2]).getByText('115').tagName).toBe('S');
+    expect(within(rows[2]).getByRole('button', { name: 'Filled' })).toBeDisabled();
+    expect(screen.queryByText('116')).not.toBeInTheDocument();
   });
 
   it('sorts by department by default and hides fully filled postings', async () => {
     await renderPage();
     const titles = screen.getAllByRole('row').slice(1).map((r) => r.querySelector('td p')?.textContent);
 
-    expect(titles).toEqual(['Engineer II (Drainage / Flood Control)', 'Social Welfare Officer IV (Division Chief)']);
+    expect(titles).toEqual([
+      'Engineer II (Drainage / Flood Control)',
+      'Social Welfare Officer IV (Division Chief)',
+      'Social Welfare Officer IV (Division Chief)',
+      'Social Welfare Officer IV (Division Chief)',
+    ]);
   });
 });
